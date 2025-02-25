@@ -14,8 +14,9 @@ To install **MadRecolor**, clone the repository and install dependencies:
 
 ```bash
 git clone https://github.com/yourusername/madrecolor.git
-cd madrecolor
-pip install
+# then install in dev mode
+cd madnis
+pip install --editable .
 ```
 
 ## Dependencies
