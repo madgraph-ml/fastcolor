@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "madrecolor"
+version = "0.1.0"
+description = "Machine-Learned Leading-Color Amplitude Reweighting for MadGraph"
+authors = [
+    { name="Ramon Winterhalder", email="ramon.winterhalder@unimi.it" },
+  { name="Javier Marino Villadamigo", email="marino@thphys.uni-heidelberg.de" }
+]
+description = "ML for color amplitude reweighting"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+urls = {
+    "Repository" = "https://github.com/madgraph-ml/madrecolor"
+}
+dependencies = [
+    "numpy",
+    "torch",  # or "tensorflow" if using TF
+    "madgraph5_amc_nlo",
+    "black"
+]
+
+[tool.black]
+line-length = 88
