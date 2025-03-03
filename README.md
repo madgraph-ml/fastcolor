@@ -13,7 +13,7 @@
 To install **MadRecolor**, clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/yourusername/madrecolor.git
+git clone git@github.com:madgraph-ml/madrecolor.git
 # then install in dev mode
 cd madrecolor
 pip install --editable .
