@@ -24,3 +24,18 @@ pip install --editable .
 - NumPy
 - PyTorch
 - MadGraph5_aMC@NLO
+
+## Usage
+
+Training a model:
+```sh
+src train params/paramcard.yaml
+```
+A new subfolder will be created in `madrecolor/results` which will contain log files, the run parameters,
+the trained model and plots.
+
+Re-running plots for a trained model:
+```sh
+src plot run_name
+```
+
