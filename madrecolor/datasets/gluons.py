@@ -144,9 +144,9 @@ class gg_6g:
                 for mass_ch in mass_channels:
                     events_ppd[split][:, mass_ch] = torch.log(events_ppd[split][:, mass_ch])
                 
-                for ch in factor_channels:
-                    self.min_factor = events_ppd[split][:, ch].min()
-                    events_ppd[split][:, ch] = torch.log(events_ppd[split][:, ch] - self.min_factor + eps)
+                # for ch in factor_channels:
+                #     self.min_factor = events_ppd[split][:, ch].min()
+                #     events_ppd[split][:, ch] = torch.log(events_ppd[split][:, ch] - self.min_factor + eps)
 
 
                 # Standardize to N(0, 1)
@@ -169,7 +169,8 @@ class gg_6g:
             for split in ["trn", "tst", "val"]:
                 predicted_factors_raw = self.predicted_factors_ppd[split].clone().to(self.device)
                 predicted_factors_raw = predicted_factors_raw * (self.std[split][factor_channels] + eps) + self.mean[split][factor_channels]
-                self.predicted_factors_raw[split] = torch.exp(predicted_factors_raw) + self.min_factor - eps
+                # self.predicted_factors_raw[split] = torch.exp(predicted_factors_raw) + self.min_factor - eps
+                self.predicted_factors_raw[split] = predicted_factors_raw
 
 
     def init_observables(
@@ -631,9 +632,9 @@ class gg_4g:
                 for mass_ch in mass_channels:
                     events_ppd[split][:, mass_ch] = torch.log(events_ppd[split][:, mass_ch])
                 
-                for ch in factor_channels:
-                    self.min_factor = events_ppd[split][:, ch].min()
-                    events_ppd[split][:, ch] = torch.log(events_ppd[split][:, ch] - self.min_factor + eps)
+                # for ch in factor_channels:
+                #     self.min_factor = events_ppd[split][:, ch].min()
+                #     events_ppd[split][:, ch] = torch.log(events_ppd[split][:, ch] - self.min_factor + eps)
 
 
 
@@ -658,7 +659,8 @@ class gg_4g:
             for split in ["trn", "tst", "val"]:
                 predicted_factors_raw = self.predicted_factors_ppd[split].clone().to(self.device)
                 predicted_factors_raw = predicted_factors_raw * (self.std[split][factor_channels] + eps) + self.mean[split][factor_channels]
-                self.predicted_factors_raw[split] = torch.exp(predicted_factors_raw) + self.min_factor - eps
+                # self.predicted_factors_raw[split] = torch.exp(predicted_factors_raw) + self.min_factor - eps
+                self.predicted_factors_raw[split] = predicted_factors_raw
 
 
 
