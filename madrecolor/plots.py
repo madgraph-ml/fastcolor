@@ -273,19 +273,19 @@ class Plots:
                     ]
             self.hist_weights_plot(pp, lines, bins, show_ratios=True)
 
-            # differences = reweight_factors_pred - reweight_factors_truth
-            # # xlim_bins = [-., .5]
-            # bins = np.linspace(*xlim_bins, 64)
-            # y_diff, y_diff_err = compute_hist_data(bins, differences, bayesian=False)
-            # lines = [
-            #             Line(
-            #                 y=y_diff,
-            #                 y_err=y_diff_err,
-            #                 label="Difference",
-            #                 color=NEUTRAL_COLOR,
-            #             ),
-            #         ]
-            # self.hist_weights_plot(pp, lines, bins, show_ratios=False)
+            differences = reweight_factors_pred / reweight_factors_truth
+            xlim_bins = [0.5, 1.5]
+            bins = np.linspace(*xlim_bins, 64)
+            y_diff, y_diff_err = compute_hist_data(bins, differences, bayesian=False)
+            lines = [
+                        Line(
+                            y=y_diff,
+                            y_err=y_diff_err,
+                            label=r"$\frac{\mathrm{NN}}{\mathrm{Truth}}$",
+                            color=NEUTRAL_COLOR,
+                        ),
+                    ]
+            self.hist_weights_plot(pp, lines, bins, show_ratios=False)
 
 
     

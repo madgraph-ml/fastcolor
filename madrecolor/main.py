@@ -4,7 +4,7 @@ import argparse
 import yaml
 from datetime import datetime
 from madrecolor.utils.logger import setup_logging
-from madrecolor.datasets.gluons import gg_4g, gg_6g
+from madrecolor.datasets.gluons import gg_4g, gg_6g, gg_7g
 from madrecolor.datasets.dataset import compute_observables
 from madrecolor.models import Model, MLP, MDN
 from madrecolor.plots import Plots
