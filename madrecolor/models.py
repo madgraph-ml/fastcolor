@@ -45,7 +45,7 @@ class Model(nn.Module):
     def init_dataloaders(self, dataset, weights=None):
         data_ppd = dataset.events_ppd
         channels = dataset.channels
-        self.logger.info(f"Using channels: {channels}")
+        self.logger.info(f"Using channels: {channels[:self.dims_in]}")
 
         # apply stuff to make it such that only the channels of the data are used
         if weights is None:
@@ -76,7 +76,12 @@ class Model(nn.Module):
         self.network.train()
         n_epochs = self.params["n_epochs"]
         lr = self.params["lr"]
-        optimizer = torch.optim.Adam(self.network.parameters(), lr=lr)
+        optim = self.params.get("optimizer", "adam")
+        wd = self.params.get("weight_decay", 0.0)
+        if optim == "adam":
+            optimizer = torch.optim.Adam(self.network.parameters(), lr=lr, weight_decay=wd)
+        else:
+            raise NotImplementedError(f"Optimizer {optim} not implemented")
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, len(self.trnloader) * n_epochs
         )
@@ -137,7 +142,7 @@ class Model(nn.Module):
                 )
             else:
                 log_every_percent = 0.25
-                if epoch % int(n_epochs * log_every_percent) == 0:
+                if epoch % max(1, int(n_epochs * log_every_percent)) == 0:
                     self.logger.info(
                         f"    Epoch {epoch}: tr_loss={avg_trn_loss:.5f}, val_loss={avg_val_loss:.5f}"
                     )
@@ -166,7 +171,7 @@ class Model(nn.Module):
                     )
                 # print info every 10 of the batche
                 log_every_percent = 0.25
-                if i % int(len(loader) * log_every_percent) == 0:
+                if i % max(1, int(len(loader) * log_every_percent)) == 0:
                     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
             self.logger.info(f"    Finished sampling. Saving predictions")
         predictions = torch.cat(predictions)

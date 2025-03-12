@@ -4,7 +4,7 @@ import argparse
 import yaml
 from datetime import datetime
 from madrecolor.utils.logger import setup_logging
-from madrecolor.datasets.gluons import gg_4g, gg_6g, gg_7g
+from madrecolor.datasets.gluons import gg_ng
 from madrecolor.datasets.dataset import compute_observables
 from madrecolor.models import Model, MLP, MDN
 from madrecolor.plots import Plots
@@ -97,7 +97,7 @@ def run(logger, run_dir, params, args):
     dims_out = 1 if params['model_params']['type'] == "MLP" else params['model_params'].get("num_components", 10) # predicting reweighting factor
     dims_in = len(dataset.channels) - 1
     logger.info(
-        f"Building model {params['model_params']['type']} using channels: {dataset.channels} with out dim = {dims_out}"
+        f"Building model {params['model_params']['type']} with dims_in = {dims_in}, and dims_out = {dims_out}"
     )
     model = eval(params["model_params"]["type"])(
         params["model_params"], logger, dims_in, dims_out,
@@ -135,6 +135,7 @@ def run(logger, run_dir, params, args):
         logger,
         dataset,
         model.losses if hasattr(model, "losses") else None,
+        process_name=params["dataset_params"]["process"],
         debug=False,
 
     )
@@ -151,7 +152,9 @@ def run(logger, run_dir, params, args):
     plots.plot_weights(os.path.join(run_dir, f"factor_tst.pdf"), split="tst")
     plots.plot_weights(os.path.join(run_dir, f"factor_val.pdf"), split="val")
     logger.info(f"    Plotting ppd regressed factors")
-    plots.plot_weights_ppd(os.path.join(run_dir, f"factor_ppd_trn.pdf"), split="trn")  
+    plots.plot_weights_ppd(os.path.join(run_dir, f"factor_ppd_trn.pdf"), split="trn")
+    plots.plot_weights_ppd(os.path.join(run_dir, f"factor_ppd_tst.pdf"), split="tst")
+    plots.plot_weights_ppd(os.path.join(run_dir, f"factor_ppd_val.pdf"), split="val")
 
     if device == torch.device("cuda"):
         max_used = torch.cuda.max_memory_allocated()
