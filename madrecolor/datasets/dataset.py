@@ -60,14 +60,11 @@ def compute_observables(dataset, split: str = "tst", include_ppd: bool = False):
         obs_list_ppd = []
     bins = []
     for obs in dataset.observables:
-
         o = obs.compute(dataset.events[split])
         if include_ppd:
             o_ppd = obs.compute(dataset.events_ppd[split])
-
         bin = obs.bins(o)
         observables.append(obs)
-
         obs_list.append(o.cpu().numpy())
         if include_ppd:
             obs_list_ppd.append(o_ppd.cpu().numpy())
@@ -78,67 +75,3 @@ def compute_observables(dataset, split: str = "tst", include_ppd: bool = False):
     if include_ppd:
         dataset.obs_ppd = obs_list_ppd
     dataset.bins = bins
-
-
-class HWW_bins:
-    @staticmethod
-    def get_Ptl1_bins():
-        return torch.Tensor([22, 40, 50, 60, 70, 100, 500])
-
-    @staticmethod
-    def get_Ptl2_bins():
-        return torch.Tensor([15, 22, 30, 40, 50, 200])
-
-    @staticmethod
-    def get_Ptj1_bins():
-        return torch.Tensor([30, 90, 120, 160, 220, 700])
-
-    @staticmethod
-    def get_Ptj2_bins():
-        return torch.Tensor([30, 45, 60, 90, 120, 350])
-
-    @staticmethod
-    def get_DeltaPhill_bins():
-        return torch.Tensor([0, 0.2, 0.4, 0.6, 0.8, 1.4])
-
-    @staticmethod
-    def get_DeltaEtajj_bins():
-        return torch.Tensor([0, 2.1, 4.0, 4.375, 5.0, 5.5, 6.25, 9.0])
-
-    @staticmethod
-    def get_Mjj_bins():
-        return torch.Tensor([450, 700, 950, 1200, 1500, 2200, 6000])
-
-    @staticmethod
-    def get_DeltaPhijj_bins():
-        return torch.Tensor([-torch.pi, -torch.pi / 2, 0, torch.pi / 2, torch.pi])
-
-    @staticmethod
-    def get_DeltaEtall_bins(overflow=True):
-        bins = torch.Tensor([0, 0.4, 0.6, 0.8, 1.0, 5])
-        if overflow:
-            bins = make_overflow_bin(bins)
-        return bins
-
-    @staticmethod
-    def get_Mll_bins(overflow=True):
-        bins = torch.Tensor([10, 20, 30, 40, 55, 2000])
-        if overflow:
-            bins = make_overflow_bin(bins)
-        return bins
-
-    @staticmethod
-    def get_MT_bins():
-        return torch.linspace(0, 250, 11)
-
-    @staticmethod
-    def get_PtHiggs_bins():
-        return torch.Tensor([0, 80, 120, 160, 260, 850])
-
-    @staticmethod
-    def get_Ptll_bins():
-        return torch.Tensor([0, 60, 80, 100, 140, 1000])
-
-    @staticmethod
-    def get_CosThetaStar_bins():
-        return torch.Tensor([0, 0.0625, 0.125, 0.1875, 0.3125, 1])
