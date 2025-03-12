@@ -1,4 +1,4 @@
-""" Define optimized lhereader """
+"""Define optimized lhereader"""
 
 import re
 import io
@@ -17,6 +17,7 @@ class Particle:
 
     def p4(self):
         return LorentzVector(self.px, self.py, self.pz, self.energy)
+
 
 @dataclass
 class Event:
@@ -50,7 +51,9 @@ class LHEReader:
             content = f.read()
         wrapped_content = f"<LesHouchesEvents>\n{content}\n</LesHouchesEvents>"
 
-        self.iterator = ElementTree.iterparse(io.StringIO(wrapped_content), events=("start", "end"))
+        self.iterator = ElementTree.iterparse(
+            io.StringIO(wrapped_content), events=("start", "end")
+        )
         self.current = None
         self.current_weights = None
 

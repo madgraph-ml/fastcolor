@@ -11,7 +11,8 @@ from typing import Optional
 
 TRUTH_COLOR = "#07078A"
 NN_COLOR = "#8A0707"
-NEUTRAL_COLOR="black"
+NEUTRAL_COLOR = "black"
+
 
 @dataclass
 class Line:
@@ -55,15 +56,15 @@ class Plots:
         self.observables = dataset.observables
         self.bins = dataset.bins
         self.obs = dataset.obs
-        self.obs_ppd = (
-            dataset.obs_ppd if hasattr(dataset, "obs_ppd") else None
-        )
+        self.obs_ppd = dataset.obs_ppd if hasattr(dataset, "obs_ppd") else None
         if process_name is not None:
             if process_name in ["gg_4g", "gg_5g", "gg_6g", "gg_7g"]:
-                process_name = f"${process_name.split('_')[0]}\\to {process_name.split('_')[1]}$"
+                process_name = (
+                    f"${process_name.split('_')[0]}\\to {process_name.split('_')[1]}$"
+                )
             elif process_name in ["qqbar_2g", "qqbar_3g", "qqbar_4g", "qqbar_5g"]:
                 process_name = f"$gg \\to q\\bar{{q}} + {process_name.split('_')[1]}$"
-            
+
         self.process_name = process_name
         self.losses = losses
         self.debug = debug
@@ -145,7 +146,9 @@ class Plots:
         pickle_data = []
         with PdfPages(file) as pp:
             for obs, bins, data in zip(
-                self.observables, self.bins, self.obs,
+                self.observables,
+                self.bins,
+                self.obs,
             ):
                 y, y_err = compute_hist_data(bins, data, bayesian=False)
 
@@ -157,13 +160,19 @@ class Plots:
                         color=TRUTH_COLOR,
                     ),
                 ]
-                hist_plot(pp, lines, bins, obs, show_ratios=True, title=self.process_name if self.process_name is not None else None)
+                hist_plot(
+                    pp,
+                    lines,
+                    bins,
+                    obs,
+                    show_ratios=True,
+                    title=self.process_name if self.process_name is not None else None,
+                )
                 if pickle_file is not None:
                     pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
         if pickle_file is not None:
             with open(pickle_file, "wb") as f:
                 pickle.dump(pickle_data, f)
-
 
     def plot_observables_ppd(self, file: str, pickle_file: Optional[str] = None):
         """
@@ -195,110 +204,161 @@ class Plots:
                         color=TRUTH_COLOR,
                     ),
                 ]
-                hist_plot(pp, lines, bins, obs, show_ratios=True, title=self.process_name if self.process_name is not None else None)
+                hist_plot(
+                    pp,
+                    lines,
+                    bins,
+                    obs,
+                    show_ratios=True,
+                    title=self.process_name if self.process_name is not None else None,
+                )
                 if pickle_file is not None:
                     pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
         if pickle_file is not None:
             with open(pickle_file, "wb") as f:
                 pickle.dump(pickle_data, f)
 
-
-    def plot_weights(self, file: str, split='tst', pickle_file: Optional[str] = None):
-            """
-            Makes plots of the weights learned for Pythia vs Herwig.
-            Args:
-                file: Output file name
-            """
-            with PdfPages(file) as pp:
-                reweight_factors_truth = self.dataset.events[split][:, -1].unsqueeze(-1).detach().cpu().numpy()
-                reweight_factors_pred = self.dataset.predicted_factors_raw[split].detach().cpu().numpy()
-                
-                xlim_bins = [0.4, 1.4]
-                bins = np.linspace(*xlim_bins, 64)
-                y_truth, y_truth_err = compute_hist_data(bins, reweight_factors_truth, bayesian=False)
-                y_pred, y_pred_err = compute_hist_data(bins, reweight_factors_pred, bayesian=False)
-
-                lines = [
-                            Line(
-                                y=y_truth,
-                                y_err=y_truth_err,
-                                label="Truth",
-                                color=TRUTH_COLOR,
-                            ),
-                            Line(
-                                y=y_pred,
-                                y_err=y_pred_err,
-                                y_ref=y_truth,
-                                label="NN",
-                                color=NN_COLOR,
-                            ),
-                        ]
-                self.hist_weights_plot(pp, lines, bins, show_ratios=True, title=self.process_name if self.process_name is not None else None)
-
-                ratios = reweight_factors_pred / reweight_factors_truth
-                xlim_bins = [0.5, 1.5]
-                bins = np.linspace(*xlim_bins, 64)
-                y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
-
-                lines = [
-                            Line(
-                                y=y_diff,
-                                y_err=y_diff_err,
-                                label=r"$\frac{\mathrm{NN}}{\mathrm{Truth}}$",
-                                color=NEUTRAL_COLOR,
-                            ),
-                        ]
-                self.hist_weights_plot(pp, lines, bins, show_ratios=False, xlabel = r"$\text{Ratio}$", title=self.process_name if self.process_name is not None else None)
-                
-
-    def plot_weights_ppd(self, file: str, split='tst', pickle_file: Optional[str] = None):
+    def plot_weights(self, file: str, split="tst", pickle_file: Optional[str] = None):
         """
         Makes plots of the weights learned for Pythia vs Herwig.
         Args:
             file: Output file name
         """
         with PdfPages(file) as pp:
-            reweight_factors_truth = self.dataset.events_ppd[split][:, -1].unsqueeze(-1).detach().cpu().numpy()
-            reweight_factors_pred = self.dataset.predicted_factors_ppd[split].detach().cpu().numpy()
-            
-            xlim_bins = [-5, 5]
+            reweight_factors_truth = (
+                self.dataset.events[split][:, -1].unsqueeze(-1).detach().cpu().numpy()
+            )
+            reweight_factors_pred = (
+                self.dataset.predicted_factors_raw[split].detach().cpu().numpy()
+            )
+
+            xlim_bins = [0.4, 1.4]
             bins = np.linspace(*xlim_bins, 64)
-            y_truth, y_truth_err = compute_hist_data(bins, reweight_factors_truth, bayesian=False)
-            y_pred, y_pred_err = compute_hist_data(bins, reweight_factors_pred, bayesian=False)
+            y_truth, y_truth_err = compute_hist_data(
+                bins, reweight_factors_truth, bayesian=False
+            )
+            y_pred, y_pred_err = compute_hist_data(
+                bins, reweight_factors_pred, bayesian=False
+            )
 
             lines = [
-                        Line(
-                            y=y_truth,
-                            y_err=y_truth_err,
-                            label="Truth",
-                            color=TRUTH_COLOR,
-                        ),
-                        Line(
-                            y=y_pred,
-                            y_err=y_pred_err,
-                            y_ref=y_truth,
-                            label="NN",
-                            color=NN_COLOR,
-                        ),
-                    ]
-            self.hist_weights_plot(pp, lines, bins, show_ratios=True, title=self.process_name if self.process_name is not None else None)
+                Line(
+                    y=y_truth,
+                    y_err=y_truth_err,
+                    label="Truth",
+                    color=TRUTH_COLOR,
+                ),
+                Line(
+                    y=y_pred,
+                    y_err=y_pred_err,
+                    y_ref=y_truth,
+                    label="NN",
+                    color=NN_COLOR,
+                ),
+            ]
+            self.hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=True,
+                title=self.process_name if self.process_name is not None else None,
+            )
+
+            ratios = reweight_factors_pred / reweight_factors_truth
+            xlim_bins = [0.5, 1.5]
+            bins = np.linspace(*xlim_bins, 64)
+            y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
+
+            lines = [
+                Line(
+                    y=y_diff,
+                    y_err=y_diff_err,
+                    label=r"$\frac{\mathrm{NN}}{\mathrm{Truth}}$",
+                    color=NEUTRAL_COLOR,
+                ),
+            ]
+            self.hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=False,
+                xlabel=r"$\text{Ratio}$",
+                title=self.process_name if self.process_name is not None else None,
+            )
+
+    def plot_weights_ppd(
+        self, file: str, split="tst", pickle_file: Optional[str] = None
+    ):
+        """
+        Makes plots of the weights learned for Pythia vs Herwig.
+        Args:
+            file: Output file name
+        """
+        with PdfPages(file) as pp:
+            reweight_factors_truth = (
+                self.dataset.events_ppd[split][:, -1]
+                .unsqueeze(-1)
+                .detach()
+                .cpu()
+                .numpy()
+            )
+            reweight_factors_pred = (
+                self.dataset.predicted_factors_ppd[split].detach().cpu().numpy()
+            )
+
+            xlim_bins = [-5, 5]
+            bins = np.linspace(*xlim_bins, 64)
+            y_truth, y_truth_err = compute_hist_data(
+                bins, reweight_factors_truth, bayesian=False
+            )
+            y_pred, y_pred_err = compute_hist_data(
+                bins, reweight_factors_pred, bayesian=False
+            )
+
+            lines = [
+                Line(
+                    y=y_truth,
+                    y_err=y_truth_err,
+                    label="Truth",
+                    color=TRUTH_COLOR,
+                ),
+                Line(
+                    y=y_pred,
+                    y_err=y_pred_err,
+                    y_ref=y_truth,
+                    label="NN",
+                    color=NN_COLOR,
+                ),
+            ]
+            self.hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=True,
+                title=self.process_name if self.process_name is not None else None,
+            )
 
             ratios = reweight_factors_pred / reweight_factors_truth
             xlim_bins = [-2, 2]
             bins = np.linspace(*xlim_bins, 64)
             y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
             lines = [
-                        Line(
-                            y=y_diff,
-                            y_err=y_diff_err,
-                            label=r"$\frac{\mathrm{NN}}{\mathrm{Truth}}$",
-                            color=NEUTRAL_COLOR,
-                        ),
-                    ]
-            self.hist_weights_plot(pp, lines, bins, show_ratios=False, xlabel = r"$\text{Ratio}$", title=self.process_name if self.process_name is not None else None)
+                Line(
+                    y=y_diff,
+                    y_err=y_diff_err,
+                    label=r"$\frac{\mathrm{NN}}{\mathrm{Truth}}$",
+                    color=NEUTRAL_COLOR,
+                ),
+            ]
+            self.hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=False,
+                xlabel=r"$\text{Ratio}$",
+                title=self.process_name if self.process_name is not None else None,
+            )
 
-
-    
     def hist_weights_plot(
         self,
         pdf: PdfPages,
@@ -336,7 +396,12 @@ class Plots:
 
             for line in lines:
                 if line.vline:
-                    axs[0].axvline(line.y, label=line.label, color=line.color, linestyle=line.linestyle)
+                    axs[0].axvline(
+                        line.y,
+                        label=line.label,
+                        color=line.color,
+                        linestyle=line.linestyle,
+                    )
                     continue
                 integral = np.sum((bins[1:] - bins[:-1]) * line.y)
                 scale = 1 / integral if integral != 0.0 else 1.0
@@ -344,8 +409,8 @@ class Plots:
                     ref_integral = np.sum((bins[1:] - bins[:-1]) * line.y_ref)
                     ref_scale = 1 / ref_integral if ref_integral != 0.0 else 1.0
                 if no_scale:
-                    scale = 1.
-                    ref_scale = 1.
+                    scale = 1.0
+                    ref_scale = 1.0
 
                 hist_line(
                     axs[0],
@@ -355,7 +420,7 @@ class Plots:
                     label=line.label,
                     color=line.color,
                     fill=line.fill,
-                    linestyle=line.linestyle
+                    linestyle=line.linestyle,
                 )
 
                 if line.y_ref is not None:
@@ -384,7 +449,7 @@ class Plots:
 
             if title is not None:
                 corner_text(axs[0], title, "left", "top")
-            axs[0].legend(loc='best', frameon=False)
+            axs[0].legend(loc="best", frameon=False)
             axs[0].set_ylabel("Normalized")
             axs[0].set_yscale("log" if yscale is None else yscale)
             if ylim is not None:
@@ -395,7 +460,6 @@ class Plots:
             axs[-1].set_xlim(bins[0], bins[-1])
             plt.savefig(pdf, format="pdf", bbox_inches="tight")
             plt.close()
-
 
 
 def compute_hist_data(bins: np.ndarray, data: np.ndarray, bayesian=False, weights=None):
@@ -413,6 +477,7 @@ def compute_hist_data(bins: np.ndarray, data: np.ndarray, bayesian=False, weight
         y, _ = np.histogram(data, bins=bins, density=False, weights=weights)
         y_err = np.sqrt(y)
     return y, y_err
+
 
 def hist_plot(
     pdf: PdfPages,

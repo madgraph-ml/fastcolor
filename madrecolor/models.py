@@ -5,7 +5,7 @@ import time
 
 
 class Model(nn.Module):
-    def __init__(self, params, logger, dims_in, dims_out = 1):
+    def __init__(self, params, logger, dims_in, dims_out=1):
         super().__init__()
         self.params = params
         self.logger = logger
@@ -23,13 +23,11 @@ class Model(nn.Module):
             layers.append(nn.ReLU())
         layers.append(nn.Linear(self.params["internal_size"], self.dims_out))
         self.network = nn.Sequential(*layers)
-    
-    
-    
+
     # Overwrite in child class
     def sample(self, c):
         pass
-    
+
     # Overwrite in child class
     def predict(self, x):
         pass
@@ -79,7 +77,9 @@ class Model(nn.Module):
         optim = self.params.get("optimizer", "adam")
         wd = self.params.get("weight_decay", 0.0)
         if optim == "adam":
-            optimizer = torch.optim.Adam(self.network.parameters(), lr=lr, weight_decay=wd)
+            optimizer = torch.optim.Adam(
+                self.network.parameters(), lr=lr, weight_decay=wd
+            )
         else:
             raise NotImplementedError(f"Optimizer {optim} not implemented")
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -188,7 +188,7 @@ class MLP(Model):
 
     def forward(self, x):
         return self.network(x)
-    
+
     def predict(self, x):
         return self.forward(x)
 
@@ -196,31 +196,30 @@ class MLP(Model):
         if debug:
             print(pred, target)
         loss = self.loss(pred, target)
-        loss = (loss * weight).sum() / weight.sum() 
+        loss = (loss * weight).sum() / weight.sum()
         return loss
-    
-    
+
+
 class MDN(Model):
     def __init__(self, params, logger, dims_in, num_components):
-        super().__init__(params, logger, dims_in, 3*num_components)
+        super().__init__(params, logger, dims_in, 3 * num_components)
         self.num_components = num_components
         self.init_network()
-    
+
     def forward(self, x):
         return self.network(x)
-    
+
     def batch_loss(self, pred, target, weight, debug=False):
         pi, mu, sigma = torch.split(pred, self.num_components, dim=-1)
         pi = F.softmax(pi, dim=-1)
         sigma = torch.exp(sigma)
         normal = torch.distributions.Normal(mu, sigma)
-        
+
         log_prob = normal.log_prob(target.unsqueeze(-1))
         log_prob = log_prob + torch.log(pi)
 
         loss = -torch.logsumexp(log_prob, dim=-1).mean()
 
-        
         return loss
 
     def predict(self, x):
@@ -228,7 +227,7 @@ class MDN(Model):
         pi, mu, sigma = torch.split(pred, self.num_components, dim=-1)
         pi = F.softmax(pi, dim=-1)
         sigma = torch.exp(sigma)
-        
+
         component_idx = torch.multinomial(pi, 1)
 
         selected_mu = torch.gather(mu, dim=-1, index=component_idx)

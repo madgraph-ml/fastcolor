@@ -10,6 +10,7 @@ from madrecolor.models import Model, MLP, MDN
 from madrecolor.plots import Plots
 import torch
 
+
 def init_logger(run_dir):
     """
     Initialize the logger. If we are working on a previous run, output to "out_{previos_run_number+1}.log"
@@ -23,6 +24,7 @@ def init_logger(run_dir):
         run_number = 0
     log_file_path = os.path.join(run_dir, f"out_{run_number:02d}.log")
     return setup_logging(log_file_path)
+
 
 def parse_args():
     """
@@ -44,9 +46,7 @@ def main():
     if args.type == "train":
         with open(args.path, "r") as f:
             params = yaml.safe_load(f)
-        base_dir = os.path.dirname(
-           os.path.realpath(__file__)
-        )
+        base_dir = os.path.dirname(os.path.realpath(__file__))
         results_dir = os.path.join(base_dir, "results")
         run_name = datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + params["run_name"]
         run_dir = os.path.join(results_dir, run_name)
@@ -66,7 +66,7 @@ def main():
     ### INITIALIZE LOGGER ###
     logger = init_logger(run_dir)
 
-     ### RUN ###
+    ### RUN ###
     try:
         run(logger, run_dir, params, args)
     except Exception as e:
@@ -86,7 +86,9 @@ def run(logger, run_dir, params, args):
 
     # INITIALIZE DATASET AND PREPROCESSING ###
     logger.info(f"Dataset: {params['dataset_params']['process']}")
-    logger.info(f"Using parameterisation {params['dataset_params']['parameterisation']}")
+    logger.info(
+        f"Using parameterisation {params['dataset_params']['parameterisation']}"
+    )
     dataset = eval(params["dataset_params"]["type"])(params["dataset_params"])
     logger.info(
         f"    [Train, Test, Val] events: [{len(dataset.events['trn'])}, {len(dataset.events['tst'])}, {len(dataset.events['val'])}]"
@@ -94,13 +96,20 @@ def run(logger, run_dir, params, args):
     dataset.apply_preprocessing()
 
     ### INITIALIZE MODEL AND DATALOADERS ###
-    dims_out = 1 if params['model_params']['type'] == "MLP" else params['model_params'].get("num_components", 10) # predicting reweighting factor
+    dims_out = (
+        1
+        if params["model_params"]["type"] == "MLP"
+        else params["model_params"].get("num_components", 10)
+    )  # predicting reweighting factor
     dims_in = len(dataset.channels) - 1
     logger.info(
         f"Building model {params['model_params']['type']} with dims_in = {dims_in}, and dims_out = {dims_out}"
     )
     model = eval(params["model_params"]["type"])(
-        params["model_params"], logger, dims_in, dims_out,
+        params["model_params"],
+        logger,
+        dims_in,
+        dims_out,
     ).to(device)
     logger.info(
         f"Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
@@ -123,7 +132,9 @@ def run(logger, run_dir, params, args):
     ### EVALUATE MODEL ###
     dataset.predicted_factors_ppd = {}
     for k in ["trn", "tst", "val"]:
-        dataset.predicted_factors_ppd[k] = model.evaluate(loader=getattr(model, f"{k}loader"))
+        dataset.predicted_factors_ppd[k] = model.evaluate(
+            loader=getattr(model, f"{k}loader")
+        )
     dataset.apply_preprocessing(reverse=True)
     # ### COMPUTE OBSERVABLES ###
     logger.info("Computing observables")
@@ -137,7 +148,6 @@ def run(logger, run_dir, params, args):
         model.losses if hasattr(model, "losses") else None,
         process_name=params["dataset_params"]["process"],
         debug=False,
-
     )
 
     if hasattr(model, "losses"):

@@ -1,5 +1,6 @@
 import torch
 
+
 def delta_eta(
     p: torch.Tensor, eta1: torch.Tensor, eta2: torch.Tensor, abs: bool = True
 ) -> torch.Tensor:
@@ -14,7 +15,8 @@ def delta_phi(
     dphi = (dphi + torch.pi) % (2 * torch.pi) - torch.pi
     return torch.abs(dphi) if abs else dphi
 
-def LorentzProduct(p1, p2, base = "EPxPyPz"):
+
+def LorentzProduct(p1, p2, base="EPxPyPz"):
     if base == "PtPhiEtaM":
         p1 = PtPhiEtaM_to_EPxPyPz(p1)
         p2 = PtPhiEtaM_to_EPxPyPz(p2)
@@ -23,6 +25,7 @@ def LorentzProduct(p1, p2, base = "EPxPyPz"):
     else:
         raise ValueError(f"Base {base} not recognised")
     return p1[..., 0] * p2[..., 0] - torch.sum(p1[..., 1:] * p2[..., 1:], axis=-1)
+
 
 def PtPhiEtaM_to_EPxPyPz(PtPhiEtaM, cutoff=10):
     if PtPhiEtaM.shape[-1] == 4:
