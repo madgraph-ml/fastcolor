@@ -1,10 +1,10 @@
 run_name: gg_6g-scalarproducts
 
 dataset_params:
-  type: gg_6g
+  type: gg_ng
   process: gg_6g
   
-  gg_6g: data/gg_ng/events_8_2_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8.lhe.rwgt
+  gg_6g: madrecolor/data/gg_ng/events_8_2_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8.lhe.rwgt
   
   
   trn_tst_val_split: [0.5, 0.4, 0.1]
@@ -69,7 +69,7 @@ dataset_params:
 
 
 model_params:
-  type: MLP # Conditional Flow Matching. Architecture is just a simple feedforward network
+  type: MLP
   hidden_layers: 5 #5
   internal_size: 128 #256
   lr: 1.e-3
