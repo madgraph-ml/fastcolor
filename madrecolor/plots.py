@@ -46,6 +46,7 @@ class Plots:
         logger,
         dataset,
         losses: dict = None,
+        process_name: str = None,
         debug: bool = False,
     ):
         self.logger = logger
@@ -57,6 +58,13 @@ class Plots:
         self.obs_ppd = (
             dataset.obs_ppd if hasattr(dataset, "obs_ppd") else None
         )
+        if process_name is not None:
+            if process_name in ["gg_4g", "gg_5g", "gg_6g", "gg_7g"]:
+                process_name = f"${process_name.split('_')[0]}\\to {process_name.split('_')[1]}$"
+            elif process_name in ["qqbar_2g", "qqbar_3g", "qqbar_4g", "qqbar_5g"]:
+                process_name = f"$gg \\to q\\bar{{q}} + {process_name.split('_')[1]}$"
+            
+        self.process_name = process_name
         self.losses = losses
         self.debug = debug
 
@@ -149,7 +157,7 @@ class Plots:
                         color=TRUTH_COLOR,
                     ),
                 ]
-                hist_plot(pp, lines, bins, obs, show_ratios=True)
+                hist_plot(pp, lines, bins, obs, show_ratios=True, title=self.process_name if self.process_name is not None else None)
                 if pickle_file is not None:
                     pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
         if pickle_file is not None:
@@ -187,7 +195,7 @@ class Plots:
                         color=TRUTH_COLOR,
                     ),
                 ]
-                hist_plot(pp, lines, bins, obs, show_ratios=True)
+                hist_plot(pp, lines, bins, obs, show_ratios=True, title=self.process_name if self.process_name is not None else None)
                 if pickle_file is not None:
                     pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
         if pickle_file is not None:
@@ -202,10 +210,10 @@ class Plots:
                 file: Output file name
             """
             with PdfPages(file) as pp:
-                reweight_factors_truth = self.dataset.events[split][:, -1]
-                reweight_factors_pred = self.dataset.predicted_factors_raw[split]
+                reweight_factors_truth = self.dataset.events[split][:, -1].unsqueeze(-1).detach().cpu().numpy()
+                reweight_factors_pred = self.dataset.predicted_factors_raw[split].detach().cpu().numpy()
                 
-                xlim_bins = [0.8, 1.4]
+                xlim_bins = [0.4, 1.4]
                 bins = np.linspace(*xlim_bins, 64)
                 y_truth, y_truth_err = compute_hist_data(bins, reweight_factors_truth, bayesian=False)
                 y_pred, y_pred_err = compute_hist_data(bins, reweight_factors_pred, bayesian=False)
@@ -225,21 +233,23 @@ class Plots:
                                 color=NN_COLOR,
                             ),
                         ]
-                self.hist_weights_plot(pp, lines, bins, show_ratios=True)
+                self.hist_weights_plot(pp, lines, bins, show_ratios=True, title=self.process_name if self.process_name is not None else None)
 
-                # differences = reweight_factors_pred - reweight_factors_truth
-                # # xlim_bins = [-., .5]
-                # bins = np.linspace(*xlim_bins, 64)
-                # y_diff, y_diff_err = compute_hist_data(bins, differences, bayesian=False)
-                # lines = [
-                #             Line(
-                #                 y=y_diff,
-                #                 y_err=y_diff_err,
-                #                 label="Difference",
-                #                 color=NEUTRAL_COLOR,
-                #             ),
-                #         ]
-                # self.hist_weights_plot(pp, lines, bins, show_ratios=False)
+                ratios = reweight_factors_pred / reweight_factors_truth
+                xlim_bins = [0.5, 1.5]
+                bins = np.linspace(*xlim_bins, 64)
+                y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
+
+                lines = [
+                            Line(
+                                y=y_diff,
+                                y_err=y_diff_err,
+                                label=r"$\frac{\mathrm{NN}}{\mathrm{Truth}}$",
+                                color=NEUTRAL_COLOR,
+                            ),
+                        ]
+                self.hist_weights_plot(pp, lines, bins, show_ratios=False, xlabel = r"$\text{Ratio}$", title=self.process_name if self.process_name is not None else None)
+                
 
     def plot_weights_ppd(self, file: str, split='tst', pickle_file: Optional[str] = None):
         """
@@ -248,8 +258,8 @@ class Plots:
             file: Output file name
         """
         with PdfPages(file) as pp:
-            reweight_factors_truth = self.dataset.events_ppd[split][:, -1]
-            reweight_factors_pred = self.dataset.predicted_factors_ppd[split]
+            reweight_factors_truth = self.dataset.events_ppd[split][:, -1].unsqueeze(-1).detach().cpu().numpy()
+            reweight_factors_pred = self.dataset.predicted_factors_ppd[split].detach().cpu().numpy()
             
             xlim_bins = [-5, 5]
             bins = np.linspace(*xlim_bins, 64)
@@ -271,12 +281,12 @@ class Plots:
                             color=NN_COLOR,
                         ),
                     ]
-            self.hist_weights_plot(pp, lines, bins, show_ratios=True)
+            self.hist_weights_plot(pp, lines, bins, show_ratios=True, title=self.process_name if self.process_name is not None else None)
 
-            differences = reweight_factors_pred / reweight_factors_truth
-            xlim_bins = [0.5, 1.5]
+            ratios = reweight_factors_pred / reweight_factors_truth
+            xlim_bins = [-2, 2]
             bins = np.linspace(*xlim_bins, 64)
-            y_diff, y_diff_err = compute_hist_data(bins, differences, bayesian=False)
+            y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
             lines = [
                         Line(
                             y=y_diff,
@@ -285,7 +295,7 @@ class Plots:
                             color=NEUTRAL_COLOR,
                         ),
                     ]
-            self.hist_weights_plot(pp, lines, bins, show_ratios=False)
+            self.hist_weights_plot(pp, lines, bins, show_ratios=False, xlabel = r"$\text{Ratio}$", title=self.process_name if self.process_name is not None else None)
 
 
     
@@ -296,6 +306,7 @@ class Plots:
         bins: np.ndarray,
         show_ratios: bool = False,
         title: Optional[str] = None,
+        xlabel: str = r"$r(x)$",
         no_scale: bool = False,
         yscale: Optional[str] = None,
         show_metrics: bool = False,
@@ -371,15 +382,15 @@ class Plots:
                 axs[1].axhline(y=1.1, c="black", ls="dotted", lw=0.5)
                 axs[1].axhline(y=0.9, c="black", ls="dotted", lw=0.5)
 
-            axs[0].legend(frameon=False)
+            if title is not None:
+                corner_text(axs[0], title, "left", "top")
+            axs[0].legend(loc='best', frameon=False)
             axs[0].set_ylabel("Normalized")
             axs[0].set_yscale("log" if yscale is None else yscale)
             if ylim is not None:
                 axs[0].set_ylim(*ylim)
-            if title is not None:
-                self.corner_text(axs[0], title, "left", "top")
 
-            axs[-1].set_xlabel(f"$w(x)$")
+            axs[-1].set_xlabel(xlabel)
             # axs[-1].set_xscale("log")
             axs[-1].set_xlim(bins[0], bins[-1])
             plt.savefig(pdf, format="pdf", bbox_inches="tight")
@@ -490,13 +501,13 @@ def hist_plot(
                     linestyle=line.linestyle,
                 )
 
+        if title is not None:
+            corner_text(axs[0], title, "left", "top")
         axs[0].legend(
             frameon=False, **(legend_kwargs if legend_kwargs is not None else {})
         )
         axs[0].set_ylabel("Normalized")
         axs[0].set_yscale(observable.yscale if yscale is None else yscale)
-        if title is not None:
-            corner_text(axs[0], title, "left", "top")
 
         if show_ratios:
             axs[1].set_ylabel(r"$\frac{\mathrm{Model}}{\mathrm{Truth}}$")
@@ -507,7 +518,7 @@ def hist_plot(
             axs[1].axhline(y=0.9, c="black", ls="dotted", lw=0.5)
 
         unit = "" if observable.unit is None else f" [{observable.unit}]"
-        axs[-1].set_xlabel(f"${{{observable.tex_label}}}${unit}")
+        axs[-1].set_xlabel(f"${{{observable.tex_label}}}$ ${unit}$")
         axs[-1].set_xscale(observable.xscale)
         axs[-1].set_xlim(bins[0], bins[-1])
         plt.savefig(pdf, format="pdf")
@@ -603,107 +614,3 @@ def corner_text(ax: mpl.axes.Axes, text: str, horizontal_pos: str, vertical_pos:
         transform=ax.transAxes,
         color="none",
     )
-
-
-
-
-
-    # def plot_multiplicity_cut_observables(self, file: str, pickle_file: Optional[str] = None):
-    #     """
-    #     Makes histograms of truth and generated distributions for observables cut on jet/quark multiplicity.
-    #     Args:
-    #         file: Path to the output PDF file
-    #         pickle_file: Path to the output pickle file (optional)
-    #     """
-    #     pickle_data = []
-    #     with PdfPages(file) as pp:
-    #         for obs, bins, data_hard, data_reco, data_unf in zip(
-    #             self.observables, self.bins, self.obs_part, self.obs_reco, self.obs_unf
-    #         ):
-
-    #             if "p_{T, j" in obs.tex_label or "p_{T, q" in obs.tex_label:
-    #                 for i in range(2, 9):
-    #                     hard_mults = data_hard[self.obs_part[20] == i] if self.unfold_to=="particle" else data_hard[self.obs_reco[20] == i]
-    #                     reco_mults = data_reco[self.obs_reco[20] == i]
-    #                     unf_mults = data_unf[self.obs_reco[20] == i]
-                
-    #                     y_hard, y_hard_err = compute_hist_data(bins, hard_mults, bayesian=False)
-    #                     y_reco, y_reco_err = compute_hist_data(bins, reco_mults, bayesian=False)
-    #                     y_unf, y_unf_err = compute_hist_data(bins, unf_mults, bayesian=False)
-
-    #                     lines = [
-    #                         Line(
-    #                             y=y_reco,
-    #                             y_err=y_reco_err,
-    #                             label="Reco",
-    #                             color=RECO_COLOR,
-    #                         ),
-    #                         Line(
-    #                             y=y_hard,
-    #                             y_err=y_hard_err,
-    #                             label="Part" if self.unfold_to=="particle" else "Hard",
-    #                             color=PART_COLOR,
-    #                         ),
-    #                         Line(
-    #                             y=y_unf,
-    #                             y_err=y_unf_err,
-    #                             y_ref=y_hard,
-    #                             label="CFM",
-    #                             color=CFM_COLOR,
-    #                         ),
-    #                     ]
-    #                     hist_plot(pp, lines, bins, obs, show_ratios=True, title=f"${i}j$")
-    #                     if pickle_file is not None:
-    #                         pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
-    #     if pickle_file is not None:
-    #         with open(pickle_file, "wb") as f:
-    #             pickle.dump(pickle_data, f)
-
-
-    # def plot_migration(
-    #     self, file: str, gt_part=False, pickle_file: Optional[str] = None
-    # ):
-    #     if gt_part:
-    #         obs_part = self.obs_part
-    #         name_part = "Part" if self.unfold_to=="particle" else "Hard"
-    #     else:
-    #         obs_part = self.obs_unf
-    #         name_part = "Unfold"
-    #     ranges = [[0, 0.4], [0, 0.3], [0, 0.5], [0, 0.5], [0, 0.2], [0, 0.25]]
-    #     ranges += [[0, 0.5] for _ in range(len(self.observables) - len(ranges))]
-
-    #     pickle_data = []
-    #     with PdfPages(file) as pp:
-    #         for k, (obs, bins, data_hard, data_reco, r) in enumerate(
-    #             zip(self.observables, self.bins, obs_part, self.obs_reco, ranges)
-    #         ):
-    #             if obs.channel is not None and obs.channel not in self.channels:
-    #                 # avoid plotting primary (obs.channel != None) channels not used for unfolding
-    #                 # secondary channels (derived observables -- obs.channel == None) are always plotted
-    #                 continue
-    #             cmap = plt.get_cmap("viridis")
-    #             cmap.set_bad("white")
-    #             h, x, y = np.histogram2d(data_hard, data_reco, bins=(bins, bins))
-    #             h = np.ma.divide(h, np.sum(h, 0, keepdims=True)).filled(
-    #                 0
-    #             )  # normalize so each column sums up to 1
-    #             h[h == 0] = np.nan
-    #             plt.pcolormesh(
-    #                 bins, bins, h, cmap=cmap, rasterized=True, vmin=r[0], vmax=r[1]
-    #             )
-    #             plt.colorbar()
-
-    #             unit = "" if obs.unit is None else f" [{obs.unit}]"
-    #             plt.title(f"${{{obs.tex_label}}}${unit}")
-    #             plt.xlim(bins[0], bins[-1])
-    #             plt.ylim(bins[0], bins[-1])
-    #             plt.xlabel("Reco")
-    #             plt.ylabel(name_part)
-    #             plt.savefig(pp, format="pdf", bbox_inches="tight")
-    #             plt.close()
-
-    #             if pickle_file is not None:
-    #                 pickle_data.append({"h": h, "bins": bins, "ranges": r, "obs": obs})
-    #     if pickle_file is not None:
-    #         with open(pickle_file, "wb") as f:
-    #             pickle.dump(pickle_data, f)
