@@ -1,0 +1,7 @@
+run:
+  type: train
+  name: null
+
+defaults:
+ - _self_
+ - hydra

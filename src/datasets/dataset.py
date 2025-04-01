@@ -1,0 +1,77 @@
+import torch
+from typing import Optional, Callable
+from dataclasses import dataclass
+
+
+@dataclass
+class Observable:
+    """
+    Data class for an observable used for plotting
+    Args:
+        compute: Function that computes the observable value for the given momenta
+        tex_label: Observable name in LaTeX for labels in plots
+        bins: function that returns tensor with bin boundaries for given observable data
+        xscale: X axis scale, "linear" (default) or "log", optional
+        yscale: Y axis scale, "linear" (default) or "log", optional
+        unit: Unit of the observable or None, if dimensionless, optional
+        channel: Channel index for the observable, optional
+    """
+
+    compute: Callable[[torch.Tensor, Optional[torch.Tensor]], torch.Tensor]
+    tex_label: str
+    bins: Callable[[torch.Tensor], torch.Tensor]
+    xscale: str = "linear"
+    yscale: str = "linear"
+    unit: Optional[str] = None
+    channel: Optional[int] = None
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        d["compute"] = None
+        d["bins"] = None
+        return d
+
+
+def get_hardcoded_bins(n_bins, lower, upper):
+    return torch.linspace(lower, upper, n_bins + 1)
+
+
+def make_overflow_bin(bins, overflow=torch.inf):
+    bins[-1] = overflow
+    return bins
+
+
+def round(p: torch.Tensor, obs: torch.Tensor) -> torch.Tensor:
+    return torch.round(obs)
+
+
+def return_obs(p: torch.Tensor, obs: torch.Tensor) -> torch.Tensor:
+    return obs
+
+
+def compute_observables(dataset, split: str = "tst", include_ppd: bool = False):
+    if not hasattr(dataset, "observables"):
+        raise ValueError(
+            "No observables defined for this dataset. Make sure init_observables() has been called."
+        )
+    observables = []
+    obs_list = []
+    if include_ppd:
+        obs_list_ppd = []
+    bins = []
+    for obs in dataset.observables:
+        o = obs.compute(dataset.events[split])
+        if include_ppd:
+            o_ppd = obs.compute(dataset.events_ppd[split])
+        bin = obs.bins(o)
+        observables.append(obs)
+        obs_list.append(o.cpu().numpy())
+        if include_ppd:
+            obs_list_ppd.append(o_ppd.cpu().numpy())
+        bins.append(bin.cpu().numpy())
+
+    dataset.observables = observables
+    dataset.obs = obs_list
+    if include_ppd:
+        dataset.obs_ppd = obs_list_ppd
+    dataset.bins = bins

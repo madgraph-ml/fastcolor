@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Machine-Learned Leading-Color Amplitude Reweighting for MadGraph"
 authors = [
     { name="Ramon Winterhalder", email="ramon.winterhalder@unimi.it" },
-  { name="Javier Marino Villadamigo", email="marino@thphys.uni-heidelberg.de" }
+    { name="Javier Marino Villadamigo", email="marino@thphys.uni-heidelberg.de" }
 ]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,13 +19,14 @@ classifiers = [
 ]
 urls = {"Repository" = "https://github.com/madgraph-ml/madrecolor"}
 dependencies = [
-    "numpy",
-    "torch",  # or "tensorflow" if using TF
-    "black"
+    "numpy<2.0",
+    "black==22.3.0",
+    "einops",
+    "opt_einsum",
+    "scikit-hep",
+    "torch>=2.2",
+    "hydra-core>=1.2"
 ]
 
 [tool.black]
 line-length = 88
-
-[project.scripts]
-src = "madrecolor.main:main"

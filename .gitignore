@@ -1,4 +1,5 @@
 # Miscellaneous
+logs/
 data/
 results/
 *.ipynb
