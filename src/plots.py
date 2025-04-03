@@ -5,6 +5,7 @@ import matplotlib as mpl
 import pickle
 from matplotlib.ticker import ScalarFormatter
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.colors import LogNorm
 from dataclasses import dataclass
 from datasets.dataset import Observable
 from typing import Optional
@@ -325,13 +326,14 @@ class Plots:
         """
         with PdfPages(file) as pp:
             reweight_factors_truth = (
-                self.dataset.events_ppd[split][:, -1]
+                self.dataset.events_ppd[split][:, -1:]
+                .squeeze()
                 .detach()
                 .cpu()
                 .numpy()
             )
             reweight_factors_pred = (
-                self.dataset.predicted_factors_ppd[split].detach().cpu().numpy()
+                self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
 
             xlim_bins = [-5, 5]
@@ -404,7 +406,8 @@ class Plots:
             h, x, y = np.histogram2d(reweight_factors_pred, ratios, bins=(bins, bins))
             # h = np.ma.divide(h, np.sum(h, -1, keepdims=True)).filled(0)
             h[h == 0] = np.nan
-            plt.pcolormesh(bins, bins, h, cmap=cmap, rasterized=True)
+            h_norm = h / np.sum(h)
+            plt.pcolormesh(bins, bins, h_norm, cmap=cmap, norm=LogNorm(), rasterized=True)
             plt.colorbar()
             plt.title(f"{self.model_name}")
             plt.xlim(bins[0], bins[-1])
