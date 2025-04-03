@@ -25,6 +25,9 @@ class gg_ng:
     def init_dataset(self):
         n_events = self.cfg.get("n_events", None)
         data_path = self.cfg.get("data_path", None)
+        if self.device == "cpu" and "remote" in data_path:
+            self.logger.info(f"Data path {data_path} is remote but you are running on local cpu, changing it to data/")
+            data_path = "data"
         if data_path is None:
             raise ValueError("Data path not specified in the parameters")
         type = self.cfg["type"]
