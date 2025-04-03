@@ -88,23 +88,13 @@ def run(logger, run_dir, cfg: DictConfig):
         f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}"
     )
 
-    if cfg.model.type == "LGATr":
-        model = eval(cfg.model.type)(
-            logger=logger,
-            process=cfg.dataset.process,
-            cfg=cfg.model,
-            dims_in=dims_in,
-            dims_out=dims_out,
-        ).to(device)
-    else:
-        model = eval(cfg.model.type)(
-            logger=logger,
-            process=cfg.dataset.process,
-            cfg=cfg.model,
-            dims_in=dims_in,
-            dims_out=dims_out,
-        ).to(device)
-    
+    model = eval(cfg.model.type)(
+        logger=logger,
+        process=cfg.dataset.process,
+        cfg=cfg.model,
+        dims_in=dims_in,
+        dims_out=dims_out,
+    ).to(device)
     model.name = cfg.model.type
     logger.info(
         f"Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
