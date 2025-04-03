@@ -15,14 +15,24 @@ class Model(nn.Module):
         self.heteroscedastic_loss = cfg.get("heteroscedastic_loss", None)
 
     def init_net(self):
+        if self.cfg.get("activation", "relu") == "relu":
+            activation = nn.ReLU()
+        elif self.cfg.get("activation", "relu") == "gelu":
+            activation = nn.GELU()
+        elif self.cfg.get("activation", "relu") == "tanh":
+            activation = nn.Tanh()
+        else:
+            raise NotImplementedError(
+                f"Activation function {self.cfg.get('activation', 'relu')} not implemented"
+            )
         layers = []
         layers.append(nn.Linear(self.dims_in, self.cfg["internal_size"]))
-        layers.append(nn.ReLU())
+        layers.append(activation)
         for _ in range(self.cfg["hidden_layers"]):
             layers.append(
                 nn.Linear(self.cfg["internal_size"], self.cfg["internal_size"])
             )
-            layers.append(nn.ReLU())
+            layers.append(activation)
         layers.append(nn.Linear(self.cfg["internal_size"], self.dims_out))
         self.net = nn.Sequential(*layers)
 
@@ -195,6 +205,7 @@ class Model(nn.Module):
         else:
             self.logger.info("Evaluating model on trn set")
         predictions = []
+        self.net.eval()
         with torch.no_grad():
             t0 = time.time()
             for i, batch in enumerate(loader):
