@@ -127,11 +127,11 @@ class Model(nn.Module):
         val_loss = []
         trn_lr = []
         grd_norm = []
-        self.logger.info(f"Training model for {nepochs} epochs")
         if self.heteroscedastic_loss.get("activate_after_its", 1000) > 1:
-            self.logger.info(f"    Using heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations")
+            self.logger.info(f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations")
         else:
-            self.logger.info(f"    Using heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations")
+            self.logger.info(f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations")
+        self.logger.info(f"Training model for {nepochs} epochs")
         t0 = time.time()
         for epoch in range(nepochs):
             epoch_trn_losses = []
