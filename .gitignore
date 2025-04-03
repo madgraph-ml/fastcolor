@@ -2,6 +2,7 @@
 logs/
 data/
 results/
+outputs/
 *.ipynb
 
 # Byte-compiled / optimized / DLL files

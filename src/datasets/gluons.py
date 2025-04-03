@@ -108,12 +108,13 @@ class gg_ng:
             events_ppd = self.events.clone().to(self.device)
 
             if self.cfg.parameterisation.naive.use:
-                pt_channels = [4*i for i in range(self.n_particles)]
-                phi_channels = [4*i+1 for i in range(self.n_particles)]
-                eta_channels = [4*i+2 for i in range(self.n_particles)]
-                mass_channels = [4*i+3 for i in range(self.n_particles)]
+                pt_channels = [i for i in self.channels if i % 4 == 0 and i < self.last_channel]
+                phi_channels = [i for i in self.channels if i % 4 == 1 and i < self.last_channel]
+                eta_channels = [i for i in self.channels if i % 4 == 2 and i < self.last_channel]
+                mass_channels = [i for i in self.channels if i % 4 == 3 and i < self.last_channel]
+
             elif self.cfg.parameterisation.lorentz_products.use:
-                pt_channels = [i for i in range(events_ppd.shape[1] - 1)]
+                pt_channels = [i for i in self.channels if i < self.last_channel]
                 phi_channels = []
                 eta_channels = []
                 mass_channels = []
