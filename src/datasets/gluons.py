@@ -139,16 +139,11 @@ class gg_ng:
             if pp_cfg.equivariant:
                 self.logger.info(f"Equivariant preprocessing for {self.channels[:-1]}")
                 assert self.cfg.parameterisation.naive.use == True, f"Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.dataset.parameterisation if self.cfg.dataset.parameterisation[p].use]}"
-                self.mean = events_ppd[:, :-1].mean()
                 self.std = events_ppd[:, :-1].std()
                 events_ppd[:, :-1] = events_ppd[:, :-1] / (
                     self.std + eps
                 )
 
-            if pp_cfg.amplitude.gaussianize:
-                raise NotImplementedError(
-                    "Gaussianization for amplitude not implemented for now."
-                )
             if pp_cfg.amplitude.standardize:
                 self.ampl_mean = events_ppd[:, -1].mean()
                 self.ampl_std = events_ppd[:, -1].std()
@@ -194,10 +189,6 @@ class gg_ng:
                     predicted_factors_raw = (
                         predicted_factors_raw * (self.ampl_std + eps)
                         + self.ampl_mean
-                    )
-                if pp_cfg.amplitude.gaussianize:
-                    raise NotImplementedError(
-                        "Gaussianization for amplitude not implemented for now."
                     )
 
                 self.predicted_factors_raw[split] = predicted_factors_raw
