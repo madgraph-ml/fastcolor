@@ -83,32 +83,32 @@ class LGATr(Model):
         process,
         cfg,
         dims_in,
-        dims_out
+        dims_out,
+        model_path,
+        device
     ):
-        super().__init__(logger, cfg, dims_in, dims_out)
-        self.logger = logger
-        self.cfg = cfg
+        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
 
-        in_mv_channels      =   cfg["in_mv_channels"]
-        out_mv_channels     =   cfg["out_mv_channels"]
-        hidden_mv_channels  =   cfg["hidden_mv_channels"]
-        in_s_channels       =   cfg.get("in_s_channels", None)
-        out_s_channels      =   cfg.get("out_s_channels", None)
-        hidden_s_channels   =   cfg.get("hidden_s_channels", None)
-        attention           =   cfg["attention"]
-        mlp                 =   cfg["mlp"]
-        num_blocks          =   cfg.get("num_blocks", 10)
-        global_token        =   cfg.get("global_token", True)
-        dropout_prob        =   cfg.get("dropout_prob", None)
-        double_layernorm    =   cfg.get("double_layernorm", False)
-        checkpoint_blocks   =   cfg.get("checkpoint_blocks", False)
+        in_mv_channels      =   cfg.model["in_mv_channels"]
+        out_mv_channels     =   cfg.model["out_mv_channels"]
+        hidden_mv_channels  =   cfg.model["hidden_mv_channels"]
+        in_s_channels       =   cfg.model.get("in_s_channels", None)
+        out_s_channels      =   cfg.model.get("out_s_channels", None)
+        hidden_s_channels   =   cfg.model.get("hidden_s_channels", None)
+        attention           =   cfg.model["attention"]
+        mlp                 =   cfg.model["mlp"]
+        num_blocks          =   cfg.model.get("num_blocks", 10)
+        global_token        =   cfg.model.get("global_token", True)
+        dropout_prob        =   cfg.model.get("dropout_prob", None)
+        double_layernorm    =   cfg.model.get("double_layernorm", False)
+        checkpoint_blocks   =   cfg.model.get("checkpoint_blocks", False)
 
         self.type_token = TYPE_TOKEN_DICT[process]
         token_size = max(self.type_token) + 1
         in_s_channels = token_size
         self.global_token = global_token
         self.loss_fct = nn.MSELoss()
-        
+
 
         self.net = LGATr_net(
             in_mv_channels=in_mv_channels,
