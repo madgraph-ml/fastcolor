@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+
 # from torch_geometric.utils import dense_to_sparse
 
 from interface import embed_vector, extract_scalar

@@ -37,7 +37,6 @@ class Model(nn.Module):
     # Overwrite in child class
     def batch_loss(self, x, y, weight):
         pass
-    
 
     def init_dataloaders(self, dataset, weights=None):
         data_ppd = dataset.events_ppd
@@ -74,14 +73,12 @@ class Model(nn.Module):
         lr = float(self.cfg.train.get("lr", 0.001))
         wd = self.cfg.train.get("weight_decay", 0.0)
         if optim == "adam" or optim == "Adam":
-            optimizer = torch.optim.Adam(
-                self.net.parameters(), lr=lr, weight_decay=wd
-            )
+            optimizer = torch.optim.Adam(self.net.parameters(), lr=lr, weight_decay=wd)
         else:
             raise NotImplementedError(f"Optimizer {optim} not implemented")
         self.optimizer = optimizer
         self.logger.info(f"Using optimizer {optim} with lr={lr} and weight decay={wd}")
-    
+
     def init_scheduler(self):
         sched = self.cfg.train.get("scheduler", None)
         if sched == "cosine_annealing":
@@ -99,7 +96,6 @@ class Model(nn.Module):
         self.scheduler = scheduler
         self.logger.info(f"Using scheduler {sched}")
 
-    
     def train(self):
         self.net.train()
         nepochs = self.cfg.train.nepochs
@@ -114,9 +110,13 @@ class Model(nn.Module):
         trn_lr = []
         grd_norm = []
         if self.heteroscedastic_loss.get("activate_after_its", 1000) > 1:
-            self.logger.info(f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations")
+            self.logger.info(
+                f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
+            )
         else:
-            self.logger.info(f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.train.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations")
+            self.logger.info(
+                f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.train.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
+            )
         self.logger.info(f"Training model for {nepochs} epochs")
         t0 = time.time()
         for epoch in range(nepochs):
@@ -127,7 +127,7 @@ class Model(nn.Module):
                 self.optimizer.zero_grad()
                 pred = self.forward(x[:, :-1])
                 target = x[:, -1:]
-                current_it = epoch * len(self.trnloader) + i    
+                current_it = epoch * len(self.trnloader) + i
                 loss, loss_terms = self.batch_loss(pred, target, weight, current_it)
                 loss.backward()
                 grad_norm = (
@@ -154,7 +154,12 @@ class Model(nn.Module):
                     x, weight = batch
                     pred = self.forward(x[:, :-1])
                     target = x[:, -1:]
-                    loss, loss_terms = self.batch_loss(pred, target, weight, current_it = self.cfg.train.nepochs * len(self.trnloader))
+                    loss, loss_terms = self.batch_loss(
+                        pred,
+                        target,
+                        weight,
+                        current_it=self.cfg.train.nepochs * len(self.trnloader),
+                    )
                     epoch_val_losses.append(loss.cpu().item())
 
             avg_trn_loss = torch.tensor(epoch_trn_losses).mean().item()
@@ -185,9 +190,11 @@ class Model(nn.Module):
                 avg_val_loss,
             )
         self.save("final")
-        self.logger.info(f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}")
+        self.logger.info(
+            f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}"
+        )
         self.logger.info(f"Last validation loss: {self.losses['val'][-1]:.5f}")
-    
+
     def save(self, name: str):
         """
         Saves the model, preprocessing, optimizer and losses.
@@ -206,7 +213,7 @@ class Model(nn.Module):
             },
             file,
         )
-    
+
     def load(self, name: str):
         """
         Loads the model, preprocessing, optimizer and losses.
@@ -239,7 +246,6 @@ class Model(nn.Module):
                 self.best_val_loss = self.losses["val"][-1]
                 self.save("best")
 
-
     def evaluate(self, loader=None):
         if loader is None:
             loader = self.tstloader
@@ -268,18 +274,26 @@ class Model(nn.Module):
             self.logger.info(f"    Finished sampling. Saving predictions")
         predictions = torch.cat(predictions)
         return predictions
-    
+
     def batch_loss(self, pred, target, weight, current_it, debug=False):
         if debug:
             print(pred, target)
         regression_loss = self.loss_fct(pred, target)
-        
+
         # heteroscedastic loss
-        activate_hs_loss = current_it > self.heteroscedastic_loss.get("activate_after_its", 1000) if self.heteroscedastic_loss.get("activate_after_its", 1000) > 1 else current_it/len(self.trnloader) / self.cfg.train.nepochs > self.heteroscedastic_loss.get("activate_after_its", 1000)
+        activate_hs_loss = (
+            current_it > self.heteroscedastic_loss.get("activate_after_its", 1000)
+            if self.heteroscedastic_loss.get("activate_after_its", 1000) > 1
+            else current_it / len(self.trnloader) / self.cfg.train.nepochs
+            > self.heteroscedastic_loss.get("activate_after_its", 1000)
+        )
         if self.heteroscedastic_loss.use and activate_hs_loss:
-            hs_loss = self.cfg.train.heteroscedastic_loss.get("scale", 0.001) * (target/pred).std()
+            hs_loss = (
+                self.cfg.train.heteroscedastic_loss.get("scale", 0.001)
+                * (target / pred).std()
+            )
         else:
-            hs_loss = torch.tensor([0.]).to(pred.device)
+            hs_loss = torch.tensor([0.0]).to(pred.device)
         loss = regression_loss + hs_loss.mean()
 
         loss_terms = {
@@ -289,6 +303,7 @@ class Model(nn.Module):
             "hs_scale": self.cfg.train.heteroscedastic_loss.get("scale", 0.001),
         }
         return loss, loss_terms
+
 
 class MLP(Model):
     def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
@@ -312,7 +327,9 @@ class MLP(Model):
         layers.append(activation)
         for _ in range(self.cfg.model["hidden_layers"]):
             layers.append(
-                nn.Linear(self.cfg.model["internal_size"], self.cfg.model["internal_size"])
+                nn.Linear(
+                    self.cfg.model["internal_size"], self.cfg.model["internal_size"]
+                )
             )
             layers.append(activation)
         layers.append(nn.Linear(self.cfg.model["internal_size"], self.dims_out))

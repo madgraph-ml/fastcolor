@@ -12,7 +12,6 @@ from .plots import Plots
 import torch
 
 
-
 def init_logger(run_dir):
     """
     Initialize the logger. If we are working on a previous run, output to "out_{previos_run_number+1}.log"
@@ -30,7 +29,7 @@ def init_logger(run_dir):
 
 def main(cfg: DictConfig):
     base_dir = hydra.utils.get_original_cwd()
-    
+
     if cfg.run.type == "train":
         ### INITIALIZE DIRECTORIES AND LOAD PARAMS ###
         results_dir = os.path.join(base_dir, "results")
@@ -41,13 +40,12 @@ def main(cfg: DictConfig):
         # Save config for reproducibility
         with open(os.path.join(run_dir, "params.yaml"), "w") as f:
             f.write(OmegaConf.to_yaml(cfg))
-    
+
     elif cfg.run.type == "plot":
         ### LOAD PARAMS FROM EXISTING RUN ###
         run_dir = cfg.run.path
     else:
         raise NotImplementedError(f"Run type {cfg.run.type} not recognised")
-    
 
     ### INITIALIZE LOGGER ###
     logger = init_logger(run_dir)
@@ -74,9 +72,11 @@ def run(logger, run_dir, cfg: DictConfig):
     # if cfg.model.type == "LGATr":
     #     cfg.dataset.parameterisation.naive.use = True
     #     cfg.dataset.parameterisation.lorentz_products.use = False
-    param_names = [p for p in cfg.dataset.parameterisation if cfg.dataset.parameterisation[p].use]
+    param_names = [
+        p for p in cfg.dataset.parameterisation if cfg.dataset.parameterisation[p].use
+    ]
     logger.info(f"Using parameterisation(s): {', '.join(param_names)}")
-    
+
     dataset = eval(cfg.dataset.type)(logger, cfg.dataset)
     dataset.apply_preprocessing()
     dataset.init_observables()
@@ -139,7 +139,9 @@ def run(logger, run_dir, cfg: DictConfig):
         logger.info(f"    Plotting train metrics")
         plots.plot_train_metrics(os.path.join(run_dir, f"train_metrics.pdf"), logy=True)
     logger.info(f"    Plotting ratio correlation")
-    plots.plot_ratio_correlation(os.path.join(run_dir, f"ratio_corr_tst.pdf"), split="tst")
+    plots.plot_ratio_correlation(
+        os.path.join(run_dir, f"ratio_corr_tst.pdf"), split="tst"
+    )
     logger.info(f"    Plotting regressed factors")
     plots.plot_weights(os.path.join(run_dir, f"factor_tst.pdf"), split="tst")
     plots.plot_weights(os.path.join(run_dir, f"factor_trn.pdf"), split="trn")

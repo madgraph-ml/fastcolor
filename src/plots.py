@@ -62,11 +62,16 @@ class Plots:
         self.obs_ppd = dataset.obs_ppd if hasattr(dataset, "obs_ppd") else None
         if process_name is not None:
             if process_name in ["gg_4g", "gg_5g", "gg_6g", "gg_7g"]:
+                process_name = f"${process_name[:2]}\\to {process_name[-2:]}$"
+            elif process_name in [
+                "gg_qqbar2g",
+                "gg_qqbar3g",
+                "gg_qqbar4g",
+                "gg_qqbar5g",
+            ]:
                 process_name = (
-                    f"${process_name[:2]}\\to {process_name[-2:]}$"
+                    f"${process_name[:2]} \\to q\\bar{{q}} + {process_name[-2:]}$"
                 )
-            elif process_name in ["gg_qqbar2g", "gg_qqbar3g", "gg_qqbar4g", "gg_qqbar5g"]:
-                process_name = f"${process_name[:2]} \\to q\\bar{{q}} + {process_name[-2:]}$"
 
         self.process_name = process_name
         self.losses = losses
@@ -257,7 +262,11 @@ class Plots:
                 self.dataset.events[split][:, -1:].squeeze().detach().cpu().numpy()
             )
             reweight_factors_pred = (
-                self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
+                self.dataset.predicted_factors_raw[split]
+                .squeeze()
+                .detach()
+                .cpu()
+                .numpy()
             )
 
             xlim_bins = [0.4, 1.4]
@@ -268,7 +277,6 @@ class Plots:
             y_pred, y_pred_err = compute_hist_data(
                 bins, reweight_factors_pred, bayesian=False
             )
-
 
             lines = [
                 Line(
@@ -284,7 +292,6 @@ class Plots:
                     label=f"$\\mathrm{{{self.model_name}}}$",
                     color=NN_COLOR,
                 ),
-                
             ]
             self.hist_weights_plot(
                 pp,
@@ -294,7 +301,7 @@ class Plots:
                 title=self.process_name if self.process_name is not None else None,
             )
 
-            ratios =  reweight_factors_truth / reweight_factors_pred
+            ratios = reweight_factors_truth / reweight_factors_pred
             xlim_bins = [0.5, 1.5]
             bins = np.linspace(*xlim_bins, 64)
             y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
@@ -326,14 +333,14 @@ class Plots:
         """
         with PdfPages(file) as pp:
             reweight_factors_truth = (
-                self.dataset.events_ppd[split][:, -1:]
+                self.dataset.events_ppd[split][:, -1:].squeeze().detach().cpu().numpy()
+            )
+            reweight_factors_pred = (
+                self.dataset.predicted_factors_ppd[split]
                 .squeeze()
                 .detach()
                 .cpu()
                 .numpy()
-            )
-            reweight_factors_pred = (
-                self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
 
             xlim_bins = [-5, 5]
@@ -368,7 +375,7 @@ class Plots:
                 title=self.process_name if self.process_name is not None else None,
             )
 
-            ratios =  reweight_factors_truth / reweight_factors_pred
+            ratios = reweight_factors_truth / reweight_factors_pred
             xlim_bins = [-2, 2]
             bins = np.linspace(*xlim_bins, 64)
             y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
@@ -389,9 +396,11 @@ class Plots:
                 title=self.process_name if self.process_name is not None else None,
             )
 
-    def plot_ratio_correlation(self, file: str, split="tst", pickle_file: Optional[str] = None):
+    def plot_ratio_correlation(
+        self, file: str, split="tst", pickle_file: Optional[str] = None
+    ):
         with PdfPages(file) as pp:
-            cmap = plt.get_cmap('viridis')
+            cmap = plt.get_cmap("viridis")
             cmap.set_bad("white")
             bins = np.linspace(0.5, 1.5, 64)
 
@@ -399,15 +408,21 @@ class Plots:
                 self.dataset.events[split][:, -1:].squeeze().detach().cpu().numpy()
             )
             reweight_factors_pred = (
-                self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
+                self.dataset.predicted_factors_raw[split]
+                .squeeze()
+                .detach()
+                .cpu()
+                .numpy()
             )
-            ratios =  reweight_factors_truth / reweight_factors_pred
+            ratios = reweight_factors_truth / reweight_factors_pred
             pickle_data = []
             h, x, y = np.histogram2d(reweight_factors_pred, ratios, bins=(bins, bins))
             # h = np.ma.divide(h, np.sum(h, -1, keepdims=True)).filled(0)
             h[h == 0] = np.nan
             h_norm = h / np.nansum(h)
-            plt.pcolormesh(bins, bins, h_norm, cmap=cmap, norm=LogNorm(), rasterized=True)
+            plt.pcolormesh(
+                bins, bins, h_norm, cmap=cmap, norm=LogNorm(), rasterized=True
+            )
             plt.colorbar()
             plt.title(f"{self.model_name}")
             plt.xlim(bins[0], bins[-1])
@@ -504,7 +519,9 @@ class Plots:
                         axs[1], bins, ratio, ratio_err, label=None, color=line.color
                     )
             if show_ratios:
-                axs[1].set_ylabel(f"$\\frac{{\\mathrm{{{self.model_name}}}}}{{\\mathrm{{Truth}}}}$")
+                axs[1].set_ylabel(
+                    f"$\\frac{{\\mathrm{{{self.model_name}}}}}{{\\mathrm{{Truth}}}}$"
+                )
                 axs[1].set_yticks([0.9, 1, 1.1])
                 axs[1].set_ylim([0.85, 1.15])
                 axs[1].axhline(y=1, c="black", ls="--", lw=0.7)
@@ -640,7 +657,9 @@ def hist_plot(
         axs[0].set_yscale(observable.yscale if yscale is None else yscale)
 
         if show_ratios:
-            axs[1].set_ylabel(f"$\\frac{{\\mathrm{{{model_name}}}}}{{\\mathrm{{Truth}}}}$")
+            axs[1].set_ylabel(
+                f"$\\frac{{\\mathrm{{{model_name}}}}}{{\\mathrm{{Truth}}}}$"
+            )
             axs[1].set_yticks([0.9, 1, 1.1])
             axs[1].set_ylim([0.85, 1.15])
             axs[1].axhline(y=1, c="black", ls="--", lw=0.7)

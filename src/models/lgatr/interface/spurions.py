@@ -107,6 +107,7 @@ def get_spurions(
     spurions = torch.cat((beam, time), dim=-2)
     return spurions
 
+
 def embed_spurions(
     beam_reference,
     add_time_reference,

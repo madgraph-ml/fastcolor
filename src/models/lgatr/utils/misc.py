@@ -67,7 +67,10 @@ def minimum_autocast_precision(
         def decorated_func(*args: Any, **kwargs: Any):
             """Decorated func."""
             # Only change dtypes in autocast-enabled regions
-            if not torch.is_autocast_enabled() or torch.get_autocast_gpu_dtype() != torch.float16:
+            if (
+                not torch.is_autocast_enabled()
+                or torch.get_autocast_gpu_dtype() != torch.float16
+            ):
                 # NB: torch.is_autocast_enabled() only checks for GPU autocast
                 # See https://github.com/pytorch/pytorch/issues/110966
                 return func(*args, **kwargs)

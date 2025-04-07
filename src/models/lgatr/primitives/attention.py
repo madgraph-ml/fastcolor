@@ -3,6 +3,7 @@ from typing import Callable, Optional, Tuple
 import torch
 from einops import rearrange
 from torch import Tensor
+
 # flex_attention and create_block_mask should be torch.compile'd for performance
 # from torch.nn.attention.flex_attention import BlockMask, flex_attention
 from torch.nn.functional import scaled_dot_product_attention as torch_sdpa
@@ -92,7 +93,7 @@ def scaled_dot_product_attention(
     attn_mask: torch.Tensor = None,
     is_causal: bool = False,
     score_mod: Callable = None,
-    block_mask = None #: BlockMask = None,
+    block_mask=None,  #: BlockMask = None,
 ) -> Tensor:
     """Execute scaled dot-product attention.
     The code dynamically selects the backend based on the arguments.
