@@ -1,7 +1,7 @@
 import torch
 import numpy as np
-import utils.physics as phys
-from datasets.dataset import Observable, return_obs, get_hardcoded_bins
+import src.utils.physics as phys
+from .dataset import Observable, return_obs, get_hardcoded_bins
 import os
 
 class gg_ng:
@@ -141,7 +141,7 @@ class gg_ng:
             
             if pp_cfg.equivariant:
                 self.logger.info(f"Equivariant preprocessing for {self.channels[:-1]}")
-                assert self.cfg.parameterisation.naive.use == True, f"Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.dataset.parameterisation if self.cfg.dataset.parameterisation[p].use]}"
+                assert self.cfg.parameterisation.naive.use == True, f"Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.parameterisation if self.cfg.parameterisation[p].use]}"
                 self.std = events_ppd[:, :-1].std()
                 events_ppd[:, :-1] = events_ppd[:, :-1] / (
                     self.std + eps

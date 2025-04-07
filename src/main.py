@@ -3,12 +3,12 @@ import glob
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from datetime import datetime
-from utils.logger import setup_logging
-from datasets.gluons import gg_ng, gg_qqbarng
-from datasets.dataset import compute_observables
-from models.models import Model, MLP, MDN
-from models.lgatr import LGATr, LGATr_net, AmplitudeWrapper
-from plots import Plots
+from .utils.logger import setup_logging
+from .datasets.gluons import gg_ng, gg_qqbarng
+from .datasets.dataset import compute_observables
+from .models.models import Model, MLP, MDN
+from .models.lgatr import LGATr
+from .plots import Plots
 import torch
 
 
@@ -71,12 +71,12 @@ def run(logger, run_dir, cfg: DictConfig):
 
     # INITIALIZE DATASET AND PREPROCESSING ###
     logger.info(f"Dataset: {cfg.dataset.process}")
-    if cfg.model.type == "LGATr":
-        cfg.dataset.parameterisation.naive.use = True
-        cfg.dataset.parameterisation.lorentz_products.use = False
+    # if cfg.model.type == "LGATr":
+    #     cfg.dataset.parameterisation.naive.use = True
+    #     cfg.dataset.parameterisation.lorentz_products.use = False
     param_names = [p for p in cfg.dataset.parameterisation if cfg.dataset.parameterisation[p].use]
     logger.info(f"Using parameterisation(s): {', '.join(param_names)}")
-
+    
     dataset = eval(cfg.dataset.type)(logger, cfg.dataset)
     dataset.apply_preprocessing()
     dataset.init_observables()
@@ -87,13 +87,16 @@ def run(logger, run_dir, cfg: DictConfig):
     logger.info(
         f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}"
     )
+    model_path = os.path.join(run_dir, "model")
 
     model = eval(cfg.model.type)(
         logger=logger,
         process=cfg.dataset.process,
-        cfg=cfg.model,
+        cfg=cfg,
         dims_in=dims_in,
         dims_out=dims_out,
+        model_path=model_path,
+        device=device,
     ).to(device)
     model.name = cfg.model.type
     logger.info(
@@ -103,15 +106,11 @@ def run(logger, run_dir, cfg: DictConfig):
 
     if cfg.run.type == "train":
         # TRAIN MODEL
+        os.makedirs(model_path, exist_ok=True)
         model.train()
-        os.makedirs(os.path.join(run_dir, "model"), exist_ok=True)
-        model_path = os.path.join(run_dir, "model", "model.pth")
-        torch.save(model.state_dict(), model_path)
-        logger.info("Saved model to " + model_path)
     elif cfg.run.type == "plot":
         # LOAD MODEL
-        model_path = os.path.join(run_dir, "model", "model.pth")
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.load("final")
         logger.info("Loaded model from " + model_path)
 
     ### EVALUATE MODEL ###
