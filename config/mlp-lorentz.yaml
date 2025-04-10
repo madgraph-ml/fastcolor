@@ -1,0 +1,54 @@
+run:
+  name: null
+  path: ???
+
+
+dataset:
+  type: gg_ng
+  process: gg_5g
+  use_large_file: true
+  trn_tst_val: [.5, .4, .1]
+
+  channels: []
+
+  parameterisation:
+    naive:
+      use: false
+      channels: ${dataset.channels}
+    lorentz_products:
+      use: true
+      channels : []
+  
+  preprocessing:
+    gaussianize: true
+    standardize: false
+    equivariant: false
+
+    amplitude:
+      standardize: false
+      minmax_scaling: false
+
+train:
+  warm_start: false
+  checkpoint: final
+
+  lr: 1e-4
+  clip_grad_norm: 10
+  optimizer: adam
+  scheduler: null                # [cosine_annealing, stepLR, null]
+  nepochs: 300
+  batch_size: 512
+  batch_size_eval: 4096
+  heteroscedastic_loss:
+    use: true
+    scale: 1e-2
+    activate_after_its: .40
+
+evaluate:
+  save_samples: false
+  save_data: false
+
+defaults:
+  - model: mlp
+  - default
+  - _self_

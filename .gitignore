@@ -1,6 +1,10 @@
 # Miscellaneous
+*template_files/
+runfiles/
+logs/
 data/
 results/
+outputs/
 *.ipynb
 
 # Byte-compiled / optimized / DLL files

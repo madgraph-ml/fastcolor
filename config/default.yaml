@@ -1,0 +1,11 @@
+run:
+  type: train
+  name: null
+
+seed: null
+debug: false
+
+defaults:
+ - dataset
+ - hydra
+ - _self_

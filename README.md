@@ -21,21 +21,24 @@ pip install --editable .
 
 ## Dependencies
 - Python 3.x
-- NumPy
-- PyTorch
-- MadGraph5_aMC@NLO
+- NumPy 1.x
+- Black
+- PyTorch 2.x
+- Hydra
 
 ## Usage
 
 Training a model:
 ```sh
-src train params/paramcard.yaml
+python run.py -cn config/config_file.yaml
 ```
-A new subfolder will be created in `madrecolor/results` which will contain log files, the run parameters,
-the trained model and plots.
+A folder will be created in `madrecolor/results` with the name of the model employed for better traceability. Inside, a new subfolder will appear with the date and time of the run, and will contain log files, the config of the run, the trained model and plots.
 
-Re-running plots for a trained model:
+To regenerate plots for a trained model, it is sufficient to specify the config path `-cp` stored in the run path, and the name of the config file `cn`. For example:
 ```sh
-src plot run_name
+python run.py -cn config_from_run1 -cp results/my_model/YYYYMMDD_HHMMSS-run1
 ```
-
+To warm-start a pre-trained model and continue the training. Just specify the path and override the `run.type` and `train.warm_start` settings:
+```sh
+python run.py -cn config_from_run1 -cp results/my_model/YYYYMMDD_HHMMSS-run1 run.type=train train.warm_start=true
+```
