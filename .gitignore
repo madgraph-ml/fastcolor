@@ -1,4 +1,5 @@
 # Miscellaneous
+runfiles/
 logs/
 data/
 results/
