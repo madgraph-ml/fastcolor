@@ -89,6 +89,11 @@ class LGATr(Model):
 
         self.type_token = TYPE_TOKEN_DICT[process]
         token_size = max(self.type_token) + 1
+        permutation_invariance = cfg.model.get("permutation_invariance", True)
+        if not permutation_invariance:
+            if "5" in process:
+                self.logger.info("Breaking permutation invariance.")
+                token_size = 6
         in_s_channels = token_size
         self.global_token = global_token
         self.loss_fct = nn.MSELoss()
