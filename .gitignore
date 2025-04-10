@@ -1,5 +1,6 @@
 # Miscellaneous
 *template_files/
+config/
 runfiles/
 logs/
 data/

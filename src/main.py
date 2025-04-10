@@ -213,10 +213,6 @@ def run(logger, run_dir, cfg: DictConfig):
     if hasattr(model, "losses"):
         logger.info(f"    Plotting train metrics")
         plots.plot_train_metrics(os.path.join(run_dir, f"train_metrics.pdf"), logy=True)
-    logger.info(f"    Plotting ratio correlation")
-    plots.plot_ratio_correlation(
-        os.path.join(run_dir, f"ratio_corr_tst.pdf"), split="tst"
-    )
     logger.info(f"    Plotting regressed factors")
     plots.plot_weights(os.path.join(run_dir, f"factor_tst.pdf"), split="tst")
     plots.plot_weights(os.path.join(run_dir, f"factor_trn.pdf"), split="trn")
@@ -229,6 +225,10 @@ def run(logger, run_dir, cfg: DictConfig):
     plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
     logger.info(f"    Plotting ppd observables")
     plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
+    logger.info(f"    Plotting ratio correlation")
+    plots.plot_ratio_correlation(
+        os.path.join(run_dir, f"ratio_corr_tst.pdf"), split="tst"
+    )
 
     if device == torch.device("cuda"):
         max_used = torch.cuda.max_memory_allocated()
