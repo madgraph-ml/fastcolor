@@ -16,6 +16,8 @@ To install **MadRecolor**, clone the repository and install dependencies:
 git clone git@github.com:madgraph-ml/madrecolor.git
 # then install in dev mode
 cd madrecolor
+python -m venv venv
+source venv/bin/activate
 pip install --editable .
 ```
 
