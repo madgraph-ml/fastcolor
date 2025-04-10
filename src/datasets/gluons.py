@@ -28,7 +28,7 @@ class gg_ng:
         data_path = self.cfg.get("data_path", None)
         if self.device == "cpu" and "remote" in data_path:
             self.logger.info(
-                f"Data path {data_path} is remote but you are running on local cpu, changing it to data/"
+                f"    Data path {data_path} is remote but you are running on local cpu, changing it to data/"
             )
             data_path = "data"
         if data_path is None:
@@ -43,7 +43,7 @@ class gg_ng:
         if not os.path.exists(file_path):
             raise ValueError(f"File {file_path} does not exist")
         else:
-            self.logger.info(f"Loading data from {file_path}")
+            self.logger.info(f"    Loading data from {file_path}")
             try:
                 momenta = (
                     np.load(file_path)[:n_events]
@@ -84,7 +84,6 @@ class gg_ng:
 
         if self.channels == []:
             # Use all of channels by default
-
             self.channels = list(np.arange(events.shape[1]))
         self.last_channel = events.shape[1] - 1
         if self.last_channel not in self.channels:
@@ -149,10 +148,10 @@ class gg_ng:
                 events_ppd[:, :-1] = (events_ppd[:, :-1] - self.mean) / (self.std + eps)
 
             if pp_cfg.equivariant:
-                self.logger.info(f"Equivariant preprocessing for {self.channels[:-1]}")
+                self.logger.info(f"    Equivariant preprocessing for {self.channels[:-1]}")
                 assert (
                     self.cfg.parameterisation.naive.use == True
-                ), f"Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.parameterisation if self.cfg.parameterisation[p].use]}"
+                ), f"    Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.parameterisation if self.cfg.parameterisation[p].use]}"
                 self.std = events_ppd[:, :-1].std()
                 events_ppd[:, :-1] = events_ppd[:, :-1] / (self.std + eps)
 
