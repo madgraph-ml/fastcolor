@@ -6,7 +6,7 @@ from datetime import datetime
 from .utils.logger import setup_logging
 from .datasets.gluons import gg_ng, gg_qqbarng
 from .datasets.dataset import compute_observables
-from .models.models import Model, MLP, MDN
+from .models.models import Model, MLP
 from .models.lgatr import LGATr
 from .plots import Plots
 import torch
@@ -31,25 +31,55 @@ def main(cfg: DictConfig):
     base_dir = hydra.utils.get_original_cwd()
 
     if cfg.run.type == "train":
-        ### INITIALIZE DIRECTORIES AND LOAD PARAMS ###
-        results_dir = os.path.join(base_dir, "results")
-        run_name = datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + cfg.run.name
-        run_dir = os.path.join(results_dir, run_name)
+        if not cfg.train.warm_start:
+            # Initialize run directory
+            results_dir = os.path.join(base_dir, "results")
+            run_name = cfg.model.type + "/" + datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + cfg.run.name if cfg.run.name is not None else cfg.model.type + "/" + datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_dir = os.path.join(results_dir, run_name)
+            os.makedirs(run_dir, exist_ok=True)
+        else:
+            # Load already existing run directory
+            run_dir = cfg.run.path
+            old_dir = os.path.join(run_dir, "old")
+            os.makedirs(old_dir, exist_ok=True)
+            for item in os.listdir(run_dir):
+                item_path = os.path.join(run_dir, item)
+                if (
+                    os.path.isfile(item_path)
+                    and item.startswith("out_") and item.endswith(".log")
+                ) or item=="model" or (os.path.isfile(item_path) and item.startswith("config") and item.endswith(".yaml")):
+                    continue
+                if "old" in item:
+                    continue
+                os.rename(item_path, os.path.join(old_dir, item))
 
-        os.makedirs(run_dir, exist_ok=True)
-        # Save config for reproducibility
-        with open(os.path.join(run_dir, "params.yaml"), "w") as f:
-            f.write(OmegaConf.to_yaml(cfg))
-
+        # This is to keep plot as predefined run type
+        cfg_to_save = OmegaConf.to_container(cfg, resolve=True)
+        cfg_to_save["run"]["path"] = run_dir
+        cfg_to_save["run"]["type"] = "plot"
+        config_file = os.path.join(run_dir, "config.yaml")
+        with open(config_file, "w") as f:
+            f.write(OmegaConf.to_yaml(OmegaConf.create(cfg_to_save)))
+        
     elif cfg.run.type == "plot":
-        ### LOAD PARAMS FROM EXISTING RUN ###
+        # Load already existing run directory
         run_dir = cfg.run.path
+        old_dir = os.path.join(run_dir, "old")
+        os.makedirs(old_dir, exist_ok=True)
+        for item in os.listdir(run_dir):
+            item_path = os.path.join(run_dir, item)
+            if (
+                os.path.isfile(item_path)
+                and item.startswith("out_") and item.endswith(".log")
+            ) or item=="model" or (os.path.isfile(item_path) and item.startswith("config") and item.endswith(".yaml")):
+                continue
+            if "old" in item:
+                continue
+            os.rename(item_path, os.path.join(old_dir, item))
     else:
         raise NotImplementedError(f"Run type {cfg.run.type} not recognised")
 
-    ### INITIALIZE LOGGER ###
     logger = init_logger(run_dir)
-
     try:
         run(logger, run_dir, cfg)
     except Exception as e:
@@ -75,7 +105,7 @@ def run(logger, run_dir, cfg: DictConfig):
     param_names = [
         p for p in cfg.dataset.parameterisation if cfg.dataset.parameterisation[p].use
     ]
-    logger.info(f"Using parameterisation(s): {', '.join(param_names)}")
+    logger.info(f"    Using parameterisation(s): {', '.join(param_names)}")
 
     dataset = eval(cfg.dataset.type)(logger, cfg.dataset)
     dataset.apply_preprocessing()
@@ -106,12 +136,16 @@ def run(logger, run_dir, cfg: DictConfig):
 
     if cfg.run.type == "train":
         # TRAIN MODEL
-        os.makedirs(model_path, exist_ok=True)
+        if not cfg.train.warm_start:
+            os.makedirs(model_path, exist_ok=True)
+        else:
+            pass
         model.train()
     elif cfg.run.type == "plot":
         # LOAD MODEL
-        model.load("final")
-        logger.info("Loaded model from " + model_path)
+        model_name = "final"
+        model.load(model_name)
+        logger.info("Loaded model from " + os.path.join(run_dir, "old", model_name) + ".pth")
 
     ### EVALUATE MODEL ###
     dataset.predicted_factors_ppd = {}
@@ -119,6 +153,19 @@ def run(logger, run_dir, cfg: DictConfig):
         dataset.predicted_factors_ppd[k] = model.evaluate(
             loader=getattr(model, f"{k}loader")
         )
+        if cfg.evaluate.save_samples:
+            os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+            torch.save(
+                dataset.predicted_factors_ppd[k],
+                os.path.join(run_dir, f"samples/predicted_factors_{k}.pt"),
+            )
+        if cfg.evaluate.save_data:
+            os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+            torch.save(
+                dataset.events[k],
+                os.path.join(run_dir, f"samples/events_{k}.pt"),
+            )
+
     dataset.apply_preprocessing(reverse=True)
     # ### COMPUTE OBSERVABLES ###
     logger.info("Computing observables")
