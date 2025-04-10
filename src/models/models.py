@@ -104,7 +104,12 @@ class Model(nn.Module):
         self.init_optimizer()
         self.init_scheduler()
         if self.cfg.train.get("warm_start", False):
-            self.logger.info("Warm-starting model from " + os.path.join(self.model_path, f"{self.cfg.get('checkpoint', 'final')}.pth"))
+            self.logger.info(
+                "Warm-starting model from "
+                + os.path.join(
+                    self.model_path, f"{self.cfg.get('checkpoint', 'final')}.pth"
+                )
+            )
             self.load(self.cfg.train.get("checkpoint", "final"))
         if self.heteroscedastic_loss is not None and self.heteroscedastic_loss.use:
             hs_loss = []
@@ -124,7 +129,9 @@ class Model(nn.Module):
             self.logger.info(
                 f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.train.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
             )
-        self.logger.info(f"Training model for {nepochs} epochs (= {nepochs * len(self.trnloader)} iterations)")
+        self.logger.info(
+            f"Training model for {nepochs} epochs (= {nepochs * len(self.trnloader)} iterations)"
+        )
         t0 = time.time()
         for epoch in range(1, nepochs + 1):
             epoch_trn_losses = []
@@ -166,7 +173,7 @@ class Model(nn.Module):
                         target,
                         weight,
                         current_it=self.cfg.train.nepochs * len(self.trnloader),
-                        val=True
+                        val=True,
                     )
                     epoch_val_losses.append(loss.cpu().item())
 
@@ -289,8 +296,8 @@ class Model(nn.Module):
         if self.heteroscedastic_loss.use and activate_hs_loss and not val:
             if self.first_hs_call:
                 self.logger.info(
-                f"    Using heteroscedastic loss with scale {self.cfg.train.heteroscedastic_loss.get('scale', 0.001)} from it. {current_it} onwards"
-            )
+                    f"    Using heteroscedastic loss with scale {self.cfg.train.heteroscedastic_loss.get('scale', 0.001)} from it. {current_it} onwards"
+                )
                 self.first_hs_call = False
             hs_loss = (
                 self.cfg.train.heteroscedastic_loss.get("scale", 0.001)

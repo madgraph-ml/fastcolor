@@ -21,10 +21,7 @@ def setup_logging(log_file_path):
         level=logging.INFO,
         format=FORMATTER._fmt,
         datefmt=FORMATTER.datefmt,
-        handlers=[
-            logging.FileHandler(log_file_path),
-            logging.StreamHandler()
-        ]
+        handlers=[logging.FileHandler(log_file_path), logging.StreamHandler()],
     )
 
     return logging.getLogger()  # root logger

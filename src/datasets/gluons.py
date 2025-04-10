@@ -148,7 +148,9 @@ class gg_ng:
                 events_ppd[:, :-1] = (events_ppd[:, :-1] - self.mean) / (self.std + eps)
 
             if pp_cfg.equivariant:
-                self.logger.info(f"    Equivariant preprocessing for {self.channels[:-1]}")
+                self.logger.info(
+                    f"    Equivariant preprocessing for {self.channels[:-1]}"
+                )
                 assert (
                     self.cfg.parameterisation.naive.use == True
                 ), f"    Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.parameterisation if self.cfg.parameterisation[p].use]}"

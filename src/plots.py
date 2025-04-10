@@ -420,7 +420,12 @@ class Plots:
             h[h == 0] = np.nan
             h_norm = h / np.nansum(h)
             plt.pcolormesh(
-                bins, bins, h_norm, cmap=cmap, norm=LogNorm(vmin=np.nanmin(h_norm), vmax=np.nanmax(h_norm)), rasterized=True
+                bins,
+                bins,
+                h_norm,
+                cmap=cmap,
+                norm=LogNorm(vmin=np.nanmin(h_norm), vmax=np.nanmax(h_norm)),
+                rasterized=True,
             )
             plt.colorbar()
             plt.title(f"{self.model_name}")

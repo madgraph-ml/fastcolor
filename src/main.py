@@ -34,7 +34,15 @@ def main(cfg: DictConfig):
         if not cfg.train.warm_start:
             # Initialize run directory
             results_dir = os.path.join(base_dir, "results")
-            run_name = cfg.model.type + "/" + datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + cfg.run.name if cfg.run.name is not None else cfg.model.type + "/" + datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_name = (
+                cfg.model.type
+                + "/"
+                + datetime.now().strftime("%Y%m%d_%H%M%S")
+                + "-"
+                + cfg.run.name
+                if cfg.run.name is not None
+                else cfg.model.type + "/" + datetime.now().strftime("%Y%m%d_%H%M%S")
+            )
             run_dir = os.path.join(results_dir, run_name)
             os.makedirs(run_dir, exist_ok=True)
         else:
@@ -45,9 +53,18 @@ def main(cfg: DictConfig):
             for item in os.listdir(run_dir):
                 item_path = os.path.join(run_dir, item)
                 if (
-                    os.path.isfile(item_path)
-                    and item.startswith("out_") and item.endswith(".log")
-                ) or item=="model" or (os.path.isfile(item_path) and item.startswith("config") and item.endswith(".yaml")):
+                    (
+                        os.path.isfile(item_path)
+                        and item.startswith("out_")
+                        and item.endswith(".log")
+                    )
+                    or item == "model"
+                    or (
+                        os.path.isfile(item_path)
+                        and item.startswith("config")
+                        and item.endswith(".yaml")
+                    )
+                ):
                     continue
                 if "old" in item:
                     continue
@@ -60,7 +77,7 @@ def main(cfg: DictConfig):
         config_file = os.path.join(run_dir, "config.yaml")
         with open(config_file, "w") as f:
             f.write(OmegaConf.to_yaml(OmegaConf.create(cfg_to_save)))
-        
+
     elif cfg.run.type == "plot":
         # Load already existing run directory
         run_dir = cfg.run.path
@@ -69,9 +86,18 @@ def main(cfg: DictConfig):
         for item in os.listdir(run_dir):
             item_path = os.path.join(run_dir, item)
             if (
-                os.path.isfile(item_path)
-                and item.startswith("out_") and item.endswith(".log")
-            ) or item=="model" or (os.path.isfile(item_path) and item.startswith("config") and item.endswith(".yaml")):
+                (
+                    os.path.isfile(item_path)
+                    and item.startswith("out_")
+                    and item.endswith(".log")
+                )
+                or item == "model"
+                or (
+                    os.path.isfile(item_path)
+                    and item.startswith("config")
+                    and item.endswith(".yaml")
+                )
+            ):
                 continue
             if "old" in item:
                 continue
@@ -145,7 +171,9 @@ def run(logger, run_dir, cfg: DictConfig):
         # LOAD MODEL
         model_name = "final"
         model.load(model_name)
-        logger.info("Loaded model from " + os.path.join(run_dir, "old", model_name) + ".pth")
+        logger.info(
+            "Loaded model from " + os.path.join(run_dir, "old", model_name) + ".pth"
+        )
 
     ### EVALUATE MODEL ###
     dataset.predicted_factors_ppd = {}
