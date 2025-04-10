@@ -23,3 +23,5 @@ mlp:
   mv_channels: null             # Inherits directly from gatr
   s_channels: null              # Inherits directly from gatr
   activation: gelu              # Activation function
+
+permutation_invariance: true
