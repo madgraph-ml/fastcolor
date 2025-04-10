@@ -2,6 +2,10 @@ run:
   type: train
   name: null
 
+seed: null
+debug: false
+
 defaults:
- - _self_
+ - dataset
  - hydra
+ - _self_

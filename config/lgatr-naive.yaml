@@ -1,26 +1,12 @@
 run:
-  type: train
-  name: test
+  name: null
+  path: ???
 
-seed: null
-debug: false
 
 dataset:
   type: gg_ng
   process: gg_5g
   use_large_file: true
-
-  data_path: /remote/gpu02/marino/data
-  gg_4g: events_6_2_21_21_21_21_21_21_1_2_3_4_5_6.lhe.rwgt.npy
-  gg_5g: events_7_2_21_21_21_21_21_21_21_1_2_3_4_5_6_7.lhe.rwgt.npy
-  gg_6g: events_8_2_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8.lhe.rwgt.npy
-  gg_7g: events_9_2_21_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8_9.lhe.rwgt.npy
-
-  gg_qqbar2g: events_6_2_21_21_1_-1_21_21_3_1_2_5_6_4.lhe.rwgt.npy
-  gg_qqbar3g: events_7_2_21_21_1_-1_21_21_21_3_1_2_5_6_7_4.lhe.rwgt.npy
-  gg_qqbar4g: events_8_2_21_21_1_-1_21_21_21_21_3_1_2_5_6_7_8_4.lhe.rwgt.npy
-  gg_qqbar5g: events_9_2_21_21_1_-1_21_21_21_21_21_3_1_2_5_6_7_8_9_4.lhe.rwgt.npy
-  
   trn_tst_val: [.5, .4, .1]
 
   channels: []
@@ -39,13 +25,31 @@ dataset:
     equivariant: true
 
     amplitude:
-      gaussianize: false
-      standardize: true
-      minmax_scaling: true
-  
-model:
-  nepochs: 250
+      standardize: false
+      minmax_scaling: false
+
+
+train:
+  warm_start: false
+  checkpoint: final
+
+  lr: 1e-4
+  clip_grad_norm: 10
+  optimizer: adam
+  scheduler: null                # [cosine_annealing, stepLR, null]
+  nepochs: 100
+  batch_size: 512
+  batch_size_eval: 4096
+  heteroscedastic_loss:
+    use: true
+    scale: 1e-2
+    activate_after_its: .40
+
+evaluate:
+  save_samples: false
+  save_data: false
+
 defaults:
-  - model: lgatr
+  - model: lgatr-100k
   - default
   - _self_

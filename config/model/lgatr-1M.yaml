@@ -1,0 +1,25 @@
+type: LGATr
+in_mv_channels: 1               # number of multivector input channels (per particle)
+out_mv_channels: 1              # number of multivector output channels (per particle)
+hidden_mv_channels: 32          # internal size of network, modifiable
+
+in_s_channels: 0                # number of scalar input channels (=token size and is dynamically set)
+out_s_channels: null            # number of scalar output channels (not used)
+hidden_s_channels: 32           # internal size of network, modifiable
+
+num_blocks: 4                   # Number of GATr blocks
+reinsert_mv_channels: null      # Residual connection for multivector channels
+reinsert_s_channels: null       # Residual connection for scalar channels
+dropout_prob: null              # Dropout probability
+double_layernorm: false         # Double layer norm
+
+attention:
+  num_heads: 4                  # Number of attention heads
+  multi_query: false            # Whether to use multiple queries for each head
+  increase_hidden_channels: 2   # Increase hidden channels for each head
+  head_scale: true              # Scale the output of each head (default is true)
+
+mlp:
+  mv_channels: null             # Inherits directly from gatr
+  s_channels: null              # Inherits directly from gatr
+  activation: gelu              # Activation function

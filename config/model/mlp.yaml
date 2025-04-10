@@ -1,6 +1,7 @@
 type: MLP
 hidden_layers: 6
 internal_size: 256
+activation: gelu
 
 lr: 1.e-4
 clip_grad_norm: 10
