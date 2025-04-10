@@ -1,4 +1,0 @@
-- run.name=mlp-lorentz-hs-test
-- dataset.process=gg_5g
-- model.nepochs=1
-- dataset.trn_tst_val=[0.01,0.01,0.01]
