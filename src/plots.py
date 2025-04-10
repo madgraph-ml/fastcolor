@@ -127,7 +127,7 @@ class Plots:
             if "grad_norm" in self.losses:
                 fig, ax = plt.subplots(figsize=(6, 4.5))
                 fig.tight_layout(
-                    pad=0.0, w_pad=0.0, h_pad=0.0, rect=(0.09, 0.1, 0.85, 0.98)
+                    pad=0.0, w_pad=0.0, h_pad=0.0, rect=(0.15, 0.1, 0.85, 0.98)
                 )
                 iterations = range(1, len(self.losses["grad_norm"]) + 1)
                 ax.plot(
@@ -148,7 +148,7 @@ class Plots:
             if "hs" in self.losses:
                 fig, ax = plt.subplots(figsize=(6, 4.5))
                 fig.tight_layout(
-                    pad=0.0, w_pad=0.0, h_pad=0.0, rect=(0.09, 0.1, 0.85, 0.98)
+                    pad=0.0, w_pad=0.0, h_pad=0.0, rect=(0.15, 0.1, 0.85, 0.98)
                 )
                 iterations = range(1, len(self.losses["hs"]) + 1)
                 ax.plot(
@@ -343,7 +343,7 @@ class Plots:
                 .numpy()
             )
 
-            xlim_bins = [-5, 5]
+            xlim_bins = [0, 3]
             bins = np.linspace(*xlim_bins, 64)
             y_truth, y_truth_err = compute_hist_data(
                 bins, reweight_factors_truth, bayesian=False
@@ -376,7 +376,6 @@ class Plots:
             )
 
             ratios = reweight_factors_truth / reweight_factors_pred
-            xlim_bins = [-2, 2]
             bins = np.linspace(*xlim_bins, 64)
             y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
             lines = [
@@ -421,7 +420,7 @@ class Plots:
             h[h == 0] = np.nan
             h_norm = h / np.nansum(h)
             plt.pcolormesh(
-                bins, bins, h_norm, cmap=cmap, norm=LogNorm(), rasterized=True
+                bins, bins, h_norm, cmap=cmap, norm=LogNorm(vmin=np.nanmin(h_norm), vmax=np.nanmax(h_norm)), rasterized=True
             )
             plt.colorbar()
             plt.title(f"{self.model_name}")
