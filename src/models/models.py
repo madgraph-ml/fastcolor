@@ -17,6 +17,8 @@ class Model(nn.Module):
         self.heteroscedastic_loss = cfg.train.get("heteroscedastic_loss", None)
 
         self.state_dict_attrs = ["net", "optimizer"]  # add more if needed
+        if self.cfg.train.scheduler is not None:
+            self.state_dict_attrs.append("scheduler")
 
     # Overwrite in child class
     def init_net(self):
@@ -101,14 +103,19 @@ class Model(nn.Module):
         nepochs = self.cfg.train.nepochs
         self.init_optimizer()
         self.init_scheduler()
+        if self.cfg.train.get("warm_start", False):
+            self.logger.info("Warm-starting model from " + os.path.join(self.model_path, f"{self.cfg.get('checkpoint', 'final')}.pth"))
+            self.load(self.cfg.train.get("checkpoint", "final"))
         if self.heteroscedastic_loss is not None and self.heteroscedastic_loss.use:
             hs_loss = []
+            self.first_hs_call = True
         else:
             hs_loss = None
         trn_loss = []
         val_loss = []
         trn_lr = []
         grd_norm = []
+        self.best_val_loss = 1e20
         if self.heteroscedastic_loss.get("activate_after_its", 1000) > 1:
             self.logger.info(
                 f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
@@ -117,9 +124,9 @@ class Model(nn.Module):
             self.logger.info(
                 f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.train.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
             )
-        self.logger.info(f"Training model for {nepochs} epochs")
+        self.logger.info(f"Training model for {nepochs} epochs (= {nepochs * len(self.trnloader)} iterations)")
         t0 = time.time()
-        for epoch in range(nepochs):
+        for epoch in range(1, nepochs + 1):
             epoch_trn_losses = []
             epoch_val_losses = []
             for i, batch in enumerate(self.trnloader):
@@ -127,7 +134,7 @@ class Model(nn.Module):
                 self.optimizer.zero_grad()
                 pred = self.forward(x[:, :-1])
                 target = x[:, -1:]
-                current_it = epoch * len(self.trnloader) + i
+                current_it = 1 + (epoch - 1) * len(self.trnloader) + i
                 loss, loss_terms = self.batch_loss(pred, target, weight, current_it)
                 loss.backward()
                 grad_norm = (
@@ -159,6 +166,7 @@ class Model(nn.Module):
                         target,
                         weight,
                         current_it=self.cfg.train.nepochs * len(self.trnloader),
+                        val=True
                     )
                     epoch_val_losses.append(loss.cpu().item())
 
@@ -173,16 +181,6 @@ class Model(nn.Module):
                 "lr": trn_lr,
                 "grad_norm": grd_norm,
             }
-            if epoch == 0:
-                self.logger.info(
-                    f"    Epoch {epoch}: tr_loss={avg_trn_loss:.5f}, val_loss={avg_val_loss:.5f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * nepochs))}"
-                )
-            else:
-                log_every_percent = 0.25
-                if epoch % max(1, int(nepochs * log_every_percent)) == 0:
-                    self.logger.info(
-                        f"    Epoch {epoch}: tr_loss={avg_trn_loss:.5f}, val_loss={avg_val_loss:.5f}"
-                    )
             self.train_log_and_save(
                 t0,
                 epoch,
@@ -275,7 +273,7 @@ class Model(nn.Module):
         predictions = torch.cat(predictions)
         return predictions
 
-    def batch_loss(self, pred, target, weight, current_it, debug=False):
+    def batch_loss(self, pred, target, weight, current_it=None, val=False, debug=False):
         if debug:
             print(pred, target)
         regression_loss = self.loss_fct(pred, target)
@@ -287,11 +285,18 @@ class Model(nn.Module):
             else current_it / len(self.trnloader) / self.cfg.train.nepochs
             > self.heteroscedastic_loss.get("activate_after_its", 1000)
         )
-        if self.heteroscedastic_loss.use and activate_hs_loss:
+
+        if self.heteroscedastic_loss.use and activate_hs_loss and not val:
+            if self.first_hs_call:
+                self.logger.info(
+                f"    Using heteroscedastic loss with scale {self.cfg.train.heteroscedastic_loss.get('scale', 0.001)} from it. {current_it} onwards"
+            )
+                self.first_hs_call = False
             hs_loss = (
                 self.cfg.train.heteroscedastic_loss.get("scale", 0.001)
                 * (target / pred).std()
             )
+
         else:
             hs_loss = torch.tensor([0.0]).to(pred.device)
         loss = regression_loss + hs_loss.mean()
