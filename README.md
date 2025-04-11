@@ -36,9 +36,9 @@ A folder will be created in `madrecolor/results` with the name of the model empl
 
 To regenerate plots for a trained model, it is sufficient to specify the config path `-cp` stored in the run path, and the name of the config file `cn`. For example:
 ```sh
-python run.py -cn config_from_run1 -cp results/my_model/YYYYMMDD_HHMMSS-run1
+python run.py -cn config_from_run1 -cp results/my_model/MMDD_HHMMSS-run1
 ```
 To warm-start a pre-trained model and continue the training. Just specify the path and override the `run.type` and `train.warm_start` settings:
 ```sh
-python run.py -cn config_from_run1 -cp results/my_model/YYYYMMDD_HHMMSS-run1 run.type=train train.warm_start=true
+python run.py -cn config_from_run1 -cp results/my_model/MMDD_HHMMSS-run1 run.type=train train.warm_start=true
 ```

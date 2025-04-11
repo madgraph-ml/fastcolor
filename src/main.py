@@ -37,11 +37,11 @@ def main(cfg: DictConfig):
             run_name = (
                 cfg.model.type
                 + "/"
-                + datetime.now().strftime("%Y%m%d_%H%M%S")
+                + datetime.now().strftime("%m%d_%H%M%S")
                 + "-"
                 + cfg.run.name
                 if cfg.run.name is not None
-                else cfg.model.type + "/" + datetime.now().strftime("%Y%m%d_%H%M%S")
+                else cfg.model.type + "/" + datetime.now().strftime("%m%d_%H%M%S")
             )
             run_dir = os.path.join(results_dir, run_name)
             os.makedirs(run_dir, exist_ok=True)
@@ -226,6 +226,9 @@ def run(logger, run_dir, cfg: DictConfig):
     logger.info(f"    Plotting ppd observables")
     plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
     logger.info(f"    Plotting ratio correlation")
+    plots.plot_ratio_correlation(
+        os.path.join(run_dir, f"ratio_corr_trn.pdf"), split="trn"
+    )
     plots.plot_ratio_correlation(
         os.path.join(run_dir, f"ratio_corr_tst.pdf"), split="tst"
     )
