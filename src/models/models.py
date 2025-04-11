@@ -87,9 +87,11 @@ class Model(nn.Module):
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, len(self.trnloader) * self.cfg.train["nepochs"]
             )
-        elif sched == "stepLR":
-            scheduler = torch.optim.lr_scheduler.StepLR(
-                self.optimizer, step_size=100, gamma=0.1
+        elif sched == "ReduceLROnPlateau":
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.optimizer,
+                factor=self.cfg.train.get("lr_factor", 0.1),
+                patience=self.cfg.train.get("lr_patience", 10),
             )
         elif sched is None:
             scheduler = None
@@ -121,14 +123,16 @@ class Model(nn.Module):
         trn_lr = []
         grd_norm = []
         self.best_val_loss = 1e20
-        if self.heteroscedastic_loss.get("activate_after_its", 1000) > 1:
+        if self.heteroscedastic_loss.use and self.heteroscedastic_loss.get("activate_after_its", 1000) > 1:
             self.logger.info(
                 f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
             )
-        else:
+        elif self.heteroscedastic_loss.use:
             self.logger.info(
                 f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.train.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
             )
+        else:
+            pass
         self.logger.info(
             f"Training model for {nepochs} epochs (= {nepochs * len(self.trnloader)} iterations)"
         )
@@ -148,13 +152,13 @@ class Model(nn.Module):
                     torch.nn.utils.clip_grad_norm_(
                         self.net.parameters(),
                         self.cfg.train.get("clip_grad_norm", 10),
-                        error_if_nonfinite=True,
+                        error_if_nonfinite=False,
                     )
                     .cpu()
                     .item()
                 )
                 self.optimizer.step()
-                if self.scheduler is not None:
+                if self.scheduler is not None and not isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                     self.scheduler.step()
                 trn_loss.append(loss.cpu().item())
                 if "hs_loss" in loss_terms:
@@ -179,15 +183,19 @@ class Model(nn.Module):
 
             avg_trn_loss = torch.tensor(epoch_trn_losses).mean().item()
             avg_val_loss = torch.tensor(epoch_val_losses).mean().item()
+            if self.scheduler is not None and isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                self.scheduler.step(avg_val_loss)
             val_loss.append(avg_val_loss)
             self.losses = {
                 "trn": trn_loss,
-                "hs": hs_loss,
-                "hs_scale": loss_terms["hs_scale"],
                 "val": val_loss,
                 "lr": trn_lr,
                 "grad_norm": grd_norm,
             }
+            if self.heteroscedastic_loss.use:
+                self.losses["hs"] = hs_loss
+                self.losses["hs_scale"] = loss_terms["hs_scale"]
+
             self.train_log_and_save(
                 t0,
                 epoch,
@@ -198,7 +206,8 @@ class Model(nn.Module):
         self.logger.info(
             f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}"
         )
-        self.logger.info(f"Last validation loss: {self.losses['val'][-1]:.5f}")
+        self.logger.info(f"Best validation loss: {self.best_val_loss:.8f}")
+        self.logger.info(f"Last validation loss: {self.losses['val'][-1]:.8f}")
 
     def save(self, name: str):
         """
@@ -238,18 +247,21 @@ class Model(nn.Module):
     def train_log_and_save(self, t0, epoch, avg_trn_loss, avg_val_loss):
         if epoch == 0:
             self.logger.info(
-                f"    Epoch {epoch}: tr_loss={avg_trn_loss:.5f}, val_loss={avg_val_loss:.5f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * self.cfg.train.nepochs))}"
+                f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * self.cfg.train.nepochs))}"
             )
 
         else:
             log_every_percent = 0.25
             if epoch % max(1, int(self.cfg.train.nepochs * log_every_percent)) == 0:
                 self.logger.info(
-                    f"    Epoch {epoch}: tr_loss={avg_trn_loss:.5f}, val_loss={avg_val_loss:.5f}"
+                    f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
                 )
-            if self.losses["val"][-1] < self.best_val_loss:
+            if self.losses["val"][-1] < self.best_val_loss and epoch > 10:
                 self.best_val_loss = self.losses["val"][-1]
                 self.save("best")
+                self.logger.info(
+                    f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at epoch {epoch}"
+                )
 
     def evaluate(self, loader=None):
         if loader is None:
@@ -293,8 +305,8 @@ class Model(nn.Module):
             > self.heteroscedastic_loss.get("activate_after_its", 1000)
         )
 
-        if self.heteroscedastic_loss.use and activate_hs_loss and not val:
-            if self.first_hs_call:
+        if self.heteroscedastic_loss.use and activate_hs_loss:
+            if self.first_hs_call and not val:
                 self.logger.info(
                     f"    Using heteroscedastic loss with scale {self.cfg.train.heteroscedastic_loss.get('scale', 0.001)} from it. {current_it} onwards"
                 )
@@ -311,16 +323,19 @@ class Model(nn.Module):
         loss_terms = {
             "loss": loss,
             "reg_loss": regression_loss,
-            "hs_loss": hs_loss,
-            "hs_scale": self.cfg.train.heteroscedastic_loss.get("scale", 0.001),
         }
+        if self.heteroscedastic_loss.use:
+            loss_terms["hs_loss"] = hs_loss
+            loss_terms["hs_scale"] = self.cfg.train.heteroscedastic_loss.get(
+                "scale", 0.001
+            )
         return loss, loss_terms
 
 
 class MLP(Model):
     def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
-        self.loss_fct = nn.MSELoss()
+        self.loss_fct = nn.L1Loss() if cfg.model.get("loss", "mse") == "l1" else nn.MSELoss()
         self.init_net()
 
     def init_net(self):
