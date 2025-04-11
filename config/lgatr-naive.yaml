@@ -36,12 +36,15 @@ train:
   lr: 1e-3
   clip_grad_norm: 10
   optimizer: adam
-  scheduler: null                # [cosine_annealing, stepLR, null]
-  nepochs: 100
+  scheduler: null                # [cosine_annealing, ReduceLROnPlateau, null]
+  lr_factor: 0.1
+  lr_patience: 10
+  nepochs: 150
   batch_size: 512
   batch_size_eval: 4096
+  loss: MSE
   heteroscedastic_loss:
-    use: true
+    use: false
     scale: 1e-2
     activate_after_its: .40
 
