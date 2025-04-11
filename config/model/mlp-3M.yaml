@@ -1,0 +1,5 @@
+type: MLP
+hidden_layers: 5
+internal_size: 768
+dropout_prob: null
+activation: gelu

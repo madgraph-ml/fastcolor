@@ -141,7 +141,7 @@ def run(logger, run_dir, cfg: DictConfig):
     dims_out = 1
     dims_in = len(dataset.channels) - 1
     logger.info(
-        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}"
+        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.model.get('loss', 'MSE')}"
     )
     model_path = os.path.join(run_dir, "model")
 
