@@ -96,7 +96,7 @@ class LGATr(Model):
                 token_size = 6
         in_s_channels = token_size
         self.global_token = global_token
-        self.loss_fct = nn.MSELoss()
+        self.loss_fct = nn.L1Loss() if cfg.model.get("loss", "mse") == "l1" else nn.MSELoss()
 
         self.net = LGATr_net(
             in_mv_channels=in_mv_channels,
