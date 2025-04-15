@@ -35,7 +35,7 @@ Training a model:
 ```sh
 python run.py -cn config/config_file.yaml
 ```
-A folder will be created in `madrecolor/results` with the name of the model employed for better traceability. Inside, a new subfolder will appear with the date and time of the run, and will contain log files, the config of the run, the trained model and plots.
+A folder will be created in `results/` with the name of the model employed for better traceability. Inside, a new subfolder will appear with the date and time of the run, and will contain log files, the config of the run, the trained model and plots.
 
 To regenerate plots for a trained model, it is sufficient to specify the config path `-cp` stored in the run path, and the name of the config file `cn`. For example:
 ```sh
