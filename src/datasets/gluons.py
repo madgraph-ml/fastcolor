@@ -53,7 +53,7 @@ class gg_ng:
             except Exception as e:
                 raise ValueError(f"Error loading file {file_path}: {e}")
         momenta = torch.tensor(momenta, device=self.device, dtype=torch.float32)
-        self.n_particles = momenta.shape[1] // 4
+        self.n_particles = (momenta.shape[1] - 1) // 4
         if self.parameterisation.naive.use:
             events = [momenta[:, i : i + 4] for i in range(0, 4 * self.n_particles, 4)]
             events.append(
@@ -158,6 +158,9 @@ class gg_ng:
                 events_ppd[:, :-1] = events_ppd[:, :-1] / (self.std + eps)
 
             if pp_cfg.amplitude.standardize:
+                self.logger.info(
+                    f"    Standard preprocessing for {self.channels[-1]}"
+                )
                 self.ampl_mean = events_ppd[:, -1].mean()
                 self.ampl_std = events_ppd[:, -1].std()
                 events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_mean) / (
@@ -166,11 +169,15 @@ class gg_ng:
 
             if pp_cfg.amplitude.minmax_scaling:
                 # Minmax to [0, 1]
+                self.logger.info(
+                    f"    MinMax scaling for {self.channels[-1]}"
+                )
                 self.ampl_min = events_ppd[:, -1].min()
                 self.ampl_max = events_ppd[:, -1].max()
                 events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_min) / (
                     self.ampl_max - self.ampl_min
                 )
+                events_ppd[:, -1] *= 10
 
             assert torch.isfinite(
                 events_ppd
@@ -191,6 +198,7 @@ class gg_ng:
                 )
 
                 if pp_cfg.amplitude.minmax_scaling:
+                    predicted_factors_raw /= 10
                     predicted_factors_raw = (
                         predicted_factors_raw * (self.ampl_max - self.ampl_min)
                         + self.ampl_min

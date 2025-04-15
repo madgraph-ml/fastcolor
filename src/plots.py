@@ -289,7 +289,7 @@ class Plots:
                     y=y_pred,
                     y_err=y_pred_err,
                     y_ref=y_truth,
-                    label=f"$\\mathrm{{{self.model_name}}}$",
+                    label=f"{self.model_name}",
                     color=NN_COLOR,
                 ),
             ]
@@ -310,7 +310,7 @@ class Plots:
                 Line(
                     y=y_diff,
                     y_err=y_diff_err,
-                    label=f"$\\frac{{\\mathrm{{Truth}}}}{{\\mathrm{{{self.model_name}}}}}$",
+                    label=f"$\\frac{{\\text{{Truth}}}}{{\\text{{{self.model_name}}}}}$",
                     color=NN_COLOR,
                 ),
             ]
@@ -343,7 +343,7 @@ class Plots:
                 .numpy()
             )
 
-            xlim_bins = [0, 3]
+            xlim_bins = [1.5, 5] if hasattr(self.dataset, "ampl_max") else [0, 3]
             bins = np.linspace(*xlim_bins, 64)
             y_truth, y_truth_err = compute_hist_data(
                 bins, reweight_factors_truth, bayesian=False
@@ -356,14 +356,14 @@ class Plots:
                 Line(
                     y=y_truth,
                     y_err=y_truth_err,
-                    label="Truth",
+                    label="$\\text{Truth}$",
                     color=TRUTH_COLOR,
                 ),
                 Line(
                     y=y_pred,
                     y_err=y_pred_err,
                     y_ref=y_truth,
-                    label=f"$\\mathrm{{{self.model_name}}}$",
+                    label=f"$\\text{{{self.model_name}}}$",
                     color=NN_COLOR,
                 ),
             ]
@@ -376,13 +376,14 @@ class Plots:
             )
 
             ratios = reweight_factors_truth / reweight_factors_pred
+            xlim_bins = [0, 3] if hasattr(self.dataset, "ampl_max") else xlim_bins 
             bins = np.linspace(*xlim_bins, 64)
             y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
             lines = [
                 Line(
                     y=y_diff,
                     y_err=y_diff_err,
-                    label=f"$\\frac{{\\mathrm{{Truth}}}}{{\\mathrm{{{self.model_name}}}}}$",
+                    label=f"$\\frac{{\\text{{Truth}}}}{{\\text{{{self.model_name}}}}}$",
                     color=NN_COLOR,
                 ),
             ]
@@ -524,7 +525,7 @@ class Plots:
                     )
             if show_ratios:
                 axs[1].set_ylabel(
-                    f"$\\frac{{\\mathrm{{{self.model_name}}}}}{{\\mathrm{{Truth}}}}$"
+                    f"$\\frac{{\\text{{{self.model_name}}}}}{{\\text{{Truth}}}}$"
                 )
                 axs[1].set_yticks([0.9, 1, 1.1])
                 axs[1].set_ylim([0.85, 1.15])
@@ -662,7 +663,7 @@ def hist_plot(
 
         if show_ratios:
             axs[1].set_ylabel(
-                f"$\\frac{{\\mathrm{{{model_name}}}}}{{\\mathrm{{Truth}}}}$"
+                f"$\\frac{{\\text{{{model_name}}}}}{{\\text{{Truth}}}}$"
             )
             axs[1].set_yticks([0.9, 1, 1.1])
             axs[1].set_ylim([0.85, 1.15])
