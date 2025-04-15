@@ -89,10 +89,14 @@ class LGATr(Model):
 
         self.type_token = TYPE_TOKEN_DICT[process]
         token_size = max(self.type_token) + 1
-        permutation_invariance = cfg.model.get("permutation_invariance", True) # not used for now
+        permutation_invariance = cfg.model.get(
+            "permutation_invariance", True
+        )  # not used for now
         in_s_channels = token_size
         self.global_token = global_token
-        self.loss_fct = nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
+        self.loss_fct = (
+            nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
+        )
 
         self.net = LGATr_net(
             in_mv_channels=in_mv_channels,

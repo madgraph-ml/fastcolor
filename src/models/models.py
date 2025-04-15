@@ -123,7 +123,10 @@ class Model(nn.Module):
         trn_lr = []
         grd_norm = []
         self.best_val_loss = 1e20
-        if self.heteroscedastic_loss.use and self.heteroscedastic_loss.get("activate_after_its", 1000) > 1:
+        if (
+            self.heteroscedastic_loss.use
+            and self.heteroscedastic_loss.get("activate_after_its", 1000) > 1
+        ):
             self.logger.info(
                 f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
             )
@@ -158,7 +161,9 @@ class Model(nn.Module):
                     .item()
                 )
                 self.optimizer.step()
-                if self.scheduler is not None and not isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                if self.scheduler is not None and not isinstance(
+                    self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+                ):
                     self.scheduler.step()
                 trn_loss.append(loss.cpu().item())
                 if "hs_loss" in loss_terms:
@@ -183,7 +188,9 @@ class Model(nn.Module):
 
             avg_trn_loss = torch.tensor(epoch_trn_losses).mean().item()
             avg_val_loss = torch.tensor(epoch_val_losses).mean().item()
-            if self.scheduler is not None and isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            if self.scheduler is not None and isinstance(
+                self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+            ):
                 self.scheduler.step(avg_val_loss)
             val_loss.append(avg_val_loss)
             self.losses = {
@@ -336,7 +343,9 @@ class Model(nn.Module):
 class MLP(Model):
     def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
-        self.loss_fct = nn.L1Loss() if self.cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
+        self.loss_fct = (
+            nn.L1Loss() if self.cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
+        )
         self.init_net()
 
     def init_net(self):
@@ -371,12 +380,13 @@ class MLP(Model):
 
 
 class Transformer(Model):
-
     def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
-        self.loss_fct = nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
+        self.loss_fct = (
+            nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
+        )
         self.init_net()
-    
+
     def init_net(self):
         self.dim_embedding = self.cfg.model["dim_embedding"]
         self.input_proj = nn.Linear(4, self.dim_embedding)
@@ -386,19 +396,21 @@ class Transformer(Model):
             dim_feedforward=self.cfg.model.get("dim_feedforward", 512),
             dropout=self.cfg.model.get("dropout", 0.1),
             activation=self.cfg.model.get("activation", "gelu"),
-            batch_first=True
+            batch_first=True,
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=self.cfg.model.get("n_layers", 6))
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=self.cfg.model.get("n_layers", 6)
+        )
         self.regressor = nn.Sequential(
             nn.Linear(self.dim_embedding, self.dim_embedding),
-            nn.ReLU() if self.cfg.model.get("activation", "gelu") == "relu" else nn.SiLU() if self.cfg.model.get("activation", "gelu") == "SiLU" else nn.GELU(),
-            nn.Linear(self.dim_embedding, 1)
+            nn.ReLU()
+            if self.cfg.model.get("activation", "gelu") == "relu"
+            else nn.SiLU()
+            if self.cfg.model.get("activation", "gelu") == "SiLU"
+            else nn.GELU(),
+            nn.Linear(self.dim_embedding, 1),
         )
-        self.net = nn.Sequential(
-            self.input_proj,
-            self.encoder,
-            self.regressor
-        )
+        self.net = nn.Sequential(self.input_proj, self.encoder, self.regressor)
 
     def forward(self, x):
         n_particles = x.shape[1] // 4
@@ -408,6 +420,6 @@ class Transformer(Model):
         x = x.sum(dim=1) / n_particles
         x = self.regressor(x)
         return x
-    
+
     def predict(self, x):
         return self.forward(x)

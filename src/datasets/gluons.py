@@ -158,9 +158,7 @@ class gg_ng:
                 events_ppd[:, :-1] = events_ppd[:, :-1] / (self.std + eps)
 
             if pp_cfg.amplitude.standardize:
-                self.logger.info(
-                    f"    Standard preprocessing for {self.channels[-1]}"
-                )
+                self.logger.info(f"    Standard preprocessing for {self.channels[-1]}")
                 self.ampl_mean = events_ppd[:, -1].mean()
                 self.ampl_std = events_ppd[:, -1].std()
                 events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_mean) / (
@@ -169,9 +167,7 @@ class gg_ng:
 
             if pp_cfg.amplitude.minmax_scaling:
                 # Minmax to [0, 1]
-                self.logger.info(
-                    f"    MinMax scaling for {self.channels[-1]}"
-                )
+                self.logger.info(f"    MinMax scaling for {self.channels[-1]}")
                 self.ampl_min = events_ppd[:, -1].min()
                 self.ampl_max = events_ppd[:, -1].max()
                 events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_min) / (

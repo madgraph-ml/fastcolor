@@ -376,7 +376,7 @@ class Plots:
             )
 
             ratios = reweight_factors_truth / reweight_factors_pred
-            xlim_bins = [0, 3] if hasattr(self.dataset, "ampl_max") else xlim_bins 
+            xlim_bins = [0, 3] if hasattr(self.dataset, "ampl_max") else xlim_bins
             bins = np.linspace(*xlim_bins, 64)
             y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
             lines = [
@@ -662,9 +662,7 @@ def hist_plot(
         axs[0].set_yscale(observable.yscale if yscale is None else yscale)
 
         if show_ratios:
-            axs[1].set_ylabel(
-                f"$\\frac{{\\text{{{model_name}}}}}{{\\text{{Truth}}}}$"
-            )
+            axs[1].set_ylabel(f"$\\frac{{\\text{{{model_name}}}}}{{\\text{{Truth}}}}$")
             axs[1].set_yticks([0.9, 1, 1.1])
             axs[1].set_ylim([0.85, 1.15])
             axs[1].axhline(y=1, c="black", ls="--", lw=0.7)
