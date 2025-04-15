@@ -6,7 +6,7 @@ from datetime import datetime
 from .utils.logger import setup_logging
 from .datasets.gluons import gg_ng, gg_qqbarng
 from .datasets.dataset import compute_observables
-from .models.models import Model, MLP
+from .models.models import Model, MLP, Transformer
 from .models.lgatr import LGATr
 from .plots import Plots
 import torch
@@ -141,7 +141,7 @@ def run(logger, run_dir, cfg: DictConfig):
     dims_out = 1
     dims_in = len(dataset.channels) - 1
     logger.info(
-        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.model.get('loss', 'MSE')}"
+        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.loss}"
     )
     model_path = os.path.join(run_dir, "model")
 
@@ -167,9 +167,18 @@ def run(logger, run_dir, cfg: DictConfig):
         else:
             pass
         model.train()
+        if cfg.evaluate.get("evaluate_best", False):
+            logger.info(f"Loading best model from {model_path}/best.pth")
+            try:
+                model.load("best")
+            except FileNotFoundError:
+                logger.warning(
+                    f"Best model not found in {model_path}/best.pth. Loading final model instead."
+                )
+                model.load("final")
     elif cfg.run.type == "plot":
         # LOAD MODEL
-        model_name = "final"
+        model_name = "final" if not cfg.evaluate.get("evaluate_best", False) else "best"
         model.load(model_name)
         logger.info(
             "Loaded model from " + os.path.join(run_dir, "old", model_name) + ".pth"
