@@ -12,9 +12,14 @@ from typing import Optional
 
 TRUTH_COLOR = "#07078A"
 NEUTRAL_COLOR = "black"
-NN_COLOR = "#8A0707"
-NN_COLOR2 = "#498A07"
-
+NN_COLOR_red = "#8A0707"
+NN_COLOR_green = "#06793F"
+NN_COLOR_purple = "#790679"
+NN_COLORS = {
+    "MLP" : NN_COLOR_red,
+    "Transformer" : NN_COLOR_green,
+    "LGATr" : NN_COLOR_purple
+}
 
 @dataclass
 class Line:
@@ -196,7 +201,7 @@ class Plots:
                     lines,
                     bins,
                     obs,
-                    show_ratios=True,
+                    show_ratios=False,
                     title=self.process_name if self.process_name is not None else None,
                     model_name=self.model_name,
                 )
@@ -241,7 +246,7 @@ class Plots:
                     lines,
                     bins,
                     obs,
-                    show_ratios=True,
+                    show_ratios=False,
                     title=self.process_name if self.process_name is not None else None,
                     model_name=self.model_name,
                 )
@@ -290,7 +295,7 @@ class Plots:
                     y_err=y_pred_err,
                     y_ref=y_truth,
                     label=f"{self.model_name}",
-                    color=NN_COLOR,
+                    color=NN_COLORS[self.model_name],
                 ),
             ]
             self.hist_weights_plot(
@@ -311,7 +316,7 @@ class Plots:
                     y=y_diff,
                     y_err=y_diff_err,
                     label=f"$\\frac{{\\text{{Truth}}}}{{\\text{{{self.model_name}}}}}$",
-                    color=NN_COLOR,
+                    color=NN_COLORS[self.model_name],
                 ),
             ]
             self.hist_weights_plot(
@@ -364,7 +369,7 @@ class Plots:
                     y_err=y_pred_err,
                     y_ref=y_truth,
                     label=f"$\\text{{{self.model_name}}}$",
-                    color=NN_COLOR,
+                    color=NN_COLORS[self.model_name],
                 ),
             ]
             self.hist_weights_plot(
@@ -384,7 +389,7 @@ class Plots:
                     y=y_diff,
                     y_err=y_diff_err,
                     label=f"$\\frac{{\\text{{Truth}}}}{{\\text{{{self.model_name}}}}}$",
-                    color=NN_COLOR,
+                    color=NN_COLORS[self.model_name],
                 ),
             ]
             self.hist_weights_plot(
