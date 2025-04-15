@@ -385,11 +385,16 @@ class Transformer(Model):
         self.loss_fct = (
             nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
         )
+        assert (
+            cfg.dataset.parameterisation.naive.use
+        ), "Only naive parameterisation is supported for the Transformer model"
         self.init_net()
 
     def init_net(self):
         self.dim_embedding = self.cfg.model["dim_embedding"]
-        self.input_proj = nn.Linear(4, self.dim_embedding)
+        self.n_particles = self.dims_in // 4
+        input_dim = 4 + self.n_particles
+        self.input_proj = nn.Linear(input_dim, self.dim_embedding)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.dim_embedding,
             nhead=self.cfg.model.get("n_head", 8),
@@ -415,6 +420,12 @@ class Transformer(Model):
     def forward(self, x):
         n_particles = x.shape[1] // 4
         x = x.view(-1, n_particles, 4)
+
+        # One hot encoding
+        one_hot = torch.eye(self.n_particles, device=x.device)
+        one_hot = one_hot.unsqueeze(0).expand(x.shape[0], -1, -1)
+        x = torch.cat([x, one_hot], dim=-1)
+
         x = self.input_proj(x)
         x = self.encoder(x)
         x = x.sum(dim=1) / n_particles
