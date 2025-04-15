@@ -16,10 +16,11 @@ NN_COLOR_red = "#8A0707"
 NN_COLOR_green = "#06793F"
 NN_COLOR_purple = "#790679"
 NN_COLORS = {
-    "MLP" : NN_COLOR_red,
-    "Transformer" : NN_COLOR_green,
-    "LGATr" : NN_COLOR_purple
+    "MLP": NN_COLOR_red,
+    "Transformer": NN_COLOR_green,
+    "LGATr": NN_COLOR_purple,
 }
+
 
 @dataclass
 class Line:
