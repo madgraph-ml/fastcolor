@@ -83,7 +83,7 @@ class Model(nn.Module):
 
     def init_scheduler(self):
         sched = self.cfg.train.get("scheduler", None)
-        if sched == "cosine_annealing":
+        if sched == "CosineAnnealingLR":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, len(self.trnloader) * self.cfg.train["nepochs"]
             )
@@ -245,23 +245,24 @@ class Model(nn.Module):
         self.losses = state_dicts["losses"]
 
     def train_log_and_save(self, t0, epoch, avg_trn_loss, avg_val_loss):
-        if epoch == 0:
+        if epoch == 1:
             self.logger.info(
                 f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * self.cfg.train.nepochs))}"
             )
 
         else:
-            log_every_percent = 0.25
+            log_every_percent = 0.10
             if epoch % max(1, int(self.cfg.train.nepochs * log_every_percent)) == 0:
                 self.logger.info(
                     f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
                 )
-            if self.losses["val"][-1] < self.best_val_loss and epoch > 10:
+            if self.losses["val"][-1] < self.best_val_loss:
                 self.best_val_loss = self.losses["val"][-1]
-                self.save("best")
-                self.logger.info(
-                    f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at epoch {epoch}"
-                )
+                if epoch > 10:
+                    self.save("best")
+                    self.logger.info(
+                        f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at epoch {epoch}"
+                    )
 
     def evaluate(self, loader=None):
         if loader is None:
@@ -335,7 +336,7 @@ class Model(nn.Module):
 class MLP(Model):
     def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
-        self.loss_fct = nn.L1Loss() if cfg.model.get("loss", "mse") == "l1" else nn.MSELoss()
+        self.loss_fct = nn.L1Loss() if self.cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
         self.init_net()
 
     def init_net(self):
@@ -365,5 +366,48 @@ class MLP(Model):
     def forward(self, x):
         return self.net(x)
 
+    def predict(self, x):
+        return self.forward(x)
+
+
+class Transformer(Model):
+
+    def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
+        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
+        self.loss_fct = nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
+        self.init_net()
+    
+    def init_net(self):
+        self.dim_embedding = self.cfg.model["dim_embedding"]
+        self.input_proj = nn.Linear(4, self.dim_embedding)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.dim_embedding,
+            nhead=self.cfg.model.get("n_head", 8),
+            dim_feedforward=self.cfg.model.get("dim_feedforward", 512),
+            dropout=self.cfg.model.get("dropout", 0.1),
+            activation=self.cfg.model.get("activation", "gelu"),
+            batch_first=True
+        )
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=self.cfg.model.get("n_layers", 6))
+        self.regressor = nn.Sequential(
+            nn.Linear(self.dim_embedding, self.dim_embedding),
+            nn.ReLU() if self.cfg.model.get("activation", "gelu") == "relu" else nn.SiLU() if self.cfg.model.get("activation", "gelu") == "SiLU" else nn.GELU(),
+            nn.Linear(self.dim_embedding, 1)
+        )
+        self.net = nn.Sequential(
+            self.input_proj,
+            self.encoder,
+            self.regressor
+        )
+
+    def forward(self, x):
+        n_particles = x.shape[1] // 4
+        x = x.view(-1, n_particles, 4)
+        x = self.input_proj(x)
+        x = self.encoder(x)
+        x = x.sum(dim=1) / n_particles
+        x = self.regressor(x)
+        return x
+    
     def predict(self, x):
         return self.forward(x)

@@ -19,10 +19,10 @@ from ..interface import (
 )
 
 TYPE_TOKEN_DICT = {
-    "gg_4g": [0, 0, 1, 1, 1, 1],
-    "gg_5g": [0, 0, 1, 1, 1, 1, 1],
-    "gg_6g": [0, 0, 1, 1, 1, 1, 1, 1],
-    "gg_7g": [0, 0, 1, 1, 1, 1, 1, 1, 1],
+    "gg_4g": [0, 1, 2, 3, 4, 5],
+    "gg_5g": [0, 1, 2, 3, 4, 5, 6],
+    "gg_6g": [0, 1, 2, 3, 4, 5, 6, 7],
+    "gg_7g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
     "gg_qqbar2g": [0, 0, 1, 2, 3, 3],
     "gg_qqbar3g": [0, 0, 1, 2, 3, 3, 3],
     "gg_qqbar4g": [0, 0, 1, 2, 3, 3, 3, 3],
@@ -89,14 +89,10 @@ class LGATr(Model):
 
         self.type_token = TYPE_TOKEN_DICT[process]
         token_size = max(self.type_token) + 1
-        permutation_invariance = cfg.model.get("permutation_invariance", True)
-        if not permutation_invariance:
-            if "5" in process:
-                self.logger.info("Breaking permutation invariance.")
-                token_size = 6
+        permutation_invariance = cfg.model.get("permutation_invariance", True) # not used for now
         in_s_channels = token_size
         self.global_token = global_token
-        self.loss_fct = nn.L1Loss() if cfg.model.get("loss", "mse") == "l1" else nn.MSELoss()
+        self.loss_fct = nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
 
         self.net = LGATr_net(
             in_mv_channels=in_mv_channels,
