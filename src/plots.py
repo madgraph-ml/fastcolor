@@ -275,7 +275,17 @@ class Plots:
                 .numpy()
             )
 
-            xlim_bins = [0.4, 1.4]
+            xlim_bins = (
+                [0.1, 2.0]
+                if "7g" in self.process_name
+                else [0.2, 1.8]
+                if "6g" in self.process_name
+                else [0.4, 1.6]
+                if "5g" in self.process_name
+                else [0.6, 1.4]
+                if "4g" in self.process_name
+                else [0.4, 1.5]
+            )
             bins = np.linspace(*xlim_bins, 64)
             y_truth, y_truth_err = compute_hist_data(
                 bins, reweight_factors_truth, bayesian=False
@@ -422,26 +432,27 @@ class Plots:
             )
             ratios = reweight_factors_truth / reweight_factors_pred
             pickle_data = []
-            h, x, y = np.histogram2d(reweight_factors_pred, ratios, bins=(bins, bins))
+            h, x, y = np.histogram2d(ratios, reweight_factors_pred, bins=(bins, bins))
             # h = np.ma.divide(h, np.sum(h, -1, keepdims=True)).filled(0)
             h[h == 0] = np.nan
             h_norm = h / np.nansum(h)
-            plt.pcolormesh(
+            fig, ax = plt.subplots(figsize=(5, 5))
+            pcm = ax.pcolormesh(
                 bins,
                 bins,
-                h_norm,
+                h_norm.T,
                 cmap=cmap,
                 norm=LogNorm(vmin=np.nanmin(h_norm), vmax=np.nanmax(h_norm)),
                 rasterized=True,
             )
-            plt.colorbar()
-            plt.title(f"{self.model_name}")
-            plt.xlim(bins[0], bins[-1])
-            plt.ylim(bins[0], bins[-1])
-            plt.xlabel("$r/\hat{r}$")
-            plt.ylabel("$\hat{r}$")
+            fig.colorbar(pcm, ax=ax)
+            fig.suptitle(f"{self.model_name}")
+            ax.set_xlim(bins[0], bins[-1])
+            ax.set_ylim(bins[0], bins[-1])
+            ax.set_xlabel("$r/\hat{r}$")
+            ax.set_ylabel("$\hat{r}$")
 
-            plt.savefig(pp, format="pdf", bbox_inches="tight")
+            fig.savefig(pp, format="pdf", bbox_inches="tight")
             plt.close()
             if pickle_file is not None:
                 pickle_data.append({"h": h, "bins": bins})
