@@ -261,9 +261,7 @@ class gg_ng:
                     idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
                     self.observables.append(
                         Observable(
-                            compute=lambda p, idx=idx: return_obs(
-                                p[..., :], p[..., idx]
-                            ),
+                            compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
                             tex_label=f"p_{{g_{i+1}}}\\cdot p_{{g_{j+1}}}",
                             unit=r"\text{GeV}^{2}",
                             bins=lambda obs: get_hardcoded_bins(
@@ -365,9 +363,7 @@ class gg_qqbarng(gg_ng):
                     idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
                     self.observables.append(
                         Observable(
-                            compute=lambda p, idx=idx: return_obs(
-                                p[..., :], p[..., idx]
-                            ),
+                            compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
                             tex_label=f"p_{{{type1}_{i+1}}}\\cdot p_{{{type2}_{j+1}}}",
                             unit=r"\text{GeV}^{2}",
                             bins=lambda obs: get_hardcoded_bins(

@@ -96,9 +96,7 @@ class Plots:
             lr = self.losses.get("lr", None)
             labels = ["Train", "Validation"] if labels is None else labels
             fig, ax = plt.subplots(figsize=(6, 4.5))
-            fig.tight_layout(
-                pad=0.0, w_pad=0.0, h_pad=0.0, rect=(0.15, 0.1, 0.85, 0.98)
-            )
+            fig.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0, rect=(0.15, 0.1, 0.85, 0.98))
             for loss, label in zip([self.losses["trn"], self.losses["val"]], labels):
                 if len(loss) == len(iterations):
                     its = iterations
@@ -268,11 +266,7 @@ class Plots:
                 self.dataset.events[split][:, -1:].squeeze().detach().cpu().numpy()
             )
             reweight_factors_pred = (
-                self.dataset.predicted_factors_raw[split]
-                .squeeze()
-                .detach()
-                .cpu()
-                .numpy()
+                self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
             )
 
             xlim_bins = (
@@ -339,9 +333,7 @@ class Plots:
                 title=self.process_name if self.process_name is not None else None,
             )
 
-    def plot_weights_ppd(
-        self, file: str, split="tst", pickle_file: Optional[str] = None
-    ):
+    def plot_weights_ppd(self, file: str, split="tst", pickle_file: Optional[str] = None):
         """
         Makes plots of the weights learned for Pythia vs Herwig.
         Args:
@@ -352,11 +344,7 @@ class Plots:
                 self.dataset.events_ppd[split][:, -1:].squeeze().detach().cpu().numpy()
             )
             reweight_factors_pred = (
-                self.dataset.predicted_factors_ppd[split]
-                .squeeze()
-                .detach()
-                .cpu()
-                .numpy()
+                self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
 
             xlim_bins = [1.5, 5] if hasattr(self.dataset, "ampl_max") else [0, 3]
@@ -424,11 +412,7 @@ class Plots:
                 self.dataset.events[split][:, -1:].squeeze().detach().cpu().numpy()
             )
             reweight_factors_pred = (
-                self.dataset.predicted_factors_raw[split]
-                .squeeze()
-                .detach()
-                .cpu()
-                .numpy()
+                self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
             )
             ratios = reweight_factors_truth / reweight_factors_pred
             pickle_data = []
@@ -568,10 +552,7 @@ class Plots:
 def compute_hist_data(bins: np.ndarray, data: np.ndarray, bayesian=False, weights=None):
     if bayesian:
         hists = np.stack(
-            [
-                np.histogram(d, bins=bins, density=False, weights=weights)[0]
-                for d in data
-            ],
+            [np.histogram(d, bins=bins, density=False, weights=weights)[0] for d in data],
             axis=0,
         )
         y = hists[0]

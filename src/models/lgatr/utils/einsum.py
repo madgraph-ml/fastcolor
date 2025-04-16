@@ -25,9 +25,7 @@ def cached_einsum(equation: str, *operands: torch.Tensor) -> torch.Tensor:
     https://github.com/pytorch/pytorch/blob/v1.13.0/torch/functional.py#L381.
     """
     op_shape = tuple(op.shape for op in operands)
-    path = _get_cached_path_for_equation_and_shapes(
-        equation=equation, op_shape=op_shape
-    )
+    path = _get_cached_path_for_equation_and_shapes(equation=equation, op_shape=op_shape)
 
     return custom_einsum(equation, *operands, path=path)
 

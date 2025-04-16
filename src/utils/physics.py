@@ -57,9 +57,7 @@ def EPxPyPz_to_PtPhiEtaM(EPxPyPz):
     PtPhiEtaM = torch.stack((pt, phi, eta, mass), axis=-1)
     assert torch.isfinite(
         PtPhiEtaM
-    ).all(), (
-        f"{torch.isnan(PtPhiEtaM).sum(axis=0)} {torch.isinf(PtPhiEtaM).sum(axis=0)}"
-    )
+    ).all(), f"{torch.isnan(PtPhiEtaM).sum(axis=0)} {torch.isinf(PtPhiEtaM).sum(axis=0)}"
     return PtPhiEtaM
 
 

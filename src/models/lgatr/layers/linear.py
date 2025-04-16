@@ -104,17 +104,13 @@ class EquiLinear(nn.Module):
         self.s2mvs: Optional[nn.Linear]
         mix_factor = 2 if gatr_config.mix_pseudoscalar_into_scalar else 1
         if in_s_channels:
-            self.s2mvs = nn.Linear(
-                in_s_channels, mix_factor * out_mv_channels, bias=bias
-            )
+            self.s2mvs = nn.Linear(in_s_channels, mix_factor * out_mv_channels, bias=bias)
         else:
             self.s2mvs = None
 
         # MV scalars -> scalars
         if out_s_channels:
-            self.mvs2s = nn.Linear(
-                mix_factor * in_mv_channels, out_s_channels, bias=bias
-            )
+            self.mvs2s = nn.Linear(mix_factor * in_mv_channels, out_s_channels, bias=bias)
         else:
             self.mvs2s = None
 

@@ -63,8 +63,7 @@ def sdp_attention(
     q = torch.cat(
         [
             rearrange(
-                q_mv
-                * _load_inner_product_factors(device=q_mv.device, dtype=q_mv.dtype),
+                q_mv * _load_inner_product_factors(device=q_mv.device, dtype=q_mv.dtype),
                 "... c x -> ... (c x)",
             ),
             q_s,
