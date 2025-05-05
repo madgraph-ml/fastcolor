@@ -291,7 +291,7 @@ class Model(nn.Module):
                 t1 = time.time()
                 if i == 0:
                     self.logger.info(
-                        f"    Total batches: {len(loader)}. Sampling time estimate {round((t1-t0) * len(loader), 1)} seconds"
+                        f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((t1-t0) * len(loader), 1)))}"
                     )
                 log_every_percent = 0.25
                 if i % max(1, int(len(loader) * log_every_percent)) == 0:

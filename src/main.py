@@ -181,7 +181,7 @@ def run(logger, run_dir, cfg: DictConfig):
         model_name = "final" if not cfg.evaluate.get("evaluate_best", False) else "best"
         model.load(model_name)
         logger.info(
-            "Loaded model from " + os.path.join(run_dir, "old", model_name) + ".pth"
+            "Loaded model from " + os.path.join(model_path, model_name) + ".pth"
         )
 
     ### EVALUATE MODEL ###

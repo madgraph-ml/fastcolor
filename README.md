@@ -4,8 +4,8 @@
 
 <p align="center">
 <a href="https://pytorch.org"><img alt="pytorch" src="https://img.shields.io/badge/PyTorch-2.0-DC583A.svg?style=flat&logo=pytorch"></a>
-<a href="https://hydra.cc/"><img alt="Code style: black" src="https://img.shields.io/badge/Hydra-1.2-78a9c2"></a>
-<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/Black-22.3-000000.svg"></a>
+<a href="https://hydra.cc/"><img alt="Config style: Hydra" src="https://img.shields.io/badge/Hydra-1.2-78a9c2"></a>
+<a href="https://github.com/psf/black"><img alt="Code style: Black" src="https://img.shields.io/badge/Black-22.3-000000.svg"></a>
 </p>
 
 **MadRecolor** is a Python-based tool designed to perform **leading-color amplitude reweighting** using machine learning techniques within the **MadGraph** framework. It enables efficient reweighting of matrix elements by leveraging neural networks to approximate color weight factors, improving computational efficiency in high-energy physics simulations.
@@ -27,7 +27,7 @@ pip install --editable .
 - NumPy 1.x
 - Black
 - PyTorch 2.x
-- Hydra
+- Hydra 1.3
 
 ## Usage
 
