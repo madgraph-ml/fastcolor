@@ -70,8 +70,8 @@ class LGATr(Model):
     - extract tagging score with global token or mean-aggregation
     """
 
-    def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
-        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
+    def __init__(self, logger, process, cfg, dims_in, dims_out, _shift, model_path, device):
+        super().__init__(logger, cfg, dims_in, dims_out, _shift, model_path, device)
 
         in_mv_channels = cfg.model["in_mv_channels"]
         out_mv_channels = cfg.model["out_mv_channels"]

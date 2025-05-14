@@ -6,12 +6,13 @@ import torch.nn.functional as F
 
 
 class Model(nn.Module):
-    def __init__(self, logger, cfg, dims_in, dims_out, model_path, device):
+    def __init__(self, logger, cfg, dims_in, dims_out, _shift, model_path, device):
         super().__init__()
         self.logger = logger
         self.cfg = cfg
         self.dims_in = dims_in
         self.dims_out = dims_out
+        self._shift = _shift
         self.model_path = model_path
         self.device = device
         self.heteroscedastic_loss = cfg.train.get("heteroscedastic_loss", None)
@@ -43,7 +44,6 @@ class Model(nn.Module):
     def init_dataloaders(self, dataset, weights=None):
         data_ppd = dataset.events_ppd
         channels = dataset.channels
-        self.logger.info(f"Using channels: {channels[:self.dims_in]}")
 
         # apply stuff to make it such that only the channels of the data are used
         if weights is None:
@@ -146,8 +146,8 @@ class Model(nn.Module):
             for i, batch in enumerate(self.trnloader):
                 x, weight = batch
                 self.optimizer.zero_grad()
-                pred = self.forward(x[:, :-1])
-                target = x[:, -1:]
+                pred = self.forward(x[:, :-3])
+                target = x[:, self._shift].unsqueeze(-1)
                 current_it = 1 + (epoch - 1) * len(self.trnloader) + i
                 loss, loss_terms = self.batch_loss(pred, target, weight, current_it)
                 loss.backward()
@@ -175,8 +175,8 @@ class Model(nn.Module):
             for i, batch in enumerate(self.valloader):
                 with torch.no_grad():
                     x, weight = batch
-                    pred = self.forward(x[:, :-1])
-                    target = x[:, -1:]
+                    pred = self.forward(x[:, :-3])
+                    target = x[:, self._shift].unsqueeze(-1)
                     loss, loss_terms = self.batch_loss(
                         pred,
                         target,
@@ -286,7 +286,7 @@ class Model(nn.Module):
             t0 = time.time()
             for i, batch in enumerate(loader):
                 x, weight = batch
-                predicted_factors = self.predict(x[:, :-1]).detach().cpu()
+                predicted_factors = self.predict(x[:, :-3]).detach().cpu()
                 predictions.append(predicted_factors)
                 t1 = time.time()
                 if i == 0:
@@ -341,8 +341,8 @@ class Model(nn.Module):
 
 
 class MLP(Model):
-    def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
-        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
+    def __init__(self, logger, process, cfg, dims_in, dims_out, _shift, model_path, device):
+        super().__init__(logger, cfg, dims_in, dims_out, _shift, model_path, device)
         self.loss_fct = (
             nn.L1Loss() if self.cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
         )
@@ -380,8 +380,8 @@ class MLP(Model):
 
 
 class Transformer(Model):
-    def __init__(self, logger, process, cfg, dims_in, dims_out, model_path, device):
-        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
+    def __init__(self, logger, process, cfg, dims_in, dims_out, _shift, model_path, device):
+        super().__init__(logger, cfg, dims_in, dims_out, _shift, model_path, device)
         self.loss_fct = (
             nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
         )

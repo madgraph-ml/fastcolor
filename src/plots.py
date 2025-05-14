@@ -56,6 +56,7 @@ class Plots:
         dataset,
         losses: dict = None,
         process_name: str = None,
+        regress: str = None,
         debug: bool = False,
         model_name: str = None,
     ):
@@ -79,8 +80,20 @@ class Plots:
                     f"${process_name[:2]} \\to q\\bar{{q}} + {process_name[-2:]}$"
                 )
 
-        self.process_name = process_name
         self.losses = losses
+        self.process_name = process_name
+        self.regress_name = {
+            "r" : "r",
+            "LC" : "A_{\\text{LC}}",
+            "FC" : "A_{\\text{FC}}",
+        }[regress]
+
+        self._shift = {
+            "r": -3,
+            "LC": -2,
+            "FC": -1
+        }[regress]
+        self.regress = regress
         self.debug = debug
         self.model_name = model_name if model_name is not None else "NN"
 
@@ -159,7 +172,7 @@ class Plots:
                     iterations,
                     self.losses["hs"],
                     color="darkorange",
-                    label=f"${self.losses['hs_scale']}\cdot\sigma(\hat{{r}}/r)$",
+                    label=f"${self.losses['hs_scale']}\cdot\sigma(\hat{{{self.regress_name}}}/{{{self.regress_name}}})$",
                 )
                 ax.xaxis.set_major_formatter(ScalarFormatter())
                 ax.xaxis.get_major_formatter().set_useOffset(False)
@@ -451,8 +464,9 @@ class Plots:
         bins: np.ndarray,
         show_ratios: bool = False,
         title: Optional[str] = None,
-        xlabel: str = r"$r(x)$",
+        xlabel: str = f"$r(x)$",
         no_scale: bool = False,
+        xscale: Optional[str] = None,
         yscale: Optional[str] = None,
         show_metrics: bool = False,
         ylim: tuple[float, float] = None,

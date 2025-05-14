@@ -11,7 +11,10 @@ class gg_ng:
         self.cfg = cfg
         self.channels = self.cfg.get("channels", None)
         self.parameterisation = self.cfg.get("parameterisation", None)
-
+        self._shift = {"r": -3, "LC": -2, "FC": -1}[self.cfg.get("regress", "r")] # events finish in [..., r, LC, FC] = self.cfg.get("regress", "r")
+        self.logger.info(
+            f"    Regressing {self.cfg.get('regress', 'r')}"
+        )
         if self.parameterisation.naive.use:
             self.channels = self.parameterisation.naive.channels
         elif self.parameterisation.lorentz_products.use:
@@ -53,12 +56,12 @@ class gg_ng:
             except Exception as e:
                 raise ValueError(f"Error loading file {file_path}: {e}")
         momenta = torch.tensor(momenta, device=self.device, dtype=torch.float32)
-        self.n_particles = (momenta.shape[1] - 1) // 4
+        self.n_particles = (momenta.shape[1] - 3) // 4
         if self.parameterisation.naive.use:
             events = [momenta[:, i : i + 4] for i in range(0, 4 * self.n_particles, 4)]
             events.append(
-                momenta[:, -1].unsqueeze(-1)
-            )  # Adding the last column separately
+                momenta[:, -3:]
+            )
             events = torch.cat(events, axis=1)
 
         elif self.parameterisation.lorentz_products.use:
@@ -75,21 +78,28 @@ class gg_ng:
             events = torch.cat(
                 [
                     products,
-                    momenta[:, -1].unsqueeze(-1),
+                    momenta[:, -3:],
                 ],
                 axis=1,
             )
         else:
             raise ValueError("No parameterisation specified")
+        if self.channels == []:
+            # Use all of channels by default
+            self.channels = list(np.arange(events.shape[1]-3))
+
+
+        
 
         if self.channels == []:
             # Use all of channels by default
             self.channels = list(np.arange(events.shape[1]))
-        self.last_channel = events.shape[1] - 1
+        self.last_channel = events.shape[1] - 3
         if self.last_channel not in self.channels:
             # always make sure that the last channel is included and is the target reweighting factor to learn
-            self.channels.append(self.last_channel)
+            self.channels.append(self.last_channel); self.channels.append(self.last_channel+1); self.channels.append(self.last_channel+2)
         self.events = events
+
 
     def split_data(self, events, trn_tst_val):
         # split the data
@@ -143,37 +153,43 @@ class gg_ng:
                 )
 
             if pp_cfg.standardize:
-                self.mean = events_ppd[:, :-1].mean()
-                self.std = events_ppd[:, :-1].std()
-                events_ppd[:, :-1] = (events_ppd[:, :-1] - self.mean) / (self.std + eps)
+                self.mean = events_ppd[:, :self._shift].mean()
+                self.std = events_ppd[:, :self._shift].std()
+                events_ppd[:, :self._shift] = (events_ppd[:, :self._shift] - self.mean) / (self.std + eps)
 
             if pp_cfg.equivariant:
                 self.logger.info(
-                    f"    Equivariant preprocessing for {self.channels[:-1]}"
+                    f"    Equivariant preprocessing for {self.channels[:self._shift]}"
                 )
                 assert (
                     self.cfg.parameterisation.naive.use == True
                 ), f"    Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.parameterisation if self.cfg.parameterisation[p].use]}"
-                self.std = events_ppd[:, :-1].std()
-                events_ppd[:, :-1] = events_ppd[:, :-1] / (self.std + eps)
+                self.std = events_ppd[:, :self._shift].std()
+                events_ppd[:, :self._shift] = events_ppd[:, :self._shift] / (self.std + eps)
+
+            if pp_cfg.amplitude.log:
+                self.logger.info(f"    Log scaling for {self.channels[self._shift]}")
+                events_ppd[:, self._shift] = torch.log(
+                    events_ppd[:, self._shift] + eps
+                )
 
             if pp_cfg.amplitude.standardize:
-                self.logger.info(f"    Standard preprocessing for {self.channels[-1]}")
-                self.ampl_mean = events_ppd[:, -1].mean()
-                self.ampl_std = events_ppd[:, -1].std()
-                events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_mean) / (
+                self.logger.info(f"    Standard preprocessing for {self.channels[self._shift]}")
+                self.ampl_mean = events_ppd[:, self._shift].mean()
+                self.ampl_std = events_ppd[:, self._shift].std()
+                events_ppd[:, self._shift] = (events_ppd[:, self._shift] - self.ampl_mean) / (
                     self.ampl_std + eps
                 )
 
             if pp_cfg.amplitude.minmax_scaling:
                 # Minmax to [0, 1]
-                self.logger.info(f"    MinMax scaling for {self.channels[-1]}")
-                self.ampl_min = events_ppd[:, -1].min()
-                self.ampl_max = events_ppd[:, -1].max()
-                events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_min) / (
+                self.logger.info(f"    MinMax scaling for {self.channels[self._shift]}")
+                self.ampl_min = events_ppd[:, self._shift].min()
+                self.ampl_max = events_ppd[:, self._shift].max()
+                events_ppd[:, self._shift] = (events_ppd[:, self._shift] - self.ampl_min) / (
                     self.ampl_max - self.ampl_min
                 )
-                events_ppd[:, -1] *= 10
+                events_ppd[:, self._shift] *= 10
 
             assert torch.isfinite(
                 events_ppd
@@ -184,6 +200,9 @@ class gg_ng:
             self.events_ppd = self.split_data(events_ppd, self.cfg.trn_tst_val)
             self.logger.info(
                 f"    [Train, Test, Val] events: [{len(self.events_ppd['trn'])}, {len(self.events_ppd['tst'])}, {len(self.events_ppd['val'])}]"
+            )
+            self.logger.info(
+                f"    Using channels {self.channels[:-3]} for regression, with {self.cfg.get('regress', 'r')} as the target"
             )
         else:
             # reverse preprocessing for the predicted factors
