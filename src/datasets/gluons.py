@@ -224,6 +224,9 @@ class gg_ng:
                         predicted_factors_raw * (self.ampl_std + eps) + self.ampl_mean
                     )
 
+                if pp_cfg.amplitude.log:
+                    predicted_factors_raw = torch.exp(predicted_factors_raw.clip(max=10)) - eps
+
                 self.predicted_factors_raw[split] = predicted_factors_raw
 
     def init_observables(self, n_bins: int = 50) -> list[Observable]:
