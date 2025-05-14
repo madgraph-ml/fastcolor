@@ -268,194 +268,249 @@ class Plots:
             with open(pickle_file, "wb") as f:
                 pickle.dump(pickle_data, f)
 
-    def plot_weights(self, file: str, split="tst", pickle_file: Optional[str] = None):
+    def plot_weights(self, file: str, split="tst", ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: Optional[str] = None):
         """
         Makes plots of the weights learned for Pythia vs Herwig.
         Args:
             file: Output file name
         """
-        with PdfPages(file) as pp:
+        if not ppd:
             reweight_factors_truth = (
-                self.dataset.events[split][:, -1:].squeeze().detach().cpu().numpy()
+                self.dataset.events[split][:, self._shift].detach().cpu().numpy()
             )
             reweight_factors_pred = (
                 self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
             )
-
-            xlim_bins = (
-                [0.1, 2.0]
-                if "7g" in self.process_name
-                else [0.2, 1.8]
-                if "6g" in self.process_name
-                else [0.4, 1.6]
-                if "5g" in self.process_name
-                else [0.6, 1.4]
-                if "4g" in self.process_name
-                else [0.4, 1.5]
-            )
-            bins = np.linspace(*xlim_bins, 64)
-            y_truth, y_truth_err = compute_hist_data(
-                bins, reweight_factors_truth, bayesian=False
-            )
-            y_pred, y_pred_err = compute_hist_data(
-                bins, reweight_factors_pred, bayesian=False
-            )
-
-            lines = [
-                Line(
-                    y=y_truth,
-                    y_err=y_truth_err,
-                    label="Truth",
-                    color=TRUTH_COLOR,
-                ),
-                Line(
-                    y=y_pred,
-                    y_err=y_pred_err,
-                    y_ref=y_truth,
-                    label=f"{self.model_name}",
-                    color=NN_COLORS[self.model_name],
-                ),
-            ]
-            self.hist_weights_plot(
-                pp,
-                lines,
-                bins,
-                show_ratios=True,
-                title=self.process_name if self.process_name is not None else None,
-            )
-
-            ratios = reweight_factors_truth / reweight_factors_pred
-            xlim_bins = [0.5, 1.5]
-            bins = np.linspace(*xlim_bins, 64)
-            y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
-
-            lines = [
-                Line(
-                    y=y_diff,
-                    y_err=y_diff_err,
-                    label=f"$\\frac{{\\text{{Truth}}}}{{\\text{{{self.model_name}}}}}$",
-                    color=NN_COLORS[self.model_name],
-                ),
-            ]
-            self.hist_weights_plot(
-                pp,
-                lines,
-                bins,
-                show_ratios=False,
-                xlabel=r"$\text{Ratio}$",
-                title=self.process_name if self.process_name is not None else None,
-            )
-
-    def plot_weights_ppd(self, file: str, split="tst", pickle_file: Optional[str] = None):
-        """
-        Makes plots of the weights learned for Pythia vs Herwig.
-        Args:
-            file: Output file name
-        """
-        with PdfPages(file) as pp:
+        else:
             reweight_factors_truth = (
-                self.dataset.events_ppd[split][:, -1:].squeeze().detach().cpu().numpy()
-            )
+                    self.dataset.events_ppd[split][:, self._shift].squeeze().detach().cpu().numpy()
+                )
             reweight_factors_pred = (
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
-
-            xlim_bins = [1.5, 5] if hasattr(self.dataset, "ampl_max") else [0, 3]
-            bins = np.linspace(*xlim_bins, 64)
-            y_truth, y_truth_err = compute_hist_data(
-                bins, reweight_factors_truth, bayesian=False
-            )
-            y_pred, y_pred_err = compute_hist_data(
-                bins, reweight_factors_pred, bayesian=False
-            )
-
-            lines = [
-                Line(
-                    y=y_truth,
-                    y_err=y_truth_err,
-                    label="$\\text{Truth}$",
-                    color=TRUTH_COLOR,
-                ),
-                Line(
-                    y=y_pred,
-                    y_err=y_pred_err,
-                    y_ref=y_truth,
-                    label=f"$\\text{{{self.model_name}}}$",
-                    color=NN_COLORS[self.model_name],
-                ),
-            ]
-            self.hist_weights_plot(
+        with PdfPages(file) as pp:
+            self._plot_weights(
                 pp,
-                lines,
-                bins,
-                show_ratios=True,
-                title=self.process_name if self.process_name is not None else None,
+                reweight_factors_pred,
+                reweight_factors_truth,
+                ppd=ppd,
+                pickle_file=pickle_file,
+            )
+            self._plot_ratios(
+                pp,
+                reweight_factors_pred,
+                reweight_factors_truth,
+                ppd=ppd,
+                percentage_of_ratio_data=percentage_of_ratio_data,
+                pickle_file=pickle_file,
+            )
+            self._plot_deltas(
+                pp,
+                reweight_factors_pred,
+                reweight_factors_truth,
+                ppd=ppd,
+                pickle_file=pickle_file,
             )
 
-            ratios = reweight_factors_truth / reweight_factors_pred
-            xlim_bins = [0, 3] if hasattr(self.dataset, "ampl_max") else xlim_bins
-            bins = np.linspace(*xlim_bins, 64)
-            y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
-            lines = [
-                Line(
-                    y=y_diff,
-                    y_err=y_diff_err,
-                    label=f"$\\frac{{\\text{{Truth}}}}{{\\text{{{self.model_name}}}}}$",
-                    color=NN_COLORS[self.model_name],
-                ),
-            ]
-            self.hist_weights_plot(
-                pp,
-                lines,
-                bins,
-                show_ratios=False,
-                xlabel=r"$\text{Ratio}$",
-                title=self.process_name if self.process_name is not None else None,
-            )
+    def _plot_weights(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, pickle_file: str = None) -> None:
+        """
+        Makes a plot of the regressed factors, whichever they are.
+        Args:
+            pp: PdfPages object
+            pred: Predicted values
+            truth: True values
+            ppd: If True, use preprocessed data
+            pickle_file: Path to the output pickle file (optional)
+        """
+        xlim_bins = [0.9*min(min(truth), min(pred)), 1.1*max(max(truth), max(pred))]
+        xlim_bins[0] = 1.22 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
+        bins = np.linspace(*xlim_bins, 64) if self.regress == "r" or ppd else np.logspace(*np.log10(np.array(xlim_bins)), 64)
+        y_truth, y_truth_err = compute_hist_data(
+            bins, truth, bayesian=False
+        )
+        y_pred, y_pred_err = compute_hist_data(
+            bins, pred, bayesian=False
+        )
+
+        lines = [
+            Line(
+                y=y_truth,
+                y_err=y_truth_err,
+                label="Truth",
+                color=TRUTH_COLOR,
+            ),
+            Line(
+                y=y_pred,
+                y_err=y_pred_err,
+                y_ref=y_truth,
+                label=f"{self.model_name}",
+                color=NN_COLORS[self.model_name],
+            ),
+        ]
+        self.hist_weights_plot(
+            pp,
+            lines,
+            bins,
+            show_ratios=True,
+            title=self.process_name if self.process_name is not None else None,
+            xlabel=f"${{{self.regress_name}}}(x)$" if not ppd else f"$\\tilde{{{self.regress_name}}}(x)$",
+            xscale="log" if not self.regress == "r" and not ppd else "linear",
+        )
+        if pickle_file is not None:
+            pickle_data = []
+            pickle_data.append({"lines": lines, "bins": bins})
+            with open(pickle_file, "wb") as f:
+                pickle.dump(pickle_data, f)
+
+    def _plot_ratios(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None) -> None:
+        """
+        Makes a plot of the ratio of the truth and predicted distributions.
+        Args:
+            pp: PdfPages object
+            pred: Predicted values
+            truth: True values
+            ppd: If True, use preprocessed data
+            pickle_file: Path to the output pickle file (optional)
+        """
+        ratios = truth / pred
+        xlim_bins = [0.9*min(ratios), 1.1*max(ratios)]
+        xlim_bins = np.percentile(ratios, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
+        xlim_bins[0] = 1.22 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]    
+        xlim_bins[1] = 0.82 * xlim_bins[1] if xlim_bins[1] < 0 else xlim_bins[1]
+        bins = np.linspace(*xlim_bins, 64) if self.regress == "r" or ppd else np.logspace(*np.log10(np.array(xlim_bins)), 64)
+        y_diff, y_diff_err = compute_hist_data(bins, ratios, bayesian=False)
+
+        lines = [
+            Line(
+                y=y_diff,
+                y_err=y_diff_err,
+                label=f"$\\text{{{self.model_name}}}$",
+                color=NN_COLORS[self.model_name],
+            ),
+        ]
+        self.hist_weights_plot(
+            pp,
+            lines,
+            bins,
+            show_ratios=False,
+            xlabel=f"$ {self.regress_name}^{{\\text{{truth}}}} / {self.regress_name}^{{\\text{{pred}}}}({percentage_of_ratio_data:.0f}\\%)$" if not ppd else f"$\\tilde{{{self.regress_name}}}^{{\\text{{truth}}}} / \\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}({percentage_of_ratio_data:.0f}\\%)$",
+            xscale="linear" if self.regress == "r" or ppd else "log",
+            title=self.process_name if self.process_name is not None else None,
+        )
+        if pickle_file is not None:
+            pickle_data = []
+            pickle_data.append({"lines": lines, "bins": bins})
+            with open(pickle_file, "wb") as f:
+                pickle.dump(pickle_data, f)
+    
+    def _plot_deltas(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, pickle_file: str = None) -> None:
+        """
+        Makes a plot of the delta of the truth and predicted distributions.
+        Args:
+            pp: PdfPages object
+            pred: Predicted values
+            truth: True values
+            ppd: If True, use preprocessed data
+            pickle_file: Path to the output pickle file (optional)
+        """
+        delta = (pred - truth) / truth
+        xlim_bins = [0.9*min(delta), 1.1*max(delta)]
+        # xlim_bins[0] = 1.22 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
+        # xlim_bins[1] = 0.82 * xlim_bins[1] if xlim_bins[1] < 0 else xlim_bins[1]
+        xlim_bins = [-5, 5]
+        bins = np.linspace(*xlim_bins, 64)
+        y_delta, y_delta_err = compute_hist_data(
+            bins, delta, bayesian=False
+        )
+        lines = [
+            Line(
+                y=y_delta,
+                y_err=y_delta_err,
+                label=f"{self.model_name}",
+                color=NN_COLORS[self.model_name],
+            ),
+        ]
+        self.hist_weights_plot(
+            pp,
+            lines,
+            bins,
+            show_ratios=False,
+            xlabel=f"${{\Delta}}_{{{self.regress_name}}} = \\frac{{{self.regress_name}^{{\\text{{pred}}}} - {self.regress_name}^{{\\text{{true}}}}}}{{{self.regress_name}^{{\\text{{true}}}}}}$" if not ppd else f"$\\tilde{{\Delta}}_{{{self.regress_name}}} = \\frac{{\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}} - \\tilde{{{self.regress_name}}}^{{\\text{{true}}}}}}{{\\tilde{{{self.regress_name}}}^{{\\text{{true}}}}}}$",
+            title=self.process_name if self.process_name is not None else None,
+        )
+        if pickle_file is not None:
+            pickle_data = []
+            pickle_data.append({"lines": lines, "bins": bins})
+            with open(pickle_file, "wb") as f:
+                pickle.dump(pickle_data, f)
 
     def plot_ratio_correlation(
-        self, file: str, split="tst", pickle_file: Optional[str] = None
+        self, file: str, split="tst", ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: Optional[str] = None
     ):
         with PdfPages(file) as pp:
             cmap = plt.get_cmap("viridis")
             cmap.set_bad("white")
-            bins = np.linspace(0.5, 1.5, 64)
-
-            reweight_factors_truth = (
-                self.dataset.events[split][:, -1:].squeeze().detach().cpu().numpy()
-            )
-            reweight_factors_pred = (
-                self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
-            )
+            if not ppd:
+                reweight_factors_truth = (
+                    self.dataset.events[split][:, self._shift].squeeze().detach().cpu().numpy()
+                )
+                reweight_factors_pred = (
+                    self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
+                )
+            else:
+                reweight_factors_truth = (
+                    self.dataset.events_ppd[split][:, self._shift].squeeze().detach().cpu().numpy()
+                )
+                reweight_factors_pred = (
+                    self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
+                )
             ratios = reweight_factors_truth / reweight_factors_pred
-            pickle_data = []
-            h, x, y = np.histogram2d(ratios, reweight_factors_pred, bins=(bins, bins))
+            xlim_bins = [
+                [0.9*min(ratios), 1.1*max(ratios)],
+                [0.9 * min(reweight_factors_pred), 1.1 * max(reweight_factors_pred)],
+            ]
+
+            xlim_bins[0] = np.percentile(ratios, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2]) # to contain percentage_of_ratio_data% of the data (approx bc later is modified slightly)
+            # correct limits if min or max are negative
+            for i in (0, 1):
+                lo, hi = xlim_bins[i]
+                if lo < 0:
+                    lo *= 1.22
+                if hi < 0:
+                    hi *= 0.82
+                xlim_bins[i] = [lo, hi]
+            bins = [
+                np.linspace(*xlim_bins[0], 64) if self.regress == "r" or ppd else np.logspace(*np.log10(np.array(xlim_bins[0])), 64),
+                np.linspace(*xlim_bins[1], 64) if self.regress == "r" or ppd else np.logspace(*np.log10(np.array(xlim_bins[1])), 64),
+            ]
+            h, x, y = np.histogram2d(ratios, reweight_factors_pred, bins=(bins[0], bins[1]))
             # h = np.ma.divide(h, np.sum(h, -1, keepdims=True)).filled(0)
             h[h == 0] = np.nan
             h_norm = h / np.nansum(h)
             fig, ax = plt.subplots(figsize=(5, 5))
             pcm = ax.pcolormesh(
-                bins,
-                bins,
+                bins[0],
+                bins[1],
                 h_norm.T,
                 cmap=cmap,
-                norm=LogNorm(vmin=np.nanmin(h_norm), vmax=np.nanmax(h_norm)),
+                norm=safe_lognorm(h_norm.T),
                 rasterized=True,
             )
             fig.colorbar(pcm, ax=ax)
             fig.suptitle(f"{self.model_name}")
-            ax.set_xlim(bins[0], bins[-1])
-            ax.set_ylim(bins[0], bins[-1])
-            ax.set_xlabel("$r/\hat{r}$")
-            ax.set_ylabel("$\hat{r}$")
-
+            ax.set_xscale("linear" if self.regress == "r" or ppd else "log")
+            ax.set_yscale("linear" if self.regress == "r" or ppd else "log")
+            ax.set_xlim(bins[0][0], bins[0][-1])
+            ax.set_ylim(bins[1][0], bins[1][-1])
+            ax.set_xlabel(f"${self.regress_name}^{{\\text{{truth}}}}/{self.regress_name}^{{\\text{{pred}}}}({percentage_of_ratio_data:.0f}\\%)$" if not ppd else f"$\\tilde{{{self.regress_name}}}^{{\\text{{truth}}}}/\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}({percentage_of_ratio_data:.0f}\\%)$")
+            ax.set_ylabel(f"${self.regress_name}^{{\\text{{pred}}}}$" if not ppd else f"$\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}$")
             fig.savefig(pp, format="pdf", bbox_inches="tight")
             plt.close()
             if pickle_file is not None:
-                pickle_data.append({"h": h, "bins": bins})
-        if pickle_file is not None:
-            with open(pickle_file, "wb") as f:
-                pickle.dump(pickle_data, f)
+                pickle_data = []
+                pickle_data.append({"h_norm.T": h_norm.T, "bins": bins, norm: norm, "vmin": vmin, "vmax": vmax})
+                with open(pickle_file, "wb") as f:
+                    pickle.dump(pickle_data, f)
 
     def hist_weights_plot(
         self,
@@ -552,15 +607,17 @@ class Plots:
                 corner_text(axs[0], title, "left", "top")
             axs[0].legend(loc="best", frameon=False)
             axs[0].set_ylabel("Normalized")
+            axs[0].set_xscale("linear" if xscale is None else xscale)
             axs[0].set_yscale("log" if yscale is None else yscale)
             if ylim is not None:
                 axs[0].set_ylim(*ylim)
 
             axs[-1].set_xlabel(xlabel)
-            # axs[-1].set_xscale("log")
+            axs[-1].set_xscale("linear" if xscale is None else xscale)
             axs[-1].set_xlim(bins[0], bins[-1])
             plt.savefig(pdf, format="pdf", bbox_inches="tight")
             plt.close()
+
 
 
 def compute_hist_data(bins: np.ndarray, data: np.ndarray, bayesian=False, weights=None):
@@ -687,6 +744,29 @@ def hist_plot(
         axs[-1].set_xlim(bins[0], bins[-1])
         plt.savefig(pdf, format="pdf")
         plt.close()
+
+def safe_lognorm(data: np.ndarray) -> LogNorm:
+    """
+    Create a safe norm for the data.
+    Args:
+        data: Data to normalize
+    Returns:
+        norm: Normalization object
+    """
+    flat = data[~np.isnan(data)]
+    if flat.size > 0:
+        # only positives make sense on log scale
+        positives = flat[flat > 0]
+        if positives.size > 0:
+            vmin = positives.min()
+            vmax = positives.max()
+        else:
+            # all data zero or NaN --> force a tiny range
+            vmin, vmax = 1e-10, 1e-9
+    else:
+        # completely empty --> arbitrary fallback
+        vmin, vmax = 1e-10, 1e-9
+    return LogNorm(vmin=vmin, vmax=vmax)
 
 
 def hist_line(

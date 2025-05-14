@@ -8,6 +8,7 @@ from .datasets.gluons import gg_ng, gg_qqbarng
 from .datasets.dataset import compute_observables
 from .models.models import Model, MLP, Transformer
 from .models.lgatr import LGATr
+# from lgatr import LGATr as LGATr_legacy
 from .plots import Plots
 import torch
 
@@ -139,7 +140,7 @@ def run(logger, run_dir, cfg: DictConfig):
 
     ### INITIALIZE MODEL AND DATALOADERS ###
     dims_out = 1
-    dims_in = len(dataset.channels) - 1
+    dims_in = len(dataset.channels) - 3
     logger.info(
         f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.loss}"
     )
@@ -215,32 +216,38 @@ def run(logger, run_dir, cfg: DictConfig):
         dataset,
         model.losses if hasattr(model, "losses") else None,
         process_name=cfg.dataset.process,
+        regress=cfg.dataset.get("regress", "r"),
         debug=False,
         model_name=model.name,
     )
 
+
+
+
+    percentage_of_ratio_data = 99.0 # showing 99% to avoid the massive (very few) outliers
     if hasattr(model, "losses"):
         logger.info(f"    Plotting train metrics")
         plots.plot_train_metrics(os.path.join(run_dir, f"train_metrics.pdf"), logy=True)
-    logger.info(f"    Plotting regressed factors")
-    plots.plot_weights(os.path.join(run_dir, f"factor_tst.pdf"), split="tst")
-    plots.plot_weights(os.path.join(run_dir, f"factor_trn.pdf"), split="trn")
-    plots.plot_weights(os.path.join(run_dir, f"factor_val.pdf"), split="val")
-    logger.info(f"    Plotting ppd regressed factors")
-    plots.plot_weights_ppd(os.path.join(run_dir, f"factor_ppd_trn.pdf"), split="trn")
-    plots.plot_weights_ppd(os.path.join(run_dir, f"factor_ppd_tst.pdf"), split="tst")
-    plots.plot_weights_ppd(os.path.join(run_dir, f"factor_ppd_val.pdf"), split="val")
     logger.info(f"    Plotting observables")
     plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
     logger.info(f"    Plotting ppd observables")
     plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
-    logger.info(f"    Plotting ratio correlation")
-    plots.plot_ratio_correlation(
-        os.path.join(run_dir, f"ratio_corr_trn.pdf"), split="trn"
-    )
-    plots.plot_ratio_correlation(
-        os.path.join(run_dir, f"ratio_corr_tst.pdf"), split="tst"
-    )
+    logger.info(f"    Plotting regressed factors and ratio correlations")
+    for k in ["trn", "tst", "val"]:
+        for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
+            logger.info(f"        Plotting {k} set and ppd={ppd_flag}...")
+            plots.plot_weights(
+                os.path.join(run_dir, f"factors{ppd_s}_{k}.pdf"),
+                split=k,
+                ppd=ppd_flag,
+                percentage_of_ratio_data=percentage_of_ratio_data,
+            )
+            plots.plot_ratio_correlation(
+                os.path.join(run_dir, f"ratio_corr{ppd_s}_{k}.pdf"),
+                split=k,
+                ppd=ppd_flag,
+                percentage_of_ratio_data=percentage_of_ratio_data,
+            )
 
     if device == torch.device("cuda"):
         max_used = torch.cuda.max_memory_allocated()
