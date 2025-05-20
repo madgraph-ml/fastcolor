@@ -1,4 +1,5 @@
 import os
+import shutil
 import glob
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -102,7 +103,15 @@ def main(cfg: DictConfig):
                 continue
             if "old" in item:
                 continue
-            os.rename(item_path, os.path.join(old_dir, item))
+            if not os.path.exists(os.path.join(old_dir, item)):
+                os.rename(item_path, os.path.join(old_dir, item))
+            else:
+                if os.path.isdir(item_path):
+                    shutil.rmtree(os.path.join(old_dir, item))
+                else:
+                    os.remove(os.path.join(old_dir, item))
+                os.rename(item_path, os.path.join(old_dir, item))
+            
     else:
         raise NotImplementedError(f"Run type {cfg.run.type} not recognised")
 
@@ -127,12 +136,12 @@ def run(logger, run_dir, cfg: DictConfig):
     # INITIALIZE DATASET AND PREPROCESSING ###
     logger.info(f"Dataset: {cfg.dataset.process}")
     # if cfg.model.type == "LGATr":
-    #     cfg.dataset.parameterisation.naive.use = True
-    #     cfg.dataset.parameterisation.lorentz_products.use = False
+    #     cfg.dataset.parameterization.naive.use = True
+    #     cfg.dataset.parameterization.lorentz_products.use = False
     param_names = [
-        p for p in cfg.dataset.parameterisation if cfg.dataset.parameterisation[p].use
+        p for p in cfg.dataset.parameterization if cfg.dataset.parameterization[p].use
     ]
-    logger.info(f"    Using parameterisation(s): {', '.join(param_names)}")
+    logger.info(f"    Using parameterization(s): {', '.join(param_names)}")
 
     dataset = eval(cfg.dataset.type)(logger, cfg.dataset)
     dataset.apply_preprocessing()
@@ -152,12 +161,13 @@ def run(logger, run_dir, cfg: DictConfig):
         cfg=cfg,
         dims_in=dims_in,
         dims_out=dims_out,
+        _shift=dataset._shift,
         model_path=model_path,
         device=device,
     ).to(device)
     model.name = cfg.model.type
     logger.info(
-        f"Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+        f"    Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
     )
     model.init_dataloaders(dataset)
 

@@ -79,7 +79,7 @@ class Model(nn.Module):
         else:
             raise NotImplementedError(f"Optimizer {optim} not implemented")
         self.optimizer = optimizer
-        self.logger.info(f"Using optimizer {optim} with lr={lr} and weight decay={wd}")
+        self.logger.info(f"    Using optimizer {optim} with lr={lr} and weight decay={wd}")
 
     def init_scheduler(self):
         sched = self.cfg.train.get("scheduler", None)
@@ -98,7 +98,7 @@ class Model(nn.Module):
         else:
             raise NotImplementedError(f"Scheduler {sched} not implemented")
         self.scheduler = scheduler
-        self.logger.info(f"Using scheduler {sched}")
+        self.logger.info(f"    Using scheduler {sched}")
 
     def train(self):
         self.net.train()

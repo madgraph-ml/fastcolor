@@ -10,17 +10,17 @@ class gg_ng:
         self.logger = logger
         self.cfg = cfg
         self.channels = self.cfg.get("channels", None)
-        self.parameterisation = self.cfg.get("parameterisation", None)
+        self.parameterization = self.cfg.get("parameterization", None)
         self._shift = {"r": -3, "LC": -2, "FC": -1}[self.cfg.get("regress", "r")] # events finish in [..., r, LC, FC] = self.cfg.get("regress", "r")
         self.logger.info(
             f"    Regressing {self.cfg.get('regress', 'r')}"
         )
-        if self.parameterisation.naive.use:
-            self.channels = self.parameterisation.naive.channels
-        elif self.parameterisation.lorentz_products.use:
-            self.channels = self.parameterisation.lorentz_products.channels
+        if self.parameterization.naive.use:
+            self.channels = self.parameterization.naive.channels
+        elif self.parameterization.lorentz_products.use:
+            self.channels = self.parameterization.lorentz_products.channels
         else:
-            raise ValueError("No parameterisation specified")
+            raise ValueError("No parameterization specified")
         if self.channels is None:
             raise ValueError("Channels not specified in the dataset parameters")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -38,58 +38,107 @@ class gg_ng:
             raise ValueError("Data path not specified in the parameters")
         type = self.cfg["type"]
         process = self.cfg["process"]
-        file_path = (
-            os.path.join(data_path, type, self.cfg[process])
-            if not self.cfg.use_large_file
-            else os.path.join(data_path, type, "large", self.cfg[process])
-        )
-        if not os.path.exists(file_path):
-            raise ValueError(f"File {file_path} does not exist")
+        
+        if process == "gg2aag":
+            file_path = "/remote/gpu06/bahl/unc2/arlo2/data/gg2aag.npy"
+            momenta = (
+                np.load(file_path)[:n_events]
+                if n_events is not None
+                else np.load(file_path)
+            )
+            momenta = np.concatenate([momenta[:, :20], np.zeros((momenta.shape[0], 2)), momenta[:, 20:21]], axis=1)
         else:
-            self.logger.info(f"    Loading data from {file_path}")
-            try:
-                momenta = (
-                    np.load(file_path)[:n_events]
-                    if n_events is not None
-                    else np.load(file_path)
-                )
-            except Exception as e:
-                raise ValueError(f"Error loading file {file_path}: {e}")
+            file_path = (
+                os.path.join(data_path, type, self.cfg[process])
+                if not self.cfg.use_large_file
+                else os.path.join(data_path, type, "large", self.cfg[process])
+            )
+            if not os.path.exists(file_path):
+                raise ValueError(f"File {file_path} does not exist")
+            else:
+                self.logger.info(f"    Loading data from {file_path}")
+                try:
+                    momenta = (
+                        np.load(file_path)[:n_events]
+                        if n_events is not None
+                        else np.load(file_path)
+                    )
+                except Exception as e:
+                    raise ValueError(f"Error loading file {file_path}: {e}")
         momenta = torch.tensor(momenta, device=self.device, dtype=torch.float32)
         self.n_particles = (momenta.shape[1] - 3) // 4
-        if self.parameterisation.naive.use:
-            events = [momenta[:, i : i + 4] for i in range(0, 4 * self.n_particles, 4)]
-            events.append(
-                momenta[:, -3:]
-            )
-            events = torch.cat(events, axis=1)
 
-        elif self.parameterisation.lorentz_products.use:
+
+
+        if self.parameterization.naive.use:
+            base = [momenta[:, i : i + 4] for i in range(0, 4 * self.n_particles, 4)]
+            
+
+        elif self.parameterization.lorentz_products.use:
             # compute the lorentz products for all possible pairs
-            products = []
+            base = []
             for i in range(self.n_particles):
                 for j in range(i + 1, self.n_particles):
-                    products.append(
+                    base.append(
                         phys.LorentzProduct(
                             momenta[:, i * 4 : i * 4 + 4], momenta[:, j * 4 : j * 4 + 4]
                         )
                     )
-            products = torch.stack(products, axis=-1)
+            
+        else:
+            raise ValueError("No parameterization specified")
+
+        # add delta etas
+        if self.parameterization.delta_eta.use:
+            delta_eta = []
+            particles_idx = self.parameterization.delta_eta.get("particles_idx", [])
+            if len(particles_idx) == 0:
+                # use all delta_etas by default
+                particles_idx = list(
+                    np.arange(0, self.n_particles, 1)
+                )
+            self.logger.info(
+                f"    Using delta_eta for particles with index: {particles_idx}"
+            )
+            for ch1 in particles_idx:
+                for ch2 in particles_idx:
+                    if ch2 <= ch1 or ch1 == 0 and ch2 == 1:
+                        # skip same channels and g1g2 separation ( = 0)
+                        continue
+                    else:
+                        delta_eta.append(
+                            phys.delta_eta
+                            (
+                                momenta[..., :],
+                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*ch1:4*ch1+4])[..., 2],
+                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*ch2:4*ch2+4])[..., 2],
+                            )
+                        )
+            delta_eta = torch.stack(delta_eta, axis=1)
+            
+        events = torch.stack(base.copy(), axis=1)
+        if delta_eta is not None:
+            self.delta_eta_channels = list(
+                np.arange(events.shape[1], delta_eta.shape[1] + events.shape[1])
+            )
             events = torch.cat(
                 [
-                    products,
-                    momenta[:, -3:],
+                    events,
+                    delta_eta,
                 ],
                 axis=1,
             )
-        else:
-            raise ValueError("No parameterisation specified")
-        if self.channels == []:
-            # Use all of channels by default
-            self.channels = list(np.arange(events.shape[1]-3))
-
-
-        
+            self.logger.info(
+                f"    Appending delta_eta as channels: {self.delta_eta_channels}"
+            )
+        # append the amplitudes and r
+        events = torch.cat(
+            [
+                events,
+                momenta[:, -3:],
+            ],
+            axis=1,
+        )
 
         if self.channels == []:
             # Use all of channels by default
@@ -122,22 +171,22 @@ class gg_ng:
         if not reverse:
             events_ppd = self.events.clone().to(self.device)
 
-            if self.cfg.parameterisation.naive.use:
+            if self.cfg.parameterization.naive.use:
                 pt_channels = [
-                    i for i in self.channels if i % 4 == 0 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 0 and i < self.last_channel
                 ]
                 phi_channels = [
-                    i for i in self.channels if i % 4 == 1 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 1 and i < self.last_channel
                 ]
                 eta_channels = [
-                    i for i in self.channels if i % 4 == 2 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 2 and i < self.last_channel
                 ]
                 mass_channels = [
-                    i for i in self.channels if i % 4 == 3 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 3 and i < self.last_channel
                 ]
 
-            elif self.cfg.parameterisation.lorentz_products.use:
-                pt_channels = [i for i in self.channels if i < self.last_channel]
+            elif self.cfg.parameterization.lorentz_products.use:
+                pt_channels = [i for i in range(int(self.n_particles * (self.n_particles - 1) / 2)) if i < self.last_channel]
                 phi_channels = []
                 eta_channels = []
                 mass_channels = []
@@ -151,7 +200,12 @@ class gg_ng:
                     mass_channels,
                     eps,
                 )
-
+            if self.cfg.parameterization.delta_eta.use:
+                self.logger.info(
+                    f"    Standardizing delta_eta channels {self.delta_eta_channels}"
+                )
+                events_ppd[:, self.delta_eta_channels] = (events_ppd[:, self.delta_eta_channels] - events_ppd[:, self.delta_eta_channels].mean()) / (events_ppd[:, self.delta_eta_channels].std() + eps)
+                
             if pp_cfg.standardize:
                 self.mean = events_ppd[:, :self._shift].mean()
                 self.std = events_ppd[:, :self._shift].std()
@@ -162,11 +216,12 @@ class gg_ng:
                     f"    Equivariant preprocessing for {self.channels[:self._shift]}"
                 )
                 assert (
-                    self.cfg.parameterisation.naive.use == True
-                ), f"    Equivariant preprocessing only applicable for naive parameterisation, not {[p for p in self.cfg.parameterisation if self.cfg.parameterisation[p].use]}"
+                    self.cfg.parameterization.naive.use == True
+                ), f"    Equivariant preprocessing only applicable for naive parameterization, not {[p for p in self.cfg.parameterization if self.cfg.parameterization[p].use]}"
                 self.std = events_ppd[:, :self._shift].std()
                 events_ppd[:, :self._shift] = events_ppd[:, :self._shift] / (self.std + eps)
 
+            
             if pp_cfg.amplitude.log:
                 self.logger.info(f"    Log scaling for {self.channels[self._shift]}")
                 events_ppd[:, self._shift] = torch.log(
@@ -231,7 +286,7 @@ class gg_ng:
 
     def init_observables(self, n_bins: int = 50) -> list[Observable]:
         self.observables = []
-        if self.parameterisation.naive.use:
+        if self.parameterization.naive.use:
             for i in range(self.n_particles):
                 self.observables.append(
                     Observable(
@@ -277,7 +332,7 @@ class gg_ng:
                         yscale="linear",
                     )
                 )
-        elif self.parameterisation.lorentz_products.use:
+        elif self.parameterization.lorentz_products.use:
             for i in range(self.n_particles):
                 for j in range(i + 1, self.n_particles):
                     idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
@@ -292,8 +347,28 @@ class gg_ng:
                             yscale="linear",
                         )
                     )
+        if self.parameterization.delta_eta.use:
+            for i in range(self.n_particles):
+                for j in range(i + 1, self.n_particles):
+                    if i == 0 and j == 1:
+                        continue
+                    else:
+                        idx = self.delta_eta_channels[0] + i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1) - 1 # final -1 due to g1g2 not present
+                        self.observables.append(
+                            Observable(
+                                compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
+                                tex_label=f"\Delta\eta_{{g_{i+1} g_{j+1}}}",
+                                unit=r"\text{rad}",
+                                bins=(lambda obs, i=i, j=j: get_hardcoded_bins(
+                                    n_bins=n_bins + 1, lower=10, upper=20)) if i == 0 or i == 1 else
+                                    (lambda obs, i=i, j=j: get_hardcoded_bins(
+                                        n_bins=n_bins + 1, lower=0, upper=8
+                                    )),
+                                yscale="linear",
+                            )
+                        )
         else:
-            raise ValueError("No parameterisation specified")
+            raise ValueError("No parameterization specified")
 
 
 class gg_qqbarng(gg_ng):
@@ -302,7 +377,7 @@ class gg_qqbarng(gg_ng):
 
     def init_observables(self, n_bins: int = 50) -> list[Observable]:
         self.observables = []
-        if self.parameterisation.naive.use:
+        if self.parameterization.naive.use:
             for i in range(self.n_particles):
                 if 0 <= i < 2 or i >= 4:
                     type = "g"
@@ -371,7 +446,7 @@ class gg_qqbarng(gg_ng):
                         yscale="linear",
                     )
                 )
-        elif self.parameterisation.lorentz_products.use:
+        elif self.parameterization.lorentz_products.use:
             for i in range(self.n_particles):
                 if 0 <= i < 2 or i >= 4:
                     type1 = "g"
@@ -395,7 +470,7 @@ class gg_qqbarng(gg_ng):
                         )
                     )
         else:
-            raise ValueError("No parameterisation specified")
+            raise ValueError("No parameterization specified")
 
 
 def Gaussianize(

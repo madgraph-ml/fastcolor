@@ -1,6 +1,16 @@
 import torch
 
 
+minkowski = torch.diag(torch.tensor([1., -1., -1., -1.], dtype=torch.float16))
+def covariant2(p1: torch.Tensor, p2: torch.Tensor) -> torch.Tensor:
+    """
+    Returns the covariant product of two 4-vectors
+    """
+    # make sure ps and minkowski are the same dtype
+    m = minkowski.to(p1.dtype)
+    assert p1.dtype == p2.dtype, f"p1 and p2 have different dtypes {p1.dtype} {p2.dtype}"
+    return torch.einsum("...i,ij,...j->...", p1, m, p2)
+
 def delta_eta(
     p: torch.Tensor, eta1: torch.Tensor, eta2: torch.Tensor, abs: bool = True
 ) -> torch.Tensor:
