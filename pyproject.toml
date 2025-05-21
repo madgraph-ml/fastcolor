@@ -25,7 +25,8 @@ dependencies = [
     "opt_einsum",
     "scikit-hep",
     "torch>=2.2",
-    "hydra-core>=1.2"
+    "hydra-core>=1.2",
+    "mlflow"==2.22.0",
 ]
 
 [tool.black]

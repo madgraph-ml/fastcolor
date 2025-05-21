@@ -3,6 +3,9 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from src.utils.mlflow import mlflow, LOGGING_ENABLED
+from mlflow.tracking import MlflowClient
+from mlflow.entities import Metric
 
 
 class Model(nn.Module):
@@ -101,6 +104,8 @@ class Model(nn.Module):
         self.logger.info(f"    Using scheduler {sched}")
 
     def train(self):
+        if LOGGING_ENABLED:
+            self.mlflowclient = MlflowClient()
         self.net.train()
         nepochs = self.cfg.train.nepochs
         self.init_optimizer()
@@ -141,7 +146,6 @@ class Model(nn.Module):
         )
         t0 = time.time()
         for epoch in range(1, nepochs + 1):
-            epoch_trn_losses = []
             epoch_val_losses = []
             for i, batch in enumerate(self.trnloader):
                 x, weight = batch
@@ -168,7 +172,6 @@ class Model(nn.Module):
                 trn_loss.append(loss.cpu().item())
                 if "hs_loss" in loss_terms:
                     hs_loss.append(loss_terms["hs_loss"].cpu().item())
-                epoch_trn_losses.append(loss.cpu().item())
                 trn_lr.append(self.optimizer.param_groups[0]["lr"])
                 grd_norm.append(grad_norm)
 
@@ -186,7 +189,7 @@ class Model(nn.Module):
                     )
                     epoch_val_losses.append(loss.cpu().item())
 
-            avg_trn_loss = torch.tensor(epoch_trn_losses).mean().item()
+            avg_trn_loss = torch.tensor(trn_loss).mean().item()
             avg_val_loss = torch.tensor(epoch_val_losses).mean().item()
             if self.scheduler is not None and isinstance(
                 self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
@@ -203,7 +206,7 @@ class Model(nn.Module):
                 self.losses["hs"] = hs_loss
                 self.losses["hs_scale"] = loss_terms["hs_scale"]
 
-            self.train_log_and_save(
+            self.log_and_save(
                 t0,
                 epoch,
                 avg_trn_loss,
@@ -215,6 +218,85 @@ class Model(nn.Module):
         )
         self.logger.info(f"Best validation loss: {self.best_val_loss:.8f}")
         self.logger.info(f"Last validation loss: {self.losses['val'][-1]:.8f}")
+
+
+    def log_and_save(self, t0, epoch, avg_trn_loss, avg_val_loss):
+        if epoch == 1:
+            self.logger.info(
+                f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * self.cfg.train.nepochs))}"
+            )
+            
+        else:
+            if LOGGING_ENABLED and epoch % max(1, self.cfg.mlflow.get("log_every", 1)) == 0:
+                if mlflow.active_run() is None:
+                    self.logger.warning(
+                        "MLflow is not active. Cannot log metrics."
+                    )
+                else:
+                    ts = int((time.time()-t0) * 1000)
+                
+                    metrics_batch = []
+                    for step_idx, loss_val in enumerate(self.losses["trn"]):
+                        metrics_batch.append(
+                            {
+                                "key":       "trn_loss_per_iter",
+                                "value":     loss_val,
+                                "timestamp": ts,
+                                "step":      step_idx,
+                            }
+                        )
+                    metrics_batch.append(
+                        {
+                            "key":       "val_loss",
+                            "value":     self.losses["val"][-1],
+                            "timestamp": ts,
+                            "step":      epoch,
+                        }
+                    )
+                    metrics_batch.append(
+                        {
+                            "key":       "lr",
+                            "value":     self.losses["lr"][-1],
+                            "timestamp": ts,
+                            "step":      epoch,
+                        }
+                    )
+                    metrics_batch.append(
+                        {
+                            "key":       "grad_norm",
+                            "value":     self.losses["grad_norm"][-1],
+                            "timestamp": ts,
+                            "step":      epoch,
+                        }
+                    )
+                    metrics = [
+                        Metric(
+                            key=m["key"],
+                            value=m["value"],
+                            timestamp=m["timestamp"],
+                            step=m["step"],
+                        )
+                        for m in metrics_batch
+                    ]
+
+                    if self.heteroscedastic_loss.use:
+                        self.logger.warning(
+                            "Heteroscedastic logging is not supported yet"
+                        )
+                    self.mlflowclient.log_batch(run_id=mlflow.active_run().info.run_id, metrics=metrics)
+            log_every_percent = 0.10
+            if epoch % max(1, int(self.cfg.train.nepochs * log_every_percent)) == 0:
+                self.logger.info(
+                    f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
+                )
+            if self.losses["val"][-1] < self.best_val_loss:
+                self.best_val_loss = self.losses["val"][-1]
+                if epoch > 10:
+                    self.save("best")
+                    self.logger.info(
+                        f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at epoch {epoch}"
+                    )
+
 
     def save(self, name: str):
         """
@@ -250,26 +332,6 @@ class Model(nn.Module):
             except AttributeError:
                 pass
         self.losses = state_dicts["losses"]
-
-    def train_log_and_save(self, t0, epoch, avg_trn_loss, avg_val_loss):
-        if epoch == 1:
-            self.logger.info(
-                f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * self.cfg.train.nepochs))}"
-            )
-
-        else:
-            log_every_percent = 0.10
-            if epoch % max(1, int(self.cfg.train.nepochs * log_every_percent)) == 0:
-                self.logger.info(
-                    f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
-                )
-            if self.losses["val"][-1] < self.best_val_loss:
-                self.best_val_loss = self.losses["val"][-1]
-                if epoch > 10:
-                    self.save("best")
-                    self.logger.info(
-                        f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at epoch {epoch}"
-                    )
 
     def evaluate(self, loader=None):
         if loader is None:

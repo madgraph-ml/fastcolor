@@ -1,10 +1,11 @@
 import os
 import shutil
 import glob
+from datetime import datetime
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from datetime import datetime
 from .utils.logger import setup_logging
+from .utils.mlflow import mlflow, log_mlflow, LOGGING_ENABLED
 from .datasets.gluons import gg_ng, gg_qqbarng
 from .datasets.dataset import compute_observables
 from .models.models import Model, MLP, Transformer
@@ -133,6 +134,20 @@ def run(logger, run_dir, cfg: DictConfig):
     device = "cuda" if cuda_available else "cpu"
     logger.info(f"Device {device}")
 
+    ### INITIALIZE MLFLOW ###
+    if LOGGING_ENABLED and device == "cuda" and cfg.run.type == "train":
+        mlflow.set_experiment(cfg.mlflow.experiment_name)
+        mlflow.start_run(run_name=cfg.run.name if cfg.run.name is not None else run_dir)
+        # flatten and log top‐level params
+        for key, val in {
+            **cfg.train,
+            **cfg.model,
+            **{"run_type": cfg.run.type,
+            "run_name": cfg.run.name,
+            "dataset": cfg.dataset},
+        }.items():
+            log_mlflow(logger, key, str(val), kind="param")
+
     # INITIALIZE DATASET AND PREPROCESSING ###
     logger.info(f"Dataset: {cfg.dataset.process}")
     # if cfg.model.type == "LGATr":
@@ -164,11 +179,33 @@ def run(logger, run_dir, cfg: DictConfig):
         _shift=dataset._shift,
         model_path=model_path,
         device=device,
-    ).to(device)
+    ).to(device) #if cfg.model.type != "LGATr_legacy" else LGATr_legacy(
+    #     in_mv_channels = cfg.model["in_mv_channels"],
+    #     out_mv_channels = cfg.model["out_mv_channels"],
+    #     hidden_mv_channels = cfg.model["hidden_mv_channels"],
+    #     in_s_channels = cfg.model.get("in_s_channels", None),
+    #     out_s_channels = cfg.model.get("out_s_channels", None),
+    #     hidden_s_channels = cfg.model.get("hidden_s_channels", None),
+    #     attention = cfg.model["attention"],
+    #     mlp = cfg.model["mlp"],
+    #     num_blocks = cfg.model.get("num_blocks", 10),
+    #     reinsert_mv_channels = cfg.model.get("reinsert_mv_channels", None),
+    #     reinsert_s_channels = cfg.model.get("reinsert_s_channels", None),
+    #     checkpoint_blocks = False,
+    #     dropout_prob = cfg.model.get("dropout_prob", None),
+    #     double_layernorm = cfg.model.get("double_layernorm", False),
+    # ).to(device)
     model.name = cfg.model.type
     logger.info(
         f"    Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
     )
+    if LOGGING_ENABLED:
+        log_mlflow(
+            logger,
+            "num_parameters",
+            sum(p.numel() for p in model.parameters() if p.requires_grad),
+            kind="param",
+        )
     model.init_dataloaders(dataset)
 
     if cfg.run.type == "train":
