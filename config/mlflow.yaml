@@ -1,0 +1,6 @@
+mlflow:
+  log_every: 1
+  tracking_uri: sqlite:///results/mlflow/mlflow.db
+  experiment_name: "results/${model.type}"
+  db: "results/${model.type}/mlflow/mlflow.db"
+  artifacts: "results/${model.type}/mlflow/artifacts"
