@@ -1,0 +1,8 @@
+pt:
+    jets: 2.0
+
+eta:
+    jets: 5.0
+
+dR:
+    jj: 0.1
