@@ -110,14 +110,14 @@ class gg_ng:
                             phys.delta_eta
                             (
                                 momenta[..., :],
-                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*ch1:4*ch1+4])[..., 2],
-                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*ch2:4*ch2+4])[..., 2],
+                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*i:4*i+4])[..., 2],
+                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*j:4*j+4])[..., 2],
                             )
                         )
             delta_eta = torch.stack(delta_eta, axis=1)
             
         events = torch.stack(base.copy(), axis=1)
-        if delta_eta is not None:
+        if isinstance(delta_eta, list):
             self.delta_eta_channels = list(
                 np.arange(events.shape[1], delta_eta.shape[1] + events.shape[1])
             )
