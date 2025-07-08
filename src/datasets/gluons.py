@@ -11,10 +11,10 @@ class gg_ng:
         self.cfg = cfg
         self.channels = self.cfg.get("channels", None)
         self.parameterization = self.cfg.get("parameterization", None)
-        self._shift = {"r": -3, "LC": -2, "FC": -1}[self.cfg.get("regress", "r")] # events finish in [..., r, LC, FC] = self.cfg.get("regress", "r")
         self.logger.info(
             f"    Regressing {self.cfg.get('regress', 'r')}"
         )
+        self.regress_target = self.cfg.get("regress", "r")
         if self.parameterization.naive.use:
             self.channels = self.parameterization.naive.channels
         elif self.parameterization.lorentz_products.use:
@@ -36,20 +36,31 @@ class gg_ng:
             data_path = "data"
         if data_path is None:
             raise ValueError("Data path not specified in the parameters")
-        type = self.cfg["type"]
-        process = self.cfg["process"]
-        
-        if process == "gg2aag":
-            file_path = "/remote/gpu06/bahl/unc2/arlo2/data/gg2aag.npy"
+        type = self.cfg.type
+        process = self.cfg.process
+
+        if process == "gg_4g_ext_comb":
+            file_path = "/remote/gpu02/marino/data/gg_ng/events_4g_1M_ext.comb.npy"
             momenta = (
                 np.load(file_path)[:n_events]
                 if n_events is not None
                 else np.load(file_path)
             )
-            momenta = np.concatenate([momenta[:, :20], np.zeros((momenta.shape[0], 2)), momenta[:, 20:21]], axis=1)
+            # -3: ALC
+            # -2: ANLC
+            # -1: AFC
+            if self.regress_target == "r":
+                momenta = np.concatenate([momenta[:, :-3], momenta[:, -1:] / momenta[:, -3:-2]], axis=1)
+            elif self.regress_target == "FC":
+                momenta = np.concatenate([momenta[:, :-3], momenta[:, -1:]], axis=1)
+            elif self.regress_target == "LC":
+                momenta = np.concatenate([momenta[:, :-3], momenta[:, -3:2]], axis=1)
+            else:
+                raise ValueError(f"Unknown regression target {self.regress_target}")
+
         else:
             file_path = (
-                os.path.join(data_path, type, self.cfg[process])
+                os.path.join(data_path, type, process + ".npy") #os.path.join(data_path, type, self.cfg[process])
                 if not self.cfg.use_large_file
                 else os.path.join(data_path, type, "large", self.cfg[process])
             )
@@ -65,16 +76,38 @@ class gg_ng:
                     )
                 except Exception as e:
                     raise ValueError(f"Error loading file {file_path}: {e}")
-        momenta = torch.tensor(momenta, device=self.device, dtype=torch.float32)
-        self.n_particles = (momenta.shape[1] - 3) // 4
+        
 
+        self.n_particles = (momenta.shape[1] - 1) // 7
+        self.logger.info(
+            f"    Number of particles: {self.n_particles}, per-particle features: {(momenta.shape[1] - 1) / self.n_particles}"
+        )
 
 
         if self.parameterization.naive.use:
-            base = [momenta[:, i : i + 4] for i in range(0, 4 * self.n_particles, 4)]
-            
-
+            base = [momenta[:, i : i + 7] for i in range(0, 7 * self.n_particles, 7)]
+            self.input_channels = torch.arange(
+                7 * self.n_particles, dtype=torch.int16, device=self.device
+            ).tolist()
         elif self.parameterization.lorentz_products.use:
+            regress_factor = momenta[:, -1:] # the last column is the regression factor
+            momenta = momenta[:, :-1] # remove the regression factor from the momenta
+            self.n_particles = momenta.shape[1] // 7 # pdgid, color index, helicity, 4 momenta
+            reshaped_momenta = momenta.reshape(-1, self.n_particles, 7)
+            pdg_ids     = reshaped_momenta[:, :, 0]
+            colors      = reshaped_momenta[:, :, 1]
+            helicities  = reshaped_momenta[:, :, 2]
+            global_tokens = np.stack(
+                [pdg_ids, colors, helicities],
+                axis=1
+            ).astype(np.int16)
+            momenta     = reshaped_momenta[:, :, 3:].reshape(-1, 4 * self.n_particles)
+            momenta = np.concatenate([momenta, regress_factor], axis=1) # append the regression factor
+            if self.cfg.embed_helicities.use:
+                config_dict = {tuple(cfg): idx for idx, cfg in enumerate(np.unique(global_tokens[:, 2], axis = 0))}
+                config_ids = np.array([config_dict[tuple(cfg)] for cfg in global_tokens[:, 2]])
+            momenta = torch.tensor(momenta, device=self.device, dtype=torch.float64)
+
             # compute the lorentz products for all possible pairs
             base = []
             for i in range(self.n_particles):
@@ -84,71 +117,44 @@ class gg_ng:
                             momenta[:, i * 4 : i * 4 + 4], momenta[:, j * 4 : j * 4 + 4]
                         )
                     )
-            
+            self.input_channels = torch.arange(self.n_particles * (self.n_particles - 1) // 2, dtype=torch.int16, device=self.device).tolist()
         else:
             raise ValueError("No parameterization specified")
 
-        # add delta etas
-        if self.parameterization.delta_eta.use:
-            delta_eta = []
-            particles_idx = self.parameterization.delta_eta.get("particles_idx", [])
-            if len(particles_idx) == 0:
-                # use all delta_etas by default
-                particles_idx = list(
-                    np.arange(0, self.n_particles, 1)
-                )
-            self.logger.info(
-                f"    Using delta_eta for particles with index: {particles_idx}"
-            )
-            for ch1 in particles_idx:
-                for ch2 in particles_idx:
-                    if ch2 <= ch1 or ch1 == 0 and ch2 == 1:
-                        # skip same channels and g1g2 separation ( = 0)
-                        continue
-                    else:
-                        delta_eta.append(
-                            phys.delta_eta
-                            (
-                                momenta[..., :],
-                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*i:4*i+4])[..., 2],
-                                phys.EPxPyPz_to_PtPhiEtaM(momenta[..., 4*j:4*j+4])[..., 2],
-                            )
-                        )
-            delta_eta = torch.stack(delta_eta, axis=1)
             
-        events = torch.stack(base.copy(), axis=1)
-        if isinstance(delta_eta, list):
-            self.delta_eta_channels = list(
-                np.arange(events.shape[1], delta_eta.shape[1] + events.shape[1])
-            )
-            events = torch.cat(
-                [
-                    events,
-                    delta_eta,
-                ],
-                axis=1,
-            )
-            self.logger.info(
-                f"    Appending delta_eta as channels: {self.delta_eta_channels}"
-            )
-        # append the amplitudes and r
+        events = torch.stack(base, dim=1).to(dtype=torch.float64, device=self.device)
         events = torch.cat(
             [
                 events,
-                momenta[:, -3:],
+                momenta[:, -1:],
             ],
-            axis=1,
+            dim=1,
         )
+        if isinstance(config_ids, np.ndarray) and self.cfg.embed_helicities.use:
+            events = torch.cat(
+                [
+                    events[..., :-1],
+                    torch.tensor(config_ids, device=self.device, dtype=torch.int16).unsqueeze(1),
+                    events[..., -1:],
+                ],
+                dim=1,
+            ).to(dtype=torch.float64)
+            self.helicity_dict_size = len(np.unique(config_ids))
+            self.logger.info(
+                f"    Using helicity LUT with {self.helicity_dict_size} configurations at channel {events.shape[1] - 2}"
+            )
+            helicity_channel = events.shape[1] - 2
+            self.input_channels.append(events.shape[1] - 2)
 
         if self.channels == []:
             # Use all of channels by default
-            self.channels = list(np.arange(events.shape[1]))
-        self.last_channel = events.shape[1] - 3
-        if self.last_channel not in self.channels:
-            # always make sure that the last channel is included and is the target reweighting factor to learn
-            self.channels.append(self.last_channel); self.channels.append(self.last_channel+1); self.channels.append(self.last_channel+2)
+            self.input_channels = [i for i in range(events.shape[1])]
+            self.channels_to_preprocess = [i for i in self.input_channels if i != helicity_channel]
+        
         self.events = events
-
+        self.logger.info(
+            f"    Using channels {self.input_channels[:-1]} for regression, preprocessing only {self.channels_to_preprocess}, with channel {self.input_channels[-1]} ({self.cfg.get('regress', 'r')}) as the target"
+        )
 
     def split_data(self, events, trn_tst_val):
         # split the data
@@ -161,7 +167,7 @@ class gg_ng:
         }
         return events_split
 
-    def apply_preprocessing(self, reverse=False, eps=1e-10):
+    def apply_preprocessing(self, reverse=False, eps=1e-100):
         pp_cfg = self.cfg.preprocessing
         if not hasattr(self, "events_ppd") and reverse:
             raise ValueError(
@@ -173,20 +179,20 @@ class gg_ng:
 
             if self.cfg.parameterization.naive.use:
                 pt_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 0 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 0 and i in self.channels_to_preprocess
                 ]
                 phi_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 1 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 1 and i in self.channels_to_preprocess
                 ]
                 eta_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 2 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 2 and i in self.channels_to_preprocess
                 ]
                 mass_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 3 and i < self.last_channel
+                    i for i in range(4*self.n_particles) if i % 4 == 3 and i in self.channels_to_preprocess
                 ]
 
             elif self.cfg.parameterization.lorentz_products.use:
-                pt_channels = [i for i in range(int(self.n_particles * (self.n_particles - 1) / 2)) if i < self.last_channel]
+                pt_channels = [i for i in range(int(self.n_particles * (self.n_particles - 1) / 2)) if i in self.channels_to_preprocess]
                 phi_channels = []
                 eta_channels = []
                 mass_channels = []
@@ -200,51 +206,45 @@ class gg_ng:
                     mass_channels,
                     eps,
                 )
-            if self.cfg.parameterization.delta_eta.use:
-                self.logger.info(
-                    f"    Standardizing delta_eta channels {self.delta_eta_channels}"
-                )
-                events_ppd[:, self.delta_eta_channels] = (events_ppd[:, self.delta_eta_channels] - events_ppd[:, self.delta_eta_channels].mean()) / (events_ppd[:, self.delta_eta_channels].std() + eps)
                 
             if pp_cfg.standardize:
-                self.mean = events_ppd[:, :self._shift].mean()
-                self.std = events_ppd[:, :self._shift].std()
-                events_ppd[:, :self._shift] = (events_ppd[:, :self._shift] - self.mean) / (self.std + eps)
+                self.mean = events_ppd[:, self.channels_to_preprocess].mean()
+                self.std = events_ppd[:, self.channels_to_preprocess].std()
+                events_ppd[:, self.channels_to_preprocess] = (events_ppd[:, self.channels_to_preprocess] - self.mean) / (self.std + eps)
 
             if pp_cfg.equivariant:
                 self.logger.info(
-                    f"    Equivariant preprocessing for {self.channels[:self._shift]}"
+                    f"    Equivariant preprocessing for {self.channels_to_preprocess}"
                 )
                 assert (
                     self.cfg.parameterization.naive.use == True
                 ), f"    Equivariant preprocessing only applicable for naive parameterization, not {[p for p in self.cfg.parameterization if self.cfg.parameterization[p].use]}"
-                self.std = events_ppd[:, :self._shift].std()
-                events_ppd[:, :self._shift] = events_ppd[:, :self._shift] / (self.std + eps)
+                self.std = events_ppd[:, self.channels_to_preprocess].std()
+                events_ppd[:, self.channels_to_preprocess] = events_ppd[:, self.channels_to_preprocess] / (self.std + eps)
 
-            
             if pp_cfg.amplitude.log:
-                self.logger.info(f"    Log scaling for {self.channels[self._shift]}")
-                events_ppd[:, self._shift] = torch.log(
-                    events_ppd[:, self._shift] + eps
+                self.logger.info(f"    Log scaling for channel {events_ppd.shape[1] - 1}")
+                events_ppd[:, -1] = torch.log(
+                    events_ppd[:, -1] + eps
                 )
 
             if pp_cfg.amplitude.standardize:
-                self.logger.info(f"    Standard preprocessing for {self.channels[self._shift]}")
-                self.ampl_mean = events_ppd[:, self._shift].mean()
-                self.ampl_std = events_ppd[:, self._shift].std()
-                events_ppd[:, self._shift] = (events_ppd[:, self._shift] - self.ampl_mean) / (
+                self.logger.info(f"    Standard preprocessing for {events_ppd.shape[1] - 1}")
+                self.ampl_mean = events_ppd[:, -1].mean()
+                self.ampl_std = events_ppd[:, -1].std()
+                events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_mean) / (
                     self.ampl_std + eps
                 )
 
             if pp_cfg.amplitude.minmax_scaling:
                 # Minmax to [0, 1]
-                self.logger.info(f"    MinMax scaling for {self.channels[self._shift]}")
-                self.ampl_min = events_ppd[:, self._shift].min()
-                self.ampl_max = events_ppd[:, self._shift].max()
-                events_ppd[:, self._shift] = (events_ppd[:, self._shift] - self.ampl_min) / (
+                self.logger.info(f"    MinMax scaling for {events_ppd.shape[1] - 1}")
+                self.ampl_min = events_ppd[:, -1].min()
+                self.ampl_max = events_ppd[:, -1].max()
+                events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_min) / (
                     self.ampl_max - self.ampl_min
                 )
-                events_ppd[:, self._shift] *= 10
+                events_ppd[:, -1] *= 10
 
             assert torch.isfinite(
                 events_ppd
@@ -255,9 +255,6 @@ class gg_ng:
             self.events_ppd = self.split_data(events_ppd, self.cfg.trn_tst_val)
             self.logger.info(
                 f"    [Train, Test, Val] events: [{len(self.events_ppd['trn'])}, {len(self.events_ppd['tst'])}, {len(self.events_ppd['val'])}]"
-            )
-            self.logger.info(
-                f"    Using channels {self.channels[:-3]} for regression, with {self.cfg.get('regress', 'r')} as the target"
             )
         else:
             # reverse preprocessing for the predicted factors
@@ -280,7 +277,7 @@ class gg_ng:
                     )
 
                 if pp_cfg.amplitude.log:
-                    predicted_factors_raw = torch.exp(predicted_factors_raw.clip(max=10)) - eps
+                    predicted_factors_raw = torch.exp(predicted_factors_raw) - eps
 
                 self.predicted_factors_raw[split] = predicted_factors_raw
 
@@ -347,26 +344,6 @@ class gg_ng:
                             yscale="linear",
                         )
                     )
-        if self.parameterization.delta_eta.use:
-            for i in range(self.n_particles):
-                for j in range(i + 1, self.n_particles):
-                    if i == 0 and j == 1:
-                        continue
-                    else:
-                        idx = self.delta_eta_channels[0] + i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1) - 1 # final -1 due to g1g2 not present
-                        self.observables.append(
-                            Observable(
-                                compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
-                                tex_label=f"\Delta\eta_{{g_{i+1} g_{j+1}}}",
-                                unit=r"\text{rad}",
-                                bins=(lambda obs, i=i, j=j: get_hardcoded_bins(
-                                    n_bins=n_bins + 1, lower=10, upper=20)) if i == 0 or i == 1 else
-                                    (lambda obs, i=i, j=j: get_hardcoded_bins(
-                                        n_bins=n_bins + 1, lower=0, upper=8
-                                    )),
-                                yscale="linear",
-                            )
-                        )
         else:
             raise ValueError("No parameterization specified")
 
@@ -480,7 +457,7 @@ def Gaussianize(
     eta_channels: list,
     mass_channels: list,
     reverse=False,
-    eps: float = 1e-10,
+    eps: float = 1e-100,
 ) -> torch.Tensor:
     for ch in pt_channels:
         x[:, ch] = gaussianize_pt(x[:, ch], eps)
