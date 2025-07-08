@@ -81,6 +81,10 @@ class Plots:
                 )
             elif process_name == "gg2aag":
                 process_name = f"$gg \\to \\gamma \\gamma + g$"
+            elif process_name == "new":
+                process_name = f"$gg \\to 4g$ (new)"
+            elif process_name == "rik_amps":
+                process_name = f"$gg \\to 4g$"
 
         self.losses = losses
         self.process_name = process_name
@@ -88,12 +92,6 @@ class Plots:
             "r" : "r",
             "LC" : "A_{\\text{LC}}",
             "FC" : "A_{\\text{FC}}",
-        }[regress]
-
-        self._shift = {
-            "r": -3,
-            "LC": -2,
-            "FC": -1
         }[regress]
         self.regress = regress
         self.debug = debug
@@ -120,7 +118,7 @@ class Plots:
                     its = np.arange(1, len(loss) + 1) * frac
                 ax.plot(its, loss, label=label)
             if logy:
-                ax.set_yscale("log")
+                ax.set_yscale("log") if np.all(np.array(self.losses["trn"]) > 0) else ax.set_yscale("symlog")
             if lr is not None:
                 axright = ax.twinx()
                 axright.plot(iterations, lr, label="Learning Rate", color="crimson")
@@ -278,14 +276,14 @@ class Plots:
         """
         if not ppd:
             reweight_factors_truth = (
-                self.dataset.events[split][:, self._shift].detach().cpu().numpy()
+                self.dataset.events[split][:, -1].detach().cpu().numpy()
             )
             reweight_factors_pred = (
                 self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
             )
         else:
             reweight_factors_truth = (
-                    self.dataset.events_ppd[split][:, self._shift].squeeze().detach().cpu().numpy()
+                    self.dataset.events_ppd[split][:, -1].squeeze().detach().cpu().numpy()
                 )
             reweight_factors_pred = (
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
@@ -314,6 +312,15 @@ class Plots:
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
             )
+            self._plot_deltas(
+                pp,
+                reweight_factors_pred,
+                reweight_factors_truth,
+                ppd=ppd,
+                percentage_of_ratio_data=percentage_of_ratio_data,
+                pickle_file=pickle_file,
+                abs=True,
+            )
 
     def _plot_weights(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, pickle_file: str = None) -> None:
         """
@@ -326,7 +333,7 @@ class Plots:
             pickle_file: Path to the output pickle file (optional)
         """
         xlim_bins = np.array([0.9*min(min(truth), min(pred)), 1.1*max(max(truth), max(pred))])
-        xlim_bins[0] = 1.22 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
+        xlim_bins[0] = 1.1 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
         bins = (
             np.linspace(*xlim_bins, 64)
             if self.regress == "r" or ppd else
@@ -386,8 +393,8 @@ class Plots:
         ratios = truth / adjusted_pred
         xlim_bins = np.array([0.9*min(ratios), 1.1*max(ratios)])
         xlim_bins = np.percentile(ratios, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
-        xlim_bins[0] = 1.22 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]    
-        xlim_bins[1] = 0.82 * xlim_bins[1] if xlim_bins[1] < 0 else xlim_bins[1]
+        xlim_bins[0] = 1.1 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]    
+        xlim_bins[1] = 0.91 * xlim_bins[1] if xlim_bins[1] < 0 else xlim_bins[1]
         bins = (
             np.linspace(*xlim_bins, 64)
             if self.regress == "r" or ppd else
@@ -422,7 +429,7 @@ class Plots:
             with open(pickle_file, "wb") as f:
                 pickle.dump(pickle_data, f)
     
-    def _plot_deltas(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, eps = 1e-20) -> None:
+    def _plot_deltas(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, eps = 1e-20, abs = False) -> None:
         """
         Makes a plot of the delta of the truth and predicted distributions.
         Args:
@@ -432,13 +439,20 @@ class Plots:
             ppd: If True, use preprocessed data
             pickle_file: Path to the output pickle file (optional)
         """
+        xlabel = f"${{\Delta}}_{{{self.regress_name}}} = \\frac{{{self.regress_name}^{{\\text{{pred}}}} - {self.regress_name}^{{\\text{{true}}}}}}{{{self.regress_name}^{{\\text{{true}}}}}}({percentage_of_ratio_data:.0f}\\%)$" if not ppd else f"$\\tilde{{\Delta}}_{{{self.regress_name}}} = \\frac{{\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}} - \\tilde{{{self.regress_name}}}^{{\\text{{true}}}}}}{{\\tilde{{{self.regress_name}}}^{{\\text{{true}}}}}}({percentage_of_ratio_data:.0f}\\%)$"
+
         adjusted_truth = np.where(truth > 0, truth + eps, truth - eps)
         delta = (pred - truth) / adjusted_truth
+        delta = np.abs(delta) if abs else delta  # take absolute value if abs is True
         # xlim_bins = np.array([0.9*min(delta), 1.1*max(delta)])
-        xlim_bins = np.percentile(delta, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
-        xlim_bins[0] = 1.22 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
-        xlim_bins[1] = 0.82 * xlim_bins[1] if xlim_bins[1] < 0 else xlim_bins[1]
-        bins = np.linspace(*xlim_bins, 64)
+        if not abs:
+            xlim_bins = np.percentile(delta, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
+            bins = np.linspace(*xlim_bins, 64)
+        else:
+            xlim_bins = np.percentile(delta, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
+            bins = np.logspace(*np.log10(np.array(xlim_bins)), 64)
+
+
 
         y_delta, y_delta_err = compute_hist_data(
             bins, delta, bayesian=False
@@ -456,7 +470,8 @@ class Plots:
             lines,
             bins,
             show_ratios=False,
-            xlabel=f"${{\Delta}}_{{{self.regress_name}}} = \\frac{{{self.regress_name}^{{\\text{{pred}}}} - {self.regress_name}^{{\\text{{true}}}}}}{{{self.regress_name}^{{\\text{{true}}}}}}({percentage_of_ratio_data:.0f}\\%)$" if not ppd else f"$\\tilde{{\Delta}}_{{{self.regress_name}}} = \\frac{{\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}} - \\tilde{{{self.regress_name}}}^{{\\text{{true}}}}}}{{\\tilde{{{self.regress_name}}}^{{\\text{{true}}}}}}({percentage_of_ratio_data:.0f}\\%)$",
+            xlabel=xlabel if not abs else f"$|{{\Delta}}_{{{self.regress_name}}}|$",
+            xscale="log" if abs else "linear",
             title=self.process_name if self.process_name is not None else None,
             no_scale=True,
         )
@@ -474,14 +489,14 @@ class Plots:
             cmap.set_bad("white")
             if not ppd:
                 reweight_factors_truth = (
-                    self.dataset.events[split][:, self._shift].squeeze().detach().cpu().numpy()
+                    self.dataset.events[split][:, -1].squeeze().detach().cpu().numpy()
                 )
                 reweight_factors_pred = (
                     self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
                 )
             else:
                 reweight_factors_truth = (
-                    self.dataset.events_ppd[split][:, self._shift].squeeze().detach().cpu().numpy()
+                    self.dataset.events_ppd[split][:, -1].squeeze().detach().cpu().numpy()
                 )
                 reweight_factors_pred = (
                     self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
@@ -498,9 +513,9 @@ class Plots:
             for i in (0, 1):
                 lo, hi = xlim_bins[i]
                 if lo < 0:
-                    lo *= 1.22
+                    lo *= 1.1
                 if hi < 0:
-                    hi *= 0.82
+                    hi *= 0.91
                 xlim_bins[i] = np.array([lo, hi])
             bins = [
                 np.linspace(*xlim_bins[0], 64) if self.regress == "r" or ppd else np.logspace(*np.log10(xlim_bins[0]), 64) if np.all(xlim_bins[0] > 0) else np.logspace(np.log10(max(1e-11, xlim_bins[0][0])), np.log10(max(1e-11, xlim_bins[0][1])), 64),
@@ -511,12 +526,13 @@ class Plots:
             h[h == 0] = np.nan
             h_norm = h / np.nansum(h)
             fig, ax = plt.subplots(figsize=(5, 5))
+            norm = safe_lognorm(h_norm.T)
             pcm = ax.pcolormesh(
                 bins[0],
                 bins[1],
                 h_norm.T,
                 cmap=cmap,
-                norm=safe_lognorm(h_norm.T),
+                norm=norm,
                 rasterized=True,
             )
 
@@ -531,11 +547,69 @@ class Plots:
             ax.set_ylabel(f"${self.regress_name}^{{\\text{{pred}}}}$" if not ppd else f"$\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}$")
             fig.savefig(pp, format="pdf", bbox_inches="tight")
             plt.close()
+
+
+
+            xlim_bins = [
+                np.array([0.9*min(reweight_factors_truth), 1.1*max(reweight_factors_truth)]),
+                np.array([0.9 * min(adjusted_factors_pred), 1.1 * max(adjusted_factors_pred)]),
+            ]
+
+            xlim_bins[0] = np.percentile(reweight_factors_truth, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2]) # to contain percentage_of_ratio_data% of the data (approx bc later is modified slightly)
+            # correct limits if min or max are negative
+            for i in (0, 1):
+                lo, hi = xlim_bins[i]
+                if lo < 0:
+                    lo *= 1.1
+                if hi < 0:
+                    hi *= 0.91
+                xlim_bins[i] = np.array([lo, hi])
+            bins = [
+                np.linspace(*xlim_bins[0], 64) if self.regress == "r" or ppd else np.logspace(*np.log10(xlim_bins[0]), 64) if np.all(xlim_bins[0] > 0) else np.logspace(np.log10(max(1e-11, xlim_bins[0][0])), np.log10(max(1e-11, xlim_bins[0][1])), 64),
+                np.linspace(*xlim_bins[1], 64) if self.regress == "r" or ppd else np.logspace(*np.log10(xlim_bins[1]), 64) if np.all(xlim_bins[1] > 0) else np.logspace(np.log10(max(1e-11, xlim_bins[1][0])), np.log10(max(1e-11, xlim_bins[1][1])), 64),
+            ]
+            h, x, y = np.histogram2d(reweight_factors_truth, reweight_factors_pred, bins=(bins[0], bins[1]))
+            # h = np.ma.divide(h, np.sum(h, -1, keepdims=True)).filled(0)
+            h[h == 0] = np.nan
+            h_norm = h / np.nansum(h)
+            fig, ax = plt.subplots(figsize=(5, 5))
+            norm = safe_lognorm(h_norm.T)
+            pcm = ax.pcolormesh(
+                bins[0],
+                bins[1],
+                h_norm.T,
+                cmap=cmap,
+                norm=norm,
+                rasterized=True,
+            )
+            ax.plot(
+                [max(bins[0][0], bins[1][0]), min(bins[0][-1], bins[1][-1])],  # limits of x=y within current axes
+                [max(bins[0][0], bins[1][0]), min(bins[0][-1], bins[1][-1])],
+                linestyle='--',
+                color='gray',
+                linewidth=2,
+            )
+
+
+            fig.colorbar(pcm, ax=ax)
+            fig.suptitle(f"{self.model_name}")
+            ax.set_xscale("linear" if self.regress == "r" or ppd else "log")
+            ax.set_yscale("linear" if self.regress == "r" or ppd else "log")
+            ax.set_xlim(bins[0][0], bins[0][-1])
+            ax.set_ylim(bins[1][0], bins[1][-1])
+            ax.set_xlabel(f"${self.regress_name}^{{\\text{{truth}}}}({percentage_of_ratio_data:.0f}\\%)$" if not ppd else f"$\\tilde{{{self.regress_name}}}^{{\\text{{truth}}}}({percentage_of_ratio_data:.0f}\\%)$")
+            ax.set_ylabel(f"${self.regress_name}^{{\\text{{pred}}}}$" if not ppd else f"$\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}$")
+            fig.savefig(pp, format="pdf", bbox_inches="tight")
+            plt.close()
+
+
+            
             if pickle_file is not None:
                 pickle_data = []
-                pickle_data.append({"h_norm.T": h_norm.T, "bins": bins, norm: norm, "vmin": vmin, "vmax": vmax})
+                pickle_data.append({"h_norm.T": h_norm.T, "bins": bins, norm: norm})
                 with open(pickle_file, "wb") as f:
                     pickle.dump(pickle_data, f)
+
 
     def hist_weights_plot(
         self,
