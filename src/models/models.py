@@ -7,18 +7,31 @@ from src.utils.mlflow import mlflow, LOGGING_ENABLED
 from mlflow.tracking import MlflowClient
 from mlflow.entities import Metric
 
+class EarlyStopping:
+    def __init__(self, patience=10):
+        self.patience = patience
+        self.counter = 0
+        self.best_loss = None
+        self.early_stop = False
+
+    def __call__(self, val_loss):
+        if self.best_loss is None or val_loss < self.best_loss:
+            self.best_loss = val_loss
+            self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
 
 class Model(nn.Module):
-    def __init__(self, logger, cfg, dims_in, dims_out, _shift, model_path, device):
+    def __init__(self, logger, cfg, dims_in, dims_out, model_path, device):
         super().__init__()
         self.logger = logger
         self.cfg = cfg
         self.dims_in = dims_in
         self.dims_out = dims_out
-        self._shift = _shift
         self.model_path = model_path
         self.device = device
-        self.heteroscedastic_loss = cfg.train.get("heteroscedastic_loss", None)
 
         self.state_dict_attrs = ["net", "optimizer"]  # add more if needed
         if self.cfg.train.scheduler is not None:
@@ -46,7 +59,7 @@ class Model(nn.Module):
 
     def init_dataloaders(self, dataset, weights=None):
         data_ppd = dataset.events_ppd
-        channels = dataset.channels
+        channels = dataset.input_channels
 
         # apply stuff to make it such that only the channels of the data are used
         if weights is None:
@@ -58,8 +71,8 @@ class Model(nn.Module):
             }
         for split in ["trn", "tst", "val"]:
             globals()[f"{split}set"] = torch.utils.data.TensorDataset(
-                data_ppd[f"{split}"][..., channels],
-                weights[f"{split}"],
+                data_ppd[f"{split}"][..., channels].to(torch.float64),
+                weights[f"{split}"].to(torch.float64),
             )
         self.trnloader = torch.utils.data.DataLoader(
             trnset, batch_size=self.cfg.train.batch_size, shuffle=True
@@ -69,6 +82,16 @@ class Model(nn.Module):
         )
         self.tstloader = torch.utils.data.DataLoader(
             tstset,
+            batch_size=self.cfg.train.get("batch_size_eval", self.cfg.train.batch_size),
+            shuffle=False,
+        )
+        self.inf_trnloader = torch.utils.data.DataLoader(
+            trnset,
+            batch_size=self.cfg.train.get("batch_size_eval", self.cfg.train.batch_size),
+            shuffle=False,
+        )
+        self.inf_valloader = torch.utils.data.DataLoader(
+            valset,
             batch_size=self.cfg.train.get("batch_size_eval", self.cfg.train.batch_size),
             shuffle=False,
         )
@@ -106,7 +129,6 @@ class Model(nn.Module):
     def train(self):
         if LOGGING_ENABLED:
             self.mlflowclient = MlflowClient()
-        self.net.train()
         nepochs = self.cfg.train.nepochs
         self.init_optimizer()
         self.init_scheduler()
@@ -118,42 +140,32 @@ class Model(nn.Module):
                 )
             )
             self.load(self.cfg.train.get("checkpoint", "final"))
-        if self.heteroscedastic_loss is not None and self.heteroscedastic_loss.use:
-            hs_loss = []
-            self.first_hs_call = True
-        else:
-            hs_loss = None
         trn_loss = []
         val_loss = []
         trn_lr = []
         grd_norm = []
         self.best_val_loss = 1e20
-        if (
-            self.heteroscedastic_loss.use
-            and self.heteroscedastic_loss.get("activate_after_its", 1000) > 1
-        ):
-            self.logger.info(
-                f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
-            )
-        elif self.heteroscedastic_loss.use:
-            self.logger.info(
-                f"Will use heteroscedastic loss with scale {self.heteroscedastic_loss.scale} after {round(len(self.trnloader) * self.cfg.train.nepochs * self.heteroscedastic_loss.get('activate_after_its', 1000))} iterations"
-            )
-        else:
-            pass
         self.logger.info(
             f"Training model for {nepochs} epochs (= {nepochs * len(self.trnloader)} iterations)"
         )
         t0 = time.time()
+        self.net.train()
+        if self.cfg.train.early_stopping.get("use", False):
+            patience = self.cfg.train.early_stopping.get("patience", 10)
+            early_stopping = EarlyStopping(
+                patience=patience,
+            )
+            self.logger.info(f"Using early stopping with patience {patience}")
         for epoch in range(1, nepochs + 1):
             epoch_val_losses = []
             for i, batch in enumerate(self.trnloader):
                 x, weight = batch
                 self.optimizer.zero_grad()
-                pred = self.forward(x[:, :-3])
-                target = x[:, self._shift].unsqueeze(-1)
+                pred = self.forward(x[:, :-1])
+                target = x[:, -1].unsqueeze(-1)
                 current_it = 1 + (epoch - 1) * len(self.trnloader) + i
-                loss, loss_terms = self.batch_loss(pred, target, weight, current_it)
+                loss, loss_terms = self.batch_loss(pred, target, weight)
+                loss = loss.mean()
                 loss.backward()
                 grad_norm = (
                     torch.nn.utils.clip_grad_norm_(
@@ -170,23 +182,20 @@ class Model(nn.Module):
                 ):
                     self.scheduler.step()
                 trn_loss.append(loss.cpu().item())
-                if "hs_loss" in loss_terms:
-                    hs_loss.append(loss_terms["hs_loss"].cpu().item())
                 trn_lr.append(self.optimizer.param_groups[0]["lr"])
                 grd_norm.append(grad_norm)
 
             for i, batch in enumerate(self.valloader):
                 with torch.no_grad():
                     x, weight = batch
-                    pred = self.forward(x[:, :-3])
-                    target = x[:, self._shift].unsqueeze(-1)
+                    pred = self.forward(x[:, :-1])
+                    target = x[:, -1].unsqueeze(-1)
                     loss, loss_terms = self.batch_loss(
                         pred,
                         target,
                         weight,
-                        current_it=self.cfg.train.nepochs * len(self.trnloader),
-                        val=True,
                     )
+                    loss = loss.mean()
                     epoch_val_losses.append(loss.cpu().item())
 
             avg_trn_loss = torch.tensor(trn_loss).mean().item()
@@ -202,9 +211,6 @@ class Model(nn.Module):
                 "lr": trn_lr,
                 "grad_norm": grd_norm,
             }
-            if self.heteroscedastic_loss.use:
-                self.losses["hs"] = hs_loss
-                self.losses["hs_scale"] = loss_terms["hs_scale"]
 
             self.log_and_save(
                 t0,
@@ -212,6 +218,12 @@ class Model(nn.Module):
                 avg_trn_loss,
                 avg_val_loss,
             )
+            early_stopping(avg_val_loss)
+            if early_stopping.early_stop:
+                self.logger.info(
+                    f"Early stopping at epoch {epoch} with validation loss {avg_val_loss:.8f}"
+                )
+                break
         self.save("final")
         self.logger.info(
             f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}"
@@ -228,62 +240,8 @@ class Model(nn.Module):
             
         else:
             if LOGGING_ENABLED and epoch % max(1, self.cfg.mlflow.get("log_every", 1)) == 0:
-                if mlflow.active_run() is None:
-                    self.logger.warning(
-                        "MLflow is not active. Cannot log metrics."
-                    )
-                else:
-                    ts = int((time.time()-t0) * 1000)
-                
-                    metrics_batch = []
-                    for step_idx, loss_val in enumerate(self.losses["trn"]):
-                        metrics_batch.append(
-                            {
-                                "key":       "trn_loss_per_iter",
-                                "value":     loss_val,
-                                "timestamp": ts,
-                                "step":      step_idx,
-                            }
-                        )
-                    metrics_batch.append(
-                        {
-                            "key":       "val_loss",
-                            "value":     self.losses["val"][-1],
-                            "timestamp": ts,
-                            "step":      epoch,
-                        }
-                    )
-                    metrics_batch.append(
-                        {
-                            "key":       "lr",
-                            "value":     self.losses["lr"][-1],
-                            "timestamp": ts,
-                            "step":      epoch,
-                        }
-                    )
-                    metrics_batch.append(
-                        {
-                            "key":       "grad_norm",
-                            "value":     self.losses["grad_norm"][-1],
-                            "timestamp": ts,
-                            "step":      epoch,
-                        }
-                    )
-                    metrics = [
-                        Metric(
-                            key=m["key"],
-                            value=m["value"],
-                            timestamp=m["timestamp"],
-                            step=m["step"],
-                        )
-                        for m in metrics_batch
-                    ]
+                self.mlflow_log_metrics(t0, epoch)
 
-                    if self.heteroscedastic_loss.use:
-                        self.logger.warning(
-                            "Heteroscedastic logging is not supported yet"
-                        )
-                    self.mlflowclient.log_batch(run_id=mlflow.active_run().info.run_id, metrics=metrics)
             log_every_percent = 0.10
             if epoch % max(1, int(self.cfg.train.nepochs * log_every_percent)) == 0:
                 self.logger.info(
@@ -333,23 +291,34 @@ class Model(nn.Module):
                 pass
         self.losses = state_dicts["losses"]
 
-    def evaluate(self, loader=None):
-        if loader is None:
+    def evaluate(self, split=None):
+        if split is None or split == "tst":
             loader = self.tstloader
-        if loader is self.tstloader:
             self.logger.info("Evaluating model on tst set")
-        elif loader is self.valloader:
+        elif split == "val":
+            loader = self.inf_valloader
             self.logger.info("Evaluating model on val set")
         else:
+            loader = self.inf_trnloader
             self.logger.info("Evaluating model on trn set")
         predictions = []
         self.net.eval()
+        losses = []
         with torch.no_grad():
             t0 = time.time()
             for i, batch in enumerate(loader):
                 x, weight = batch
-                predicted_factors = self.predict(x[:, :-3]).detach().cpu()
-                predictions.append(predicted_factors)
+                pred = self.predict(x[:, :-1])
+                target = x[:, -1].unsqueeze(-1)
+                losses.append(
+                    self.batch_loss(
+                        pred,
+                        target,
+                        weight,
+                        debug=self.cfg.train.get("debug", False),
+                    )[0].squeeze().detach().cpu()
+                )   
+                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get("loss", "MSE") != "heteroscedastic" else predictions.append(pred[..., 0].squeeze().detach().cpu())
                 t1 = time.time()
                 if i == 0:
                     self.logger.info(
@@ -360,54 +329,110 @@ class Model(nn.Module):
                     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
             self.logger.info(f"    Finished sampling. Saving predictions")
         predictions = torch.cat(predictions)
+        dataset_loss = torch.cat(losses).mean().item()
+        self.logger.info(f"    Loss on {split} set: {dataset_loss:.3e}")
+        self.dataset_loss[split] = dataset_loss
         return predictions
 
-    def batch_loss(self, pred, target, weight, current_it=None, val=False, debug=False):
+    def batch_loss(self, pred, target, weight, debug=False):
         if debug:
-            print(pred, target)
+            print(pred.shape, target.shape)
         regression_loss = self.loss_fct(pred, target)
-
-        # heteroscedastic loss
-        activate_hs_loss = (
-            current_it > self.heteroscedastic_loss.get("activate_after_its", 1000)
-            if self.heteroscedastic_loss.get("activate_after_its", 1000) > 1
-            else current_it / len(self.trnloader) / self.cfg.train.nepochs
-            > self.heteroscedastic_loss.get("activate_after_its", 1000)
-        )
-
-        if self.heteroscedastic_loss.use and activate_hs_loss:
-            if self.first_hs_call and not val:
-                self.logger.info(
-                    f"    Using heteroscedastic loss with scale {self.cfg.train.heteroscedastic_loss.get('scale', 0.001)} from it. {current_it} onwards"
-                )
-                self.first_hs_call = False
-            hs_loss = (
-                self.cfg.train.heteroscedastic_loss.get("scale", 0.001)
-                * (target / pred).std()
-            )
-
-        else:
-            hs_loss = torch.tensor([0.0]).to(pred.device)
-        loss = regression_loss + hs_loss.mean()
+        loss = regression_loss
 
         loss_terms = {
             "loss": loss,
             "reg_loss": regression_loss,
         }
-        if self.heteroscedastic_loss.use:
-            loss_terms["hs_loss"] = hs_loss
-            loss_terms["hs_scale"] = self.cfg.train.heteroscedastic_loss.get(
-                "scale", 0.001
-            )
         return loss, loss_terms
+    
+    def mlflow_log_metrics(self, t0, epoch):
+        if mlflow.active_run() is None:
+            self.logger.warning(
+                "MLflow is not active. Cannot log metrics."
+            )
+        else:
+            ts = int((time.time()-t0) * 1000)
+        
+            metrics_batch = []
+            # for step_idx, loss_val in enumerate(self.losses["trn"]):
+            #     metrics_batch.append(
+            #         {
+            #             "key":       "trn_loss_per_iter",
+            #             "value":     loss_val,
+            #             "timestamp": ts,
+            #             "step":      step_idx,
+            #         }
+            #     )
+            metrics_batch.append(
+                {
+                    "key":       "trn_loss",
+                    "value":     self.losses["trn"][-1],
+                    "timestamp": ts,
+                    "step":      epoch,
+                }
+            )
+            metrics_batch.append(
+                {
+                    "key":       "val_loss",
+                    "value":     self.losses["val"][-1],
+                    "timestamp": ts,
+                    "step":      epoch,
+                }
+            )
+            metrics_batch.append(
+                {
+                    "key":       "lr",
+                    "value":     self.losses["lr"][-1],
+                    "timestamp": ts,
+                    "step":      epoch,
+                }
+            )
+            metrics_batch.append(
+                {
+                    "key":       "grad_norm",
+                    "value":     self.losses["grad_norm"][-1],
+                    "timestamp": ts,
+                    "step":      epoch,
+                }
+            )
+            metrics = [
+                Metric(
+                    key=m["key"],
+                    value=m["value"],
+                    timestamp=m["timestamp"],
+                    step=m["step"],
+                )
+                for m in metrics_batch
+            ]
+            self.mlflowclient.log_batch(run_id=mlflow.active_run().info.run_id, metrics=metrics)
+    
+    def init_loss(self):
+        loss_type = self.cfg.train.get("loss", "MSE")
+        if loss_type == "MSE":
+            self.loss_fct = nn.MSELoss(reduction='none')
+        elif loss_type == "L1":
+            self.loss_fct = nn.L1Loss(reduction='none')
+        elif loss_type == "heteroscedastic":
+            self.loss_fct = self.het_loss
+        else:
+            raise NotImplementedError(f"Loss type {loss_type} not implemented")
+        
+    def het_loss(self, pred, target):
+        mu, logsigma2 = pred[..., 0:1], pred[..., 1:2]
+        logsigma2 = logsigma2.clamp(-30, 11)
+        sigma2 = logsigma2.exp()
+        reco = (target - mu) ** 2
+        het_loss = 0.5 * (reco / sigma2 + logsigma2)
+        loss = het_loss + 0.5 * torch.log(torch.tensor(2.0) * torch.pi)
+        return loss
 
 
 class MLP(Model):
-    def __init__(self, logger, process, cfg, dims_in, dims_out, _shift, model_path, device):
-        super().__init__(logger, cfg, dims_in, dims_out, _shift, model_path, device)
-        self.loss_fct = (
-            nn.L1Loss() if self.cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
-        )
+    def __init__(self, logger, process, cfg, dims_in, helicity_dict_size, dims_out, model_path, device):
+        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
+        self.helicity_dict_size = helicity_dict_size
+        self.init_loss()
         self.init_net()
 
     def init_net(self):
@@ -421,35 +446,71 @@ class MLP(Model):
             raise NotImplementedError(
                 f"Activation function {self.cfg.model.get('activation', 'relu')} not implemented"
             )
-        layers = []
-        layers.append(nn.Linear(self.dims_in, self.cfg.model["internal_size"]))
-        layers.append(activation)
-        for _ in range(self.cfg.model["hidden_layers"]):
-            layers.append(
-                nn.Linear(
-                    self.cfg.model["internal_size"], self.cfg.model["internal_size"]
+
+        if self.cfg.dataset.embed_helicities.get("use", False):
+            feature_layers = []
+            feature_layers.append(nn.Linear(self.dims_in - 1, self.cfg.model["internal_size"]))
+            feature_layers.append(activation)
+            feature_embed = nn.Sequential(*feature_layers) 
+
+            hel_layers = []
+            hel_layers.append(nn.Embedding(self.helicity_dict_size, self.cfg.dataset.embed_helicities.get("embed_dimension", 64)))
+            hel_layers.append(activation)
+            helicity_embed = nn.Sequential(*hel_layers)
+
+            head = []
+            head.append(nn.Linear(self.cfg.model["internal_size"] + self.cfg.dataset.embed_helicities.get("embed_dimension", 64), self.cfg.model["internal_size"]))
+            head.append(activation)
+            for _ in range(self.cfg.model["hidden_layers"]):
+                head.append(
+                    nn.Linear(
+                        self.cfg.model["internal_size"], self.cfg.model["internal_size"]
+                    )
                 )
-            )
+                head.append(activation)
+            head.append(nn.Linear(self.cfg.model["internal_size"], self.dims_out))
+            head_net = nn.Sequential(*head)
+
+            self.net = nn.ModuleDict({
+                'feature_embed': feature_embed,
+                'helicity_embed': helicity_embed,
+                'head_net': head_net,
+            })
+        else:
+            layers = []
+            layers.append(nn.Linear(self.dims_in, self.cfg.model["internal_size"]))
             layers.append(activation)
-        layers.append(nn.Linear(self.cfg.model["internal_size"], self.dims_out))
-        self.net = nn.Sequential(*layers)
+            for _ in range(self.cfg.model["hidden_layers"]):
+                layers.append(
+                    nn.Linear(
+                        self.cfg.model["internal_size"], self.cfg.model["internal_size"]
+                    )
+                )
+                layers.append(activation)
+            layers.append(nn.Linear(self.cfg.model["internal_size"], self.dims_out))
+            self.net = nn.Sequential(*layers)
 
     def forward(self, x):
-        return self.net(x)
+        if self.cfg.dataset.embed_helicities.get("use", False):
+            features, helicities = x[:, :-1], x[:, -1].long()
+            feat_embed = self.net['feature_embed'](features)
+            hel_embed = self.net['helicity_embed'](helicities)
+            cat = torch.cat([feat_embed, hel_embed], dim=-1)
+            return self.net['head_net'](cat)
+        else:
+            return self.net(x)
 
     def predict(self, x):
         return self.forward(x)
 
 
 class Transformer(Model):
-    def __init__(self, logger, process, cfg, dims_in, dims_out, _shift, model_path, device):
-        super().__init__(logger, cfg, dims_in, dims_out, _shift, model_path, device)
-        self.loss_fct = (
-            nn.L1Loss() if cfg.train.get("loss", "MSE") == "L1" else nn.MSELoss()
-        )
+    def __init__(self, logger, process, cfg, dims_in, helicity_dict_size, dims_out, model_path, device):
+        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
         assert (
             cfg.dataset.parameterisation.naive.use
         ), "Only naive parameterisation is supported for the Transformer model"
+        self.init_loss()
         self.init_net()
 
     def init_net(self):

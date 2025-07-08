@@ -133,15 +133,22 @@ def run(logger, run_dir, cfg: DictConfig):
     cuda_available = torch.cuda.is_available()
     device = "cuda" if cuda_available else "cpu"
     logger.info(f"Device {device}")
+    torch.set_default_dtype(getattr(torch, cfg.backend.get("torch_dtype", "float64")))
 
     ### INITIALIZE MLFLOW ###
     if LOGGING_ENABLED and device == "cuda" and cfg.run.type == "train":
-        mlflow.set_experiment(cfg.mlflow.experiment_name)
+        mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
+        mlflow.set_experiment(f"{cfg.dataset.process} regression")
         mlflow.start_run(run_name=cfg.run.name if cfg.run.name is not None else run_dir)
         # flatten and log top‐level params
         for key, val in {
             **cfg.train,
             **cfg.model,
+            **cfg.dataset,
+            **cfg.dataset.parameterization.naive,
+            **cfg.dataset.parameterization.lorentz_products,
+            **cfg.dataset.preprocessing,
+
             **{"run_type": cfg.run.type,
             "run_name": cfg.run.name,
             "dataset": cfg.dataset},
@@ -163,10 +170,10 @@ def run(logger, run_dir, cfg: DictConfig):
     dataset.init_observables()
 
     ### INITIALIZE MODEL AND DATALOADERS ###
-    dims_out = 1
-    dims_in = len(dataset.channels) - 3
+    dims_out = 2 if cfg.train.get('loss', 'MSE') == 'heteroscedastic' else 1
+    dims_in = len(dataset.input_channels) - 1
     logger.info(
-        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.loss}"
+        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.get('loss', 'heteroscedastic')}"
     )
     model_path = os.path.join(run_dir, "model")
 
@@ -175,8 +182,8 @@ def run(logger, run_dir, cfg: DictConfig):
         process=cfg.dataset.process,
         cfg=cfg,
         dims_in=dims_in,
+        helicity_dict_size=dataset.helicity_dict_size if hasattr(dataset, 'helicity_dict_size') else None,
         dims_out=dims_out,
-        _shift=dataset._shift,
         model_path=model_path,
         device=device,
     ).to(device) #if cfg.model.type != "LGATr_legacy" else LGATr_legacy(
@@ -234,9 +241,10 @@ def run(logger, run_dir, cfg: DictConfig):
 
     ### EVALUATE MODEL ###
     dataset.predicted_factors_ppd = {}
+    model.dataset_loss = {}
     for k in ["trn", "tst", "val"]:
         dataset.predicted_factors_ppd[k] = model.evaluate(
-            loader=getattr(model, f"{k}loader")
+            split=k
         )
         if cfg.evaluate.save_samples:
             os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
@@ -282,7 +290,7 @@ def run(logger, run_dir, cfg: DictConfig):
     logger.info(f"    Plotting regressed factors and ratio correlations")
     for k in ["trn", "tst", "val"]:
         for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
-            logger.info(f"        Plotting {k} set and ppd={ppd_flag}...")
+            logger.info(f"        Plotting {k} set and { {True : 'ppd', False : 'raw'}[ppd_flag] }...")
             plots.plot_weights(
                 os.path.join(run_dir, f"factors{ppd_s}_{k}.pdf"),
                 split=k,
