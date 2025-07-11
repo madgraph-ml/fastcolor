@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import src.utils.physics as phys
-from .dataset import Observable, return_obs, get_hardcoded_bins
+from .dataset import Observable, return_obs, get_hardcoded_bins, get_quantile_bins
 import os
 
 
@@ -39,8 +39,8 @@ class gg_ng:
         type = self.cfg.type
         process = self.cfg.process
 
-        if process == "gg_4g_ext_comb":
-            file_path = "/remote/gpu02/marino/data/gg_ng/events_4g_1M_ext.comb.npy"
+        if process == "gg_4g_ext_comb" or process == "gg_5g_ext_comb":
+            file_path = "/remote/gpu02/marino/data/gg_ng/events_4g_1M_ext.comb.npy" if process == "gg_4g_ext_comb" else "/remote/gpu02/marino/data/gg_ng/events_5g_1M_ext.comb.npy"
             momenta = (
                 np.load(file_path)[:n_events]
                 if n_events is not None
@@ -338,9 +338,13 @@ class gg_ng:
                             compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
                             tex_label=f"p_{{g_{i+1}}}\\cdot p_{{g_{j+1}}}",
                             unit=r"\text{GeV}^{2}",
-                            bins=lambda obs: get_hardcoded_bins(
-                                n_bins=n_bins + 1, lower=0, upper=5e5
+                            bins=lambda p, idx=idx: get_quantile_bins(
+                                obs=p,
+                                n_bins=n_bins,
+                                percentage_of_data_to_show=99.0,
+                                xscale="log",
                             ),
+                            xscale="log",
                             yscale="linear",
                         )
                     )
@@ -440,8 +444,11 @@ class gg_qqbarng(gg_ng):
                             compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
                             tex_label=f"p_{{{type1}_{i+1}}}\\cdot p_{{{type2}_{j+1}}}",
                             unit=r"\text{GeV}^{2}",
-                            bins=lambda obs: get_hardcoded_bins(
-                                n_bins=n_bins + 1, lower=0, upper=5e5
+                            bins=lambda p, idx: get_quantile_bins(
+                                obs=p[..., idx],
+                                n_bins=n_bins,
+                                percentage_of_data_to_show=99.0,
+                                xscale="log",
                             ),
                             yscale="linear",
                         )
