@@ -218,12 +218,13 @@ class Model(nn.Module):
                 avg_trn_loss,
                 avg_val_loss,
             )
-            early_stopping(avg_val_loss)
-            if early_stopping.early_stop:
-                self.logger.info(
-                    f"Early stopping at epoch {epoch} with validation loss {avg_val_loss:.8f}"
-                )
-                break
+            if self.cfg.train.early_stopping.get("use", False):
+                early_stopping(avg_val_loss)
+                if early_stopping.early_stop:
+                    self.logger.info(
+                        f"Early stopping at epoch {epoch} with validation loss {avg_val_loss:.8f}"
+                    )
+                    break
         self.save("final")
         self.logger.info(
             f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}"
@@ -318,7 +319,7 @@ class Model(nn.Module):
                         debug=self.cfg.train.get("debug", False),
                     )[0].squeeze().detach().cpu()
                 )   
-                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get("loss", "MSE") != "heteroscedastic" else predictions.append(pred[..., 0].squeeze().detach().cpu())
+                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get("loss", "MSE") != "heteroschedastic" else predictions.append(pred[..., 0].squeeze().detach().cpu())
                 t1 = time.time()
                 if i == 0:
                     self.logger.info(
@@ -413,7 +414,7 @@ class Model(nn.Module):
             self.loss_fct = nn.MSELoss(reduction='none')
         elif loss_type == "L1":
             self.loss_fct = nn.L1Loss(reduction='none')
-        elif loss_type == "heteroscedastic":
+        elif loss_type == "heteroschedastic":
             self.loss_fct = self.het_loss
         else:
             raise NotImplementedError(f"Loss type {loss_type} not implemented")

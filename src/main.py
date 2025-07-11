@@ -129,9 +129,12 @@ def run(logger, run_dir, cfg: DictConfig):
     """
 
     ### INITALIZE RUN ###
+
     logger.info(f"Starting {cfg.run.type} run in {run_dir}")
     cuda_available = torch.cuda.is_available()
     device = "cuda" if cuda_available else "cpu"
+    if device == "cuda":
+        torch.cuda.reset_peak_memory_stats()
     logger.info(f"Device {device}")
     torch.set_default_dtype(getattr(torch, cfg.backend.get("torch_dtype", "float64")))
 
@@ -170,10 +173,10 @@ def run(logger, run_dir, cfg: DictConfig):
     dataset.init_observables()
 
     ### INITIALIZE MODEL AND DATALOADERS ###
-    dims_out = 2 if cfg.train.get('loss', 'MSE') == 'heteroscedastic' else 1
+    dims_out = 2 if cfg.train.get('loss', 'MSE') == 'heteroschedastic' else 1
     dims_in = len(dataset.input_channels) - 1
     logger.info(
-        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.get('loss', 'heteroscedastic')}"
+        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.get('loss', 'heteroschedastic')}"
     )
     model_path = os.path.join(run_dir, "model")
 
@@ -270,23 +273,28 @@ def run(logger, run_dir, cfg: DictConfig):
         logger,
         dataset,
         model.losses if hasattr(model, "losses") else None,
+        model.dataset_loss if hasattr(model, "dataset_loss") else None,
         process_name=cfg.dataset.process,
         regress=cfg.dataset.get("regress", "r"),
         debug=False,
         model_name=model.name,
+        loss_name=cfg.train.get("loss", "MSE"),
     )
 
 
 
 
     percentage_of_ratio_data = 99.0 # showing 99% to avoid the massive (very few) outliers
+
+    if cfg.evaluate.get("save_lines", False):
+        os.makedirs(os.path.join(run_dir, "pkl"), exist_ok=True)
     if hasattr(model, "losses"):
         logger.info(f"    Plotting train metrics")
         plots.plot_train_metrics(os.path.join(run_dir, f"train_metrics.pdf"), logy=True)
-    logger.info(f"    Plotting observables")
-    plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
-    logger.info(f"    Plotting ppd observables")
-    plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
+    # logger.info(f"    Plotting observables")
+    # plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
+    # logger.info(f"    Plotting ppd observables")
+    # plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
     logger.info(f"    Plotting regressed factors and ratio correlations")
     for k in ["trn", "tst", "val"]:
         for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
@@ -296,18 +304,22 @@ def run(logger, run_dir, cfg: DictConfig):
                 split=k,
                 ppd=ppd_flag,
                 percentage_of_ratio_data=percentage_of_ratio_data,
+                pickle_file=os.path.join(run_dir, 'pkl', f"factors{ppd_s}_{k}.pkl") if cfg.evaluate.get("save_lines", False) else None,
+                fix_bins=cfg.evaluate.get("save_lines", False),
             )
             plots.plot_ratio_correlation(
                 os.path.join(run_dir, f"ratio_corr{ppd_s}_{k}.pdf"),
                 split=k,
                 ppd=ppd_flag,
                 percentage_of_ratio_data=percentage_of_ratio_data,
+                pickle_file=os.path.join(run_dir, 'pkl', f"ratio_corr{ppd_s}_{k}.pkl") if cfg.evaluate.get("save_lines", False) else None,
             )
 
-    if device == torch.device("cuda"):
+    if device == "cuda":
         max_used = torch.cuda.max_memory_allocated()
-        max_total = torch.cuda.mem_get_info()[1]
+        free, total = torch.cuda.mem_get_info()
+        currently_used = total - free
         logger.info(
-            f"GPU RAM information: max_used = {max_used/1e9:.3} GB, max_total = {max_total/1e9:.3} GB"
+            f"GPU RAM info: currently_used = {currently_used/1e9:.2f} GB, peak_used = {max_used/1e9:.2f} GB, total available= {total/1e9:.2f} GB"
         )
     logger.info("Run finished")
