@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import src.utils.physics as phys
 from .dataset import Observable, return_obs, get_hardcoded_bins, get_quantile_bins
+from src.utils.paths_dict import paths as paths_dict
 import os
 
 
@@ -27,7 +28,7 @@ class gg_ng:
         self.init_dataset()
 
     def init_dataset(self):
-        n_events = self.cfg.get("n_events", None)
+        n_data = self.cfg.get("n_data", None)
         data_path = self.cfg.get("data_path", None)
         if self.device == "cpu" and "remote" in data_path:
             self.logger.info(
@@ -38,17 +39,15 @@ class gg_ng:
             raise ValueError("Data path not specified in the parameters")
         type = self.cfg.type
         process = self.cfg.process
-
-        if process == "gg_4g_ext_comb" or process == "gg_5g_ext_comb":
-            file_path = "/remote/gpu02/marino/data/gg_ng/events_4g_1M_ext.comb.npy" if process == "gg_4g_ext_comb" else "/remote/gpu02/marino/data/gg_ng/events_5g_1M_ext.comb.npy"
+        #
+        file_path = os.path.join(data_path, type, paths_dict[process])
+        
+        try:
             momenta = (
-                np.load(file_path)[:n_events]
-                if n_events is not None
+                np.load(file_path)[:n_data]
+                if n_data is not None
                 else np.load(file_path)
             )
-            # -3: ALC
-            # -2: ANLC
-            # -1: AFC
             if self.regress_target == "r":
                 momenta = np.concatenate([momenta[:, :-3], momenta[:, -1:] / momenta[:, -3:-2]], axis=1)
             elif self.regress_target == "FC":
@@ -57,32 +56,15 @@ class gg_ng:
                 momenta = np.concatenate([momenta[:, :-3], momenta[:, -3:2]], axis=1)
             else:
                 raise ValueError(f"Unknown regression target {self.regress_target}")
-
-        else:
-            file_path = (
-                os.path.join(data_path, type, process + ".npy") #os.path.join(data_path, type, self.cfg[process])
-                if not self.cfg.use_large_file
-                else os.path.join(data_path, type, "large", self.cfg[process])
-            )
-            if not os.path.exists(file_path):
-                raise ValueError(f"File {file_path} does not exist")
-            else:
-                self.logger.info(f"    Loading data from {file_path}")
-                try:
-                    momenta = (
-                        np.load(file_path)[:n_events]
-                        if n_events is not None
-                        else np.load(file_path)
-                    )
-                except Exception as e:
-                    raise ValueError(f"Error loading file {file_path}: {e}")
-        
+            self.logger.info(f"    Loaded data from {file_path}, shape {momenta.shape}")
+        except FileNotFoundError:
+            self.logger.error(f"File {file_path} not found. Please check the data path and process name.")
+            raise
 
         self.n_particles = (momenta.shape[1] - 1) // 7
         self.logger.info(
             f"    Number of particles: {self.n_particles}, per-particle features: {(momenta.shape[1] - 1) / self.n_particles}"
         )
-
 
         if self.parameterization.naive.use:
             base = [momenta[:, i : i + 7] for i in range(0, 7 * self.n_particles, 7)]
@@ -90,9 +72,8 @@ class gg_ng:
                 7 * self.n_particles, dtype=torch.int16, device=self.device
             ).tolist()
         elif self.parameterization.lorentz_products.use:
-            regress_factor = momenta[:, -1:] # the last column is the regression factor
+            target = momenta[:, -1:] # the last column is the regression factor
             momenta = momenta[:, :-1] # remove the regression factor from the momenta
-            self.n_particles = momenta.shape[1] // 7 # pdgid, color index, helicity, 4 momenta
             reshaped_momenta = momenta.reshape(-1, self.n_particles, 7)
             pdg_ids     = reshaped_momenta[:, :, 0]
             colors      = reshaped_momenta[:, :, 1]
@@ -102,7 +83,8 @@ class gg_ng:
                 axis=1
             ).astype(np.int16)
             momenta     = reshaped_momenta[:, :, 3:].reshape(-1, 4 * self.n_particles)
-            momenta = np.concatenate([momenta, regress_factor], axis=1) # append the regression factor
+            momenta = np.concatenate([momenta, target], axis=1) # append the regression factor
+            
             if self.cfg.embed_helicities.use:
                 config_dict = {tuple(cfg): idx for idx, cfg in enumerate(np.unique(global_tokens[:, 2], axis = 0))}
                 config_ids = np.array([config_dict[tuple(cfg)] for cfg in global_tokens[:, 2]])
@@ -352,7 +334,7 @@ class gg_ng:
             raise ValueError("No parameterization specified")
 
 
-class gg_qqbarng(gg_ng):
+class gg_ddbarng(gg_ng):
     def __init__(self, cfg):
         super().__init__(cfg)
 
@@ -363,9 +345,9 @@ class gg_qqbarng(gg_ng):
                 if 0 <= i < 2 or i >= 4:
                     type = "g"
                 elif i == 2:
-                    type = "q"
+                    type = "d"
                 else:
-                    type = "\\bar{q}"
+                    type = "\\bar{d}"
 
                 self.observables.append(
                     Observable(
@@ -437,7 +419,7 @@ class gg_qqbarng(gg_ng):
                     if 0 <= j < 2 or j >= 4:
                         type2 = "g"
                     else:
-                        type2 = "q"
+                        type2 = "d"
                     idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
                     self.observables.append(
                         Observable(
