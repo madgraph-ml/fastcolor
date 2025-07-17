@@ -47,3 +47,8 @@ To warm-start a pre-trained model and continue the training. Just specify the pa
 ```sh
 python run.py -cn config_from_run1 -cp results/my_model/MMDD_HHMMSS-run1 run.type=train train.warm_start=true
 ```
+Models that one can use are organized in experiments trees, and each contain multiple runs. We use `mlflow` to track metrics during training and save them to a database object within the mlflow folder. A local mlflow web interface using port 4242 can be started with the command
+```
+mlflow ui --port 4242 --backend-store-uri sqlite:///mlruns/mlflow.db
+```
+Bear in mind that the memory one can use for UI/API calls is limited, and will not support the logging of large batches of metrics per call, so it is recommended to do the logging at the frequency of epochs and not higher.

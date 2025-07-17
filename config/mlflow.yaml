@@ -1,6 +1,6 @@
 mlflow:
-  log_every: 1
-  tracking_uri: sqlite:///results/${model.type}/mlflow.db
-  experiment_name: "results/${model.type}"
-  db: "results/${model.type}/mlflow/mlflow.db"
-  artifacts: "results/${model.type}/mlflow/artifacts"
+  # log_every: null
+  tracking_uri: sqlite:///mlruns/mlflow.db
+  experiment_name: null
+  db: null
+  artifacts: null
