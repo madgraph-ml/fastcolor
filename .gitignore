@@ -1,6 +1,6 @@
 # Miscellaneous
 *template_files/
-config/
+#config/
 runfiles/
 logs/
 mlruns/

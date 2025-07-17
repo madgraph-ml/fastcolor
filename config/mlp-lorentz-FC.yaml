@@ -2,60 +2,61 @@ run:
   name: null
   path: ???
 
-
 dataset:
   type: gg_ng
-  process: gg_5g
-  regress: FC             # [r (default), FC, delta]
-  use_large_file: true
+  process: gg_4g
   trn_tst_val: [.6, .3, .1]
-
   channels: []
+    
+  regress: FC
+
+  embed_helicities:
+    use: true
+    embed_dimension: 64
 
   parameterization:
     naive:
-      use: true
+      use: false
       channels: ${dataset.channels}
     lorentz_products:
-      use: false
+      use: true
       channels : []
   
   preprocessing:
-    gaussianize: false
+    gaussianize: true
     standardize: false
-    equivariant: true
+    equivariant: false
 
     amplitude:
       log: true
       standardize: true
       minmax_scaling: false
 
-
 train:
   warm_start: false
   checkpoint: final
 
-  lr: 1e-3
+  lr: 1e-4
   clip_grad_norm: 10
   optimizer: adam
-  scheduler: CosineAnnealingLR                # [cosine_annealing, ReduceLROnPlateau, null]
+  scheduler: CosineAnnealingLR  # [CosineAnnealingLR, ReduceLROnPlateau, null]
   lr_factor: 0.1
   lr_patience: 10
-  nepochs: 400
-  batch_size: 512
+  nepochs: 500
+  batch_size: 1024
   batch_size_eval: 4096
   loss: MSE
-  heteroscedastic_loss:
-    use: false
-    scale: 1e-2
-    activate_after_its: .40
+  early_stopping:
+    use: true
+    patience: 25
 
 evaluate:
-  save_samples: true
+  save_samples: false
   save_data: false
   evaluate_best: true
+  save_lines: true
 
 defaults:
-  - model: transformer-500k
+  - model: mlp-100k
   - default
   - _self_
