@@ -140,6 +140,7 @@ def run(logger, run_dir, cfg: DictConfig):
 
     ### INITIALIZE MLFLOW ###
     if LOGGING_ENABLED and device == "cuda" and cfg.run.type == "train":
+        logger.info(f"Setting up MLflow tracking")
         mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
         mlflow.set_experiment(f"{cfg.dataset.process} regression")
         mlflow.start_run(run_name=cfg.run.name if cfg.run.name is not None else run_dir)
@@ -151,7 +152,6 @@ def run(logger, run_dir, cfg: DictConfig):
             **cfg.dataset.parameterization.naive,
             **cfg.dataset.parameterization.lorentz_products,
             **cfg.dataset.preprocessing,
-
             **{"run_type": cfg.run.type,
             "run_name": cfg.run.name,
             "dataset": cfg.dataset},
@@ -235,12 +235,28 @@ def run(logger, run_dir, cfg: DictConfig):
                 )
                 model.load("final")
     elif cfg.run.type == "plot":
-        # LOAD MODEL
-        model_name = "final" if not cfg.evaluate.get("evaluate_best", False) else "best"
-        model.load(model_name)
-        logger.info(
-            "Loaded model from " + os.path.join(model_path, model_name) + ".pth"
-        )
+        if cfg.evaluate.get("model_name", None) is not None:
+            model_name = cfg.evaluate.model_name
+            try:
+                model.load(model_name)
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"Model {model_name} not found in {model_path}/{model_name}.pth. Please train the model first."
+                )
+        else:
+            model_name = (
+                "final" if not cfg.evaluate.get("evaluate_best", False) else "best"
+            )
+            if model_name == "best":
+                try:
+                    model.load("best")
+                except FileNotFoundError:
+                    logger.warning(
+                        f"Best model not found in {model_path}/best.pth. Loading final model instead."
+                    )
+                    model.load("final")
+            else:
+                model.load("final")
 
     ### EVALUATE MODEL ###
     dataset.predicted_factors_ppd = {}

@@ -111,13 +111,13 @@ class Model(nn.Module):
         sched = self.cfg.train.get("scheduler", None)
         if sched == "CosineAnnealingLR":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, len(self.trnloader) * self.cfg.train["nepochs"]
+                self.optimizer, self.cfg.train.nits
             )
         elif sched == "ReduceLROnPlateau":
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimizer,
                 factor=self.cfg.train.get("lr_factor", 0.1),
-                patience=self.cfg.train.get("lr_patience", 10),
+                patience=self.cfg.train.get("lr_patience", 10) * len(self.trnloader), # nb specified in epochs, but we use iterations
             )
         elif sched is None:
             scheduler = None
@@ -129,7 +129,8 @@ class Model(nn.Module):
     def train(self):
         if LOGGING_ENABLED:
             self.mlflowclient = MlflowClient()
-        nepochs = self.cfg.train.nepochs
+        nits = self.cfg.train.nits  # Number of training iterations (steps)
+        val_freq = self.cfg.train.get("val_freq", len(self.trnloader))  # How often to validate/save, default: per epoch
         self.init_optimizer()
         self.init_scheduler()
         if self.cfg.train.get("warm_start", False):
@@ -140,30 +141,33 @@ class Model(nn.Module):
                 )
             )
             self.load(self.cfg.train.get("checkpoint", "final"))
-        trn_loss = []
-        val_loss = []
-        trn_lr = []
-        grd_norm = []
         self.best_val_loss = 1e20
-        self.logger.info(
-            f"Training model for {nepochs} epochs (= {nepochs * len(self.trnloader)} iterations)"
-        )
-        t0 = time.time()
-        self.net.train()
+        self.logger.info(f"Training model for {nits} iterations (= {nits // len(self.trnloader)} epochs)")
+        self.logger.info(f"Validation frequency: {val_freq} its. Nb of train batches: {len(self.trnloader)}")
         if self.cfg.train.early_stopping.get("use", False):
             patience = self.cfg.train.early_stopping.get("patience", 10)
             early_stopping = EarlyStopping(
-                patience=patience,
+                patience=patience * len(self.trnloader) # nb specified in epochs, but we use iterations
             )
             self.logger.info(f"Using early stopping with patience {patience}")
-        for epoch in range(1, nepochs + 1):
-            epoch_val_losses = []
+        
+        current_it = 0
+        epoch = 0
+        t0 = time.time()
+        self.net.train()
+        trn_loss = []
+        epoch_avg_val_loss = []
+        trn_lr = []
+        grd_norm = []
+        while current_it < nits:
+            epoch += 1
             for i, batch in enumerate(self.trnloader):
+                if current_it >= nits:
+                    break
                 x, weight = batch
                 self.optimizer.zero_grad()
                 pred = self.forward(x[:, :-1])
                 target = x[:, -1].unsqueeze(-1)
-                current_it = 1 + (epoch - 1) * len(self.trnloader) + i
                 loss, loss_terms = self.batch_loss(pred, target, weight)
                 loss = loss.mean()
                 loss.backward()
@@ -184,77 +188,76 @@ class Model(nn.Module):
                 trn_loss.append(loss.cpu().item())
                 trn_lr.append(self.optimizer.param_groups[0]["lr"])
                 grd_norm.append(grad_norm)
+                current_it += 1
 
-            for i, batch in enumerate(self.valloader):
-                with torch.no_grad():
-                    x, weight = batch
-                    pred = self.forward(x[:, :-1])
-                    target = x[:, -1].unsqueeze(-1)
-                    loss, loss_terms = self.batch_loss(
-                        pred,
-                        target,
-                        weight,
-                    )
-                    loss = loss.mean()
-                    epoch_val_losses.append(loss.cpu().item())
+                if current_it % val_freq == 0 or current_it == nits:
+                    avg_val_loss = self.validate(t0=t0, current_it=current_it, trn_loss=trn_loss, epoch_avg_val_loss=epoch_avg_val_loss, trn_lr=trn_lr, grd_norm=grd_norm)
+                    if self.cfg.train.early_stopping.get("use", False):
+                        early_stopping(avg_val_loss)
+                        if early_stopping.early_stop:
+                            self.logger.info(
+                                f"Early stopping after iteration {current_it} with validation loss {avg_val_loss:.8f}"
+                            )
+                            break
 
-            avg_trn_loss = torch.tensor(trn_loss).mean().item()
-            avg_val_loss = torch.tensor(epoch_val_losses).mean().item()
-            if self.scheduler is not None and isinstance(
-                self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
-            ):
-                self.scheduler.step(avg_val_loss)
-            val_loss.append(avg_val_loss)
-            self.losses = {
-                "trn": trn_loss,
-                "val": val_loss,
-                "lr": trn_lr,
-                "grad_norm": grd_norm,
-            }
-
-            self.log_and_save(
-                t0,
-                epoch,
-                avg_trn_loss,
-                avg_val_loss,
-            )
-            if self.cfg.train.early_stopping.get("use", False):
-                early_stopping(avg_val_loss)
-                if early_stopping.early_stop:
-                    self.logger.info(
-                        f"Early stopping at epoch {epoch} with validation loss {avg_val_loss:.8f}"
-                    )
-                    break
         self.save("final")
         self.logger.info(
-            f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}"
+            f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Nb of its: {current_it}, epochs: {epoch}"
         )
         self.logger.info(f"Best validation loss: {self.best_val_loss:.8f}")
         self.logger.info(f"Last validation loss: {self.losses['val'][-1]:.8f}")
 
-
-    def log_and_save(self, t0, epoch, avg_trn_loss, avg_val_loss):
-        if epoch == 1:
-            self.logger.info(
-                f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * self.cfg.train.nepochs))}"
-            )
-            
-        else:
-            if LOGGING_ENABLED and epoch % max(1, self.cfg.mlflow.get("log_every", 1)) == 0:
-                self.mlflow_log_metrics(t0, epoch)
-
-            log_every_percent = 0.10
-            if epoch % max(1, int(self.cfg.train.nepochs * log_every_percent)) == 0:
-                self.logger.info(
-                    f"    Epoch {epoch}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
+    def validate(self, t0, current_it, trn_loss, epoch_avg_val_loss, trn_lr, grd_norm):
+        val_losses = []
+        for j, vbatch in enumerate(self.valloader):
+            with torch.no_grad():
+                vx, vweight = vbatch
+                vpred = self.forward(vx[:, :-1])
+                vtarget = vx[:, -1].unsqueeze(-1)
+                vloss, vloss_terms = self.batch_loss(
+                    vpred,
+                    vtarget,
+                    vweight,
                 )
-            if self.losses["val"][-1] < self.best_val_loss:
-                self.best_val_loss = self.losses["val"][-1]
-                if epoch > 10:
-                    self.save("best")
-                    self.logger.info(
-                        f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at epoch {epoch}"
-                    )
+                vloss = vloss.mean()
+                val_losses.append(vloss.cpu().item())
+        epoch_avg_trn_loss = torch.tensor(trn_loss).mean().item()
+        avg_val_loss = torch.tensor(val_losses).mean().item()
+        epoch_avg_val_loss.append(avg_val_loss)
+        if self.scheduler is not None and isinstance(
+            self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+        ):
+            self.scheduler.step(epoch_avg_val_loss)
+        self.losses = {
+            "trn": trn_loss,
+            "val": epoch_avg_val_loss,
+            "lr": trn_lr,
+            "grad_norm": grd_norm,
+        }
+        self.log_and_save(t0, current_it, epoch_avg_trn_loss, avg_val_loss)
+        return avg_val_loss
+
+
+    def log_and_save(self, t0, iteration, avg_trn_loss, avg_val_loss):
+        if iteration == 1 * len(self.trnloader):
+            self.logger.info(
+                f"    Iteration {iteration}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * (self.cfg.train.nits - iteration) / iteration))}"
+            )
+        if LOGGING_ENABLED and iteration % max(1, self.cfg.mlflow.get("log_every", self.cfg.train.get("val_freq", len(self.trnloader)))) == 0:
+            self.mlflow_log_metrics(t0, iteration)
+
+        log_every_percent = 0.10
+        if iteration % max(1, int(self.cfg.train.nits * log_every_percent)) == 0:
+            self.logger.info(
+                f"    It. {iteration}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
+            )
+        if self.losses["val"][-1] < self.best_val_loss:
+            self.best_val_loss = self.losses["val"][-1]
+            if iteration > 10*len(self.trnloader):  # Avoid saving too early
+                self.save("best")
+                self.logger.info(
+                    f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at it. {iteration}"
+                )
 
 
     def save(self, name: str):
@@ -347,14 +350,13 @@ class Model(nn.Module):
         }
         return loss, loss_terms
     
-    def mlflow_log_metrics(self, t0, epoch):
+    def mlflow_log_metrics(self, t0, iteration):
         if mlflow.active_run() is None:
             self.logger.warning(
                 "MLflow is not active. Cannot log metrics."
             )
         else:
             ts = int((time.time()-t0) * 1000)
-        
             metrics_batch = []
             # for step_idx, loss_val in enumerate(self.losses["trn"]):
             #     metrics_batch.append(
@@ -370,7 +372,7 @@ class Model(nn.Module):
                     "key":       "trn_loss",
                     "value":     self.losses["trn"][-1],
                     "timestamp": ts,
-                    "step":      epoch,
+                    "step":      iteration,
                 }
             )
             metrics_batch.append(
@@ -378,7 +380,7 @@ class Model(nn.Module):
                     "key":       "val_loss",
                     "value":     self.losses["val"][-1],
                     "timestamp": ts,
-                    "step":      epoch,
+                    "step":      iteration,
                 }
             )
             metrics_batch.append(
@@ -386,7 +388,7 @@ class Model(nn.Module):
                     "key":       "lr",
                     "value":     self.losses["lr"][-1],
                     "timestamp": ts,
-                    "step":      epoch,
+                    "step":      iteration,
                 }
             )
             metrics_batch.append(
@@ -394,7 +396,7 @@ class Model(nn.Module):
                     "key":       "grad_norm",
                     "value":     self.losses["grad_norm"][-1],
                     "timestamp": ts,
-                    "step":      epoch,
+                    "step":      iteration,
                 }
             )
             metrics = [

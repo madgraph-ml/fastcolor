@@ -67,6 +67,7 @@ def concat_lhe_across_seeds(
         Path to the saved .npy file.
     """
     base_filename+= ".lhe.rwgt"  # Append the file extension
+    print(f"\nStarting to read LHE seed files with base filename: {base_filename}")
     arrays = []
     total_events = 0
     for seed in range(seed_start, seed_end + 1):
@@ -98,6 +99,9 @@ def concat_lhe_across_seeds(
         raise RuntimeError("No LHE files were read; please check seed range and filenames.")
 
     concatenated = np.concatenate(arrays, axis=0)
+    print("Permutating the events to ensure randomness in seeds")
+    perm = np.random.permutation(concatenated.shape[0])
+    concatenated = concatenated[perm]  # Shuffle the events
 
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, base_filename + ".npy")
@@ -115,7 +119,12 @@ def concat_lhe_across_seeds(
 # np.save(output_path, arr)
 
 # multiple files usage example
-for base_filename in ["events_6_2_21_21_1_-1_21_21_3_1_2_5_6_4",
+for base_filename in [
+    # "events_6_2_21_21_21_21_21_21_1_2_3_4_5_6",
+    # "events_7_2_21_21_21_21_21_21_21_1_2_3_4_5_6_7",
+    # "events_8_2_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8",
+    # "events_9_2_21_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8_9",
+    "events_6_2_21_21_1_-1_21_21_3_1_2_5_6_4",
     "events_7_2_21_21_1_-1_21_21_21_3_1_2_5_6_7_4",
     "events_8_2_21_21_1_-1_21_21_21_21_3_1_2_5_6_7_8_4",
     "events_9_2_21_21_1_-1_21_21_21_21_21_3_1_2_5_6_7_8_9_4"

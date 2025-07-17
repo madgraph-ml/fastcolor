@@ -67,7 +67,8 @@ class gg_ng:
         )
 
         if self.parameterization.naive.use:
-            base = [momenta[:, i : i + 7] for i in range(0, 7 * self.n_particles, 7)]
+            momenta = torch.tensor(momenta, device=self.device, dtype=torch.float64)
+            events = momenta[:, :-1]
             self.input_channels = torch.arange(
                 7 * self.n_particles, dtype=torch.int16, device=self.device
             ).tolist()
@@ -84,11 +85,11 @@ class gg_ng:
             ).astype(np.int16)
             momenta     = reshaped_momenta[:, :, 3:].reshape(-1, 4 * self.n_particles)
             momenta = np.concatenate([momenta, target], axis=1) # append the regression factor
+            momenta = torch.tensor(momenta, device=self.device, dtype=torch.float64)
             
             if self.cfg.embed_helicities.use:
                 config_dict = {tuple(cfg): idx for idx, cfg in enumerate(np.unique(global_tokens[:, 2], axis = 0))}
                 config_ids = np.array([config_dict[tuple(cfg)] for cfg in global_tokens[:, 2]])
-            momenta = torch.tensor(momenta, device=self.device, dtype=torch.float64)
 
             # compute the lorentz products for all possible pairs
             base = []
@@ -100,11 +101,10 @@ class gg_ng:
                         )
                     )
             self.input_channels = torch.arange(self.n_particles * (self.n_particles - 1) // 2, dtype=torch.int16, device=self.device).tolist()
+            events = torch.stack(base, dim=1).to(dtype=torch.float64, device=self.device)
         else:
             raise ValueError("No parameterization specified")
 
-            
-        events = torch.stack(base, dim=1).to(dtype=torch.float64, device=self.device)
         events = torch.cat(
             [
                 events,
@@ -112,26 +112,38 @@ class gg_ng:
             ],
             dim=1,
         )
-        if isinstance(config_ids, np.ndarray) and self.cfg.embed_helicities.use:
-            events = torch.cat(
-                [
-                    events[..., :-1],
-                    torch.tensor(config_ids, device=self.device, dtype=torch.int16).unsqueeze(1),
-                    events[..., -1:],
-                ],
-                dim=1,
-            ).to(dtype=torch.float64)
-            self.helicity_dict_size = len(np.unique(config_ids))
-            self.logger.info(
-                f"    Using helicity LUT with {self.helicity_dict_size} configurations at channel {events.shape[1] - 2}"
-            )
+        if self.cfg.embed_helicities.use:
+            try:
+                events = torch.cat(
+                    [
+                        events[..., :-1],
+                        torch.tensor(config_ids, device=self.device, dtype=torch.int16).unsqueeze(1),
+                        events[..., -1:],
+                    ],
+                    dim=1,
+                ).to(dtype=torch.float64)
+                self.helicity_dict_size = len(np.unique(config_ids))
+                self.logger.info(
+                    f"    Using helicity LUT with {self.helicity_dict_size} configurations at channel {events.shape[1] - 2}"
+                )
+            except Exception as e:
+                self.logger.error(f"Error embedding helicities: {e}")
+                raise
             helicity_channel = events.shape[1] - 2
             self.input_channels.append(events.shape[1] - 2)
 
         if self.channels == []:
             # Use all of channels by default
             self.input_channels = [i for i in range(events.shape[1])]
-            self.channels_to_preprocess = [i for i in self.input_channels if i != helicity_channel]
+            if self.cfg.embed_helicities.use:
+                self.channels_to_preprocess = [i for i in self.input_channels if i != helicity_channel]
+            else:
+                print("channels before changing")
+                self.channels_to_preprocess = [
+                    i for i in self.input_channels if i%7 in [3, 4, 5, 6]
+                ]
+                print("channels after changing")
+
         
         self.events = events
         self.logger.info(
@@ -160,18 +172,11 @@ class gg_ng:
             events_ppd = self.events.clone().to(self.device)
 
             if self.cfg.parameterization.naive.use:
-                pt_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 0 and i in self.channels_to_preprocess
-                ]
-                phi_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 1 and i in self.channels_to_preprocess
-                ]
-                eta_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 2 and i in self.channels_to_preprocess
-                ]
-                mass_channels = [
-                    i for i in range(4*self.n_particles) if i % 4 == 3 and i in self.channels_to_preprocess
-                ]
+                pt_channels = []
+                phi_channels = []
+                eta_channels = []
+                mass_channels = []
+                
 
             elif self.cfg.parameterization.lorentz_products.use:
                 pt_channels = [i for i in range(int(self.n_particles * (self.n_particles - 1) / 2)) if i in self.channels_to_preprocess]
