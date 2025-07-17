@@ -14,6 +14,8 @@ class Particle:
     py: float
     pz: float
     energy: float
+    color_idx: int = None, # optional
+    helicity: int = None, # optional
 
     def p4(self):
         return LorentzVector(self.px, self.py, self.pz, self.energy)
@@ -22,7 +24,6 @@ class Particle:
 @dataclass
 class Event:
     particles: list = field(default_factory=list)
-    LC_to_FC_factor: float = 1.0
     weights: list = field(default_factory=list)
     scale: float = -1
 
@@ -67,18 +68,52 @@ class LHEReader:
 
         # Create a new event
         event = Event()
-
         # Read header
         event_header = lines[0].strip()
-        num_part = int(event_header.split()[0].strip())
-        LC_to_FC_factor = float(lines[2].strip().split()[0].strip())
-        event.LC_to_FC_factor = LC_to_FC_factor
+        next = int(event_header.split()[0].strip())
+        
+
+        amp_times_weight = float(event_header.split()[2].strip())
+        weight = float(event_header.split()[6].strip())
+        
+        helicity_conf = []
+        color_indeces = []
+        for i in range(next):
+            color_indeces.append(int(lines[1].strip().split()[i].strip()))
+            hel_index = int(lines[4].strip().split()[i].strip())
+            hel_index = -1 if hel_index == 0 else hel_index
+            helicity_conf.append(hel_index)
+
+        r_LC_to_FC = float(lines[2].strip().split()[0].strip())
+        r_LC_to_NLC = float(lines[2].strip().split()[1].strip())
+        A_LC, A_NLC, A_FC = float(lines[2].split()[2].strip()), float(lines[2].split()[3].strip()), float(lines[2].split()[4].strip())
+
+        # weight_LC = float(lines[4].strip().split()[0].strip())
+        # weight_NLC = float(lines[4].strip().split()[1].strip())
+        # weight_FC = float(lines[4].strip().split()[2].strip())
+
+        
+
+        event.amp_times_weight = amp_times_weight
+        event.A_LC = A_LC
+        event.A_NLC = A_NLC
+        event.A_FC = A_FC
+        event.weight = weight
+        event.r_LC_to_FC = r_LC_to_FC
+        event.r_LC_to_NLC = r_LC_to_NLC
+        event.weight_LC = None # weight_LC
+        event.weight_NLC = None # nullweight_NLC
+        event.weight_FC = None # nullweight_FC
+        event.helicity_conf = helicity_conf
+        event.color_indeces = color_indeces
 
         # Iterate over particle lines and push back
-        for ipart in range(4 + 1, 4 + num_part + 1):
+        for ipart in range(4 + 1, 4 + next + 1):
             part_data = lines[ipart].strip().split()
             p = Particle(
                 pdgid=int(part_data[0]),
+                color_idx=color_indeces[ipart - 4 - 1],
+                helicity=helicity_conf[ipart - 4 - 1],
                 px=float(part_data[1]),
                 py=float(part_data[2]),
                 pz=float(part_data[3]),

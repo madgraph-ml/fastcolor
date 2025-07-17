@@ -10,6 +10,61 @@ from src.datasets.dataset import Observable
 from dataclasses import dataclass
 from matplotlib.ticker import ScalarFormatter
 
+bins_dict = {
+    "r" : {
+        "targets" : {
+            "gg_4g" : np.linspace(0.85, 1.05, 64),
+            "gg_5g" : np.linspace(0.75, 1.15, 64),
+            "gg_6g" : np.linspace(0.75, 1.5, 64),
+            "gg_7g" : np.linspace(0.6, 2.0, 64),
+        },
+        "ratios" : {
+            "gg_4g" : np.linspace(0.95, 1.05, 64),
+            "gg_5g" : np.linspace(0.95, 1.05, 64),
+            "gg_6g" : np.linspace(0.95, 1.05, 64),
+            "gg_7g" : np.linspace(0.95, 1.05, 64),
+        },
+        "deltas" : {
+            "gg_4g" : np.linspace(-0.05, 0.05, 64),
+            "gg_5g" : np.linspace(-0.05, 0.05, 64),
+            "gg_6g" : np.linspace(-0.05, 0.05, 64),
+            "gg_7g" : np.linspace(-0.05, 0.05, 64),
+        },
+        "abs_deltas" : {
+            "gg_4g" : np.logspace(-6, -1, 64),
+            "gg_5g" : np.logspace(-6, -1, 64),
+            "gg_6g" : np.logspace(-6, -1, 64),
+            "gg_7g" : np.logspace(-6, -1, 64),
+        },
+    },
+    "FC" : {
+        "targets" : {
+            "gg_4g" : np.logspace(-11, 5, 64),
+            "gg_5g" : np.logspace(-15, 3, 64),
+            "gg_6g" : np.logspace(-18, 2, 64),
+            "gg_7g" : np.logspace(-22, 1, 64),
+        },
+        "ratios" : {
+            "gg_4g" : np.logspace(-3, 3, 64),
+            "gg_5g" : np.logspace(-3, 3, 64),
+            "gg_6g" : np.logspace(-3, 3, 64),
+            "gg_7g" : np.logspace(-3, 3, 64),
+        },
+        "deltas" : {
+            "gg_4g" : np.linspace(-5, 30, 64),
+            "gg_5g" : np.linspace(-5, 30, 64),
+            "gg_6g" : np.linspace(-5, 30, 64),
+            "gg_7g" : np.linspace(-5, 30, 64),
+        },
+        "abs_deltas" : {
+            "gg_4g" : np.logspace(-9, 4, 64),
+            "gg_5g" : np.logspace(-9, 4, 64),
+            "gg_6g" : np.logspace(-9, 4, 64),
+            "gg_7g" : np.logspace(-9, 4, 64),
+        },
+    },
+}
+
 @dataclass
 class Line:
     y: np.ndarray

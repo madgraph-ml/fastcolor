@@ -14,17 +14,25 @@ def lhe_to_array(dir: str):
         # particles_out = filter(lambda x: x.status == 1, event.particles)
         momenta = []
         for particle in event.particles:
-            mom = np.array([particle.energy, particle.px, particle.py, particle.pz])
+            mom = np.array([particle.pdgid, particle.color_idx, particle.helicity, particle.energy, particle.px, particle.py, particle.pz])
             momenta.append(mom)
         momenta = np.hstack(momenta)
         # append as last element the LC_to_FC_factor
-        momenta = np.append(momenta, event.LC_to_FC_factor)
-        momenta = np.append(momenta, event.LC)
-        momenta = np.append(momenta, event.FC)
+        # new_values = [event.amp_times_weight, event.A_LC, event.A_NLC, event.A_FC, event.weight,
+        #       event.r_LC_to_FC, event.r_LC_to_NLC, event.weight_LC, event.weight_NLC, event.weight_FC]
+        new_values = [event.A_LC, event.A_NLC, event.A_FC]
+        momenta = np.append(momenta, new_values, axis=0)
+
+        # momenta = np.append(momenta, event.LC)
+        # momenta = np.append(momenta, event.FC)
         events.append(momenta)
+        if (i+1) % 10_000 == 0:
+            print(f"Read {i+1} events, total shape ({len(events)}, {momenta.shape})")
+        # if i==9:
+        #     print(f"Read {i+1} events, stopping early for testing.")
+        #     break
     events = np.stack(events)
     return events
-
 
 
     
@@ -33,8 +41,8 @@ def concat_lhe_across_seeds(
     base_filename: str,
     seed_start: int = 101,
     seed_end: int = 110,
-    input_root: str = "data/gg_ng/seeds/",
-    output_dir: str = "data/gg_ng/large2"
+    input_root: str = "/remote/gpu02/marino/data/gg_ddbarng/seeds/",
+    output_dir: str = "/remote/gpu02/marino/data/gg_ddbarng/"
 ) -> str:
     """
     Iterate over seed directories, read each LHE file with the given base filename,
@@ -99,8 +107,20 @@ def concat_lhe_across_seeds(
 
     return output_path
 
-# Example usage:
-# concat_lhe_across_seeds(
-#     base_filename="events_6_2_21_21_21_21_21_21_1_2_3_4_5_6"
-# )
-concat_lhe_across_seeds(base_filename=input("Base filename: "))
+# single file usage example
+# arr = lhe_to_array("/Users/jamarino/Documents/Heidelberg/Work/MadRecolor/madrecolor/data/gg_ng/events_5g_1M_ext.comb")
+# output_dir = "/Users/jamarino/Documents/Heidelberg/Work/MadRecolor/madrecolor/data/gg_ng"
+# os.makedirs(output_dir, exist_ok=True)
+# output_path = os.path.join(output_dir, "events_5g_1M_ext.comb" + ".npy")
+# np.save(output_path, arr)
+
+# multiple files usage example
+for base_filename in ["events_6_2_21_21_1_-1_21_21_3_1_2_5_6_4",
+    "events_7_2_21_21_1_-1_21_21_21_3_1_2_5_6_7_4",
+    "events_8_2_21_21_1_-1_21_21_21_21_3_1_2_5_6_7_8_4",
+    "events_9_2_21_21_1_-1_21_21_21_21_21_3_1_2_5_6_7_8_9_4"
+
+]:
+    concat_lhe_across_seeds(
+        base_filename=base_filename
+    )
