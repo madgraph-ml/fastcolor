@@ -6,7 +6,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from .utils.logger import setup_logging
 from .utils.mlflow import mlflow, log_mlflow, LOGGING_ENABLED
-from .datasets.gluons import gg_ng, gg_qqbarng
+from .datasets.gluons import gg_ng, gg_ddbarng
 from .datasets.dataset import compute_observables
 from .models.models import Model, MLP, Transformer
 from .models.lgatr import LGATr
@@ -274,7 +274,7 @@ def run(logger, run_dir, cfg: DictConfig):
         dataset,
         model.losses if hasattr(model, "losses") else None,
         model.dataset_loss if hasattr(model, "dataset_loss") else None,
-        process_name=cfg.dataset.process,
+        process=cfg.dataset.process,
         regress=cfg.dataset.get("regress", "r"),
         debug=False,
         model_name=model.name,
@@ -307,12 +307,13 @@ def run(logger, run_dir, cfg: DictConfig):
                 pickle_file=os.path.join(run_dir, 'pkl', f"factors{ppd_s}_{k}.pkl") if cfg.evaluate.get("save_lines", False) else None,
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
-            plots.plot_ratio_correlation(
+            plots.plot_2d_correlations(
                 os.path.join(run_dir, f"ratio_corr{ppd_s}_{k}.pdf"),
                 split=k,
                 ppd=ppd_flag,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=os.path.join(run_dir, 'pkl', f"ratio_corr{ppd_s}_{k}.pkl") if cfg.evaluate.get("save_lines", False) else None,
+                fix_bins=cfg.evaluate.get("save_lines", False),
             )
 
     if device == "cuda":
