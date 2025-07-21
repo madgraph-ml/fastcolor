@@ -31,10 +31,10 @@ bins_dict = {
             "gg_7g" : np.linspace(-0.05, 0.05, 64),
         },
         "abs_deltas" : {
-            "gg_4g" : np.logspace(-6, -1, 64),
-            "gg_5g" : np.logspace(-6, -1, 64),
-            "gg_6g" : np.logspace(-6, -1, 64),
-            "gg_7g" : np.logspace(-6, -1, 64),
+            "gg_4g" : np.logspace(-10, -1, 64),
+            "gg_5g" : np.logspace(-10, -1, 64),
+            "gg_6g" : np.logspace(-10, -1, 64),
+            "gg_7g" : np.logspace(-10, -1, 64),
         },
     },
     "FC" : {
@@ -66,6 +66,14 @@ bins_dict = {
 }
 
 @dataclass
+class Metric:
+    name: str
+    value: float
+    format: Optional[str] = "{:.7f}"
+    unit: Optional[str] = None
+    tex_label: Optional[str] = None
+
+@dataclass
 class Line:
     y: np.ndarray
     y_err: Optional[np.ndarray] = None
@@ -89,7 +97,8 @@ def hist_weights_plot(
     metrics: Optional[float] = None,
     ylim: tuple[float, float] = None,
     model_name: Optional[str] = "NN",
-    rect=(0.13,0.18,0.96,0.96)
+    rect=(0.13,0.18,0.96,0.96),
+    size_multipler: float = 1.0,
 ):
     """
     Makes a single histogram plot for the weights
@@ -107,7 +116,7 @@ def hist_weights_plot(
             n_panels,
             1,
             sharex=True,
-            figsize=(6, 4.5),
+            figsize=(size_multipler*6, size_multipler*4.5),
             gridspec_kw={"height_ratios": (12, 1+2*int(show_ratios), 1)[:n_panels], "hspace": 0.00},
         )
         
@@ -170,8 +179,10 @@ def hist_weights_plot(
             axs[1].axhline(y=0.9, c="black", ls="dotted", lw=0.5)
 
         if metrics is not None:
-            metrics = f"Loss = {metrics:.2e}" if np.abs(metrics) < 1e-4 else f"Loss = {metrics:.4f}"
-            axs[-1].text(0.1, 0.1, metrics, fontsize=13, transform=axs[-1].transAxes, va='bottom')
+            formatted_value = metrics.format.format(metrics.value) if metrics.format is not None else f"{metrics.value:.7f}"
+            label = f"${metrics.tex_label}$" if metrics.tex_label is not None else f"{metrics.name}"
+            metrics_str = rf"{label} = {formatted_value}"
+            axs[-1].text(0.1, 0.1, metrics_str, fontsize=13, transform=axs[-1].transAxes, va='bottom')
             axs[-1].set_yticks([])
 
         if title is not None:
