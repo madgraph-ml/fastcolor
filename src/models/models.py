@@ -75,10 +75,12 @@ class Model(nn.Module):
                 weights[f"{split}"].to(torch.float64),
             )
         self.trnloader = torch.utils.data.DataLoader(
-            trnset, batch_size=self.cfg.train.batch_size, shuffle=True
+            trnset, batch_size=self.cfg.train.batch_size,
+            shuffle=True,
         )
         self.valloader = torch.utils.data.DataLoader(
-            valset, batch_size=self.cfg.train.batch_size, shuffle=True
+            valset, batch_size=self.cfg.train.batch_size,
+            shuffle=True,
         )
         self.tstloader = torch.utils.data.DataLoader(
             tstset,
@@ -117,14 +119,14 @@ class Model(nn.Module):
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimizer,
                 factor=self.cfg.train.get("lr_factor", 0.1),
-                patience=self.cfg.train.get("lr_patience", 10) * len(self.trnloader), # nb specified in epochs, but we use iterations
+                patience=self.cfg.train.get("lr_patience", 10), # nb specified in epochs, but we use iterations
             )
         elif sched is None:
             scheduler = None
         else:
             raise NotImplementedError(f"Scheduler {sched} not implemented")
         self.scheduler = scheduler
-        self.logger.info(f"    Using scheduler {sched}")
+        self.logger.info(f"    Using scheduler {sched}") if not hasattr(self.scheduler, 'patience') else self.logger.info(f"    Using scheduler {sched} with factor {getattr(self.scheduler, 'factor')} and patience {getattr(self.scheduler, 'patience')}.")
 
     def train(self):
         if LOGGING_ENABLED:
@@ -142,25 +144,28 @@ class Model(nn.Module):
             )
             self.load(self.cfg.train.get("checkpoint", "final"))
         self.best_val_loss = 1e20
-        self.logger.info(f"Training model for {nits} iterations (= {nits // len(self.trnloader)} epochs)")
-        self.logger.info(f"Validation frequency: {val_freq} its. Nb of train batches: {len(self.trnloader)}")
         if self.cfg.train.early_stopping.get("use", False):
             patience = self.cfg.train.early_stopping.get("patience", 10)
             early_stopping = EarlyStopping(
-                patience=patience * len(self.trnloader) # nb specified in epochs, but we use iterations
+                patience=patience
             )
-            self.logger.info(f"Using early stopping with patience {patience}")
+            self.logger.info(f"    Using early stopping with patience {patience}")
+        self.logger.info(f"Training model for {nits} iterations (= {nits // len(self.trnloader)} epochs)")
+        self.logger.info(f"    Validation frequency: {val_freq} its. Nb of train batches: {len(self.trnloader)}")
         
         current_it = 0
         epoch = 0
         t0 = time.time()
-        self.net.train()
         trn_loss = []
         epoch_avg_val_loss = []
         trn_lr = []
         grd_norm = []
-        while current_it < nits:
+        stop_training = False
+        while current_it < nits and not stop_training:
             epoch += 1
+            epoch_avg_trn_loss = []
+            # check if model is in training mode
+            self.net.train()
             for i, batch in enumerate(self.trnloader):
                 if current_it >= nits:
                     break
@@ -186,20 +191,26 @@ class Model(nn.Module):
                 ):
                     self.scheduler.step()
                 trn_loss.append(loss.cpu().item())
+                epoch_avg_trn_loss.append(loss.cpu().item())
                 trn_lr.append(self.optimizer.param_groups[0]["lr"])
                 grd_norm.append(grad_norm)
                 current_it += 1
 
                 if current_it % val_freq == 0 or current_it == nits:
-                    avg_val_loss = self.validate(t0=t0, current_it=current_it, trn_loss=trn_loss, epoch_avg_val_loss=epoch_avg_val_loss, trn_lr=trn_lr, grd_norm=grd_norm)
+                    avg_val_loss = self.validate(t0=t0, current_it=current_it, trn_loss=trn_loss, epoch_avg_trn_loss=epoch_avg_trn_loss, epoch_avg_val_loss=epoch_avg_val_loss, trn_lr=trn_lr, grd_norm=grd_norm)
+                    if self.scheduler is not None and isinstance(
+                        self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+                    ):
+                        self.scheduler.step(avg_val_loss)
                     if self.cfg.train.early_stopping.get("use", False):
                         early_stopping(avg_val_loss)
                         if early_stopping.early_stop:
                             self.logger.info(
                                 f"Early stopping after iteration {current_it} with validation loss {avg_val_loss:.8f}"
                             )
+                            stop_training = True
                             break
-
+                    
         self.save("final")
         self.logger.info(
             f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Nb of its: {current_it}, epochs: {epoch}"
@@ -207,7 +218,7 @@ class Model(nn.Module):
         self.logger.info(f"Best validation loss: {self.best_val_loss:.8f}")
         self.logger.info(f"Last validation loss: {self.losses['val'][-1]:.8f}")
 
-    def validate(self, t0, current_it, trn_loss, epoch_avg_val_loss, trn_lr, grd_norm):
+    def validate(self, t0, current_it, trn_loss, epoch_avg_trn_loss, epoch_avg_val_loss, trn_lr, grd_norm):
         val_losses = []
         for j, vbatch in enumerate(self.valloader):
             with torch.no_grad():
@@ -221,13 +232,9 @@ class Model(nn.Module):
                 )
                 vloss = vloss.mean()
                 val_losses.append(vloss.cpu().item())
-        epoch_avg_trn_loss = torch.tensor(trn_loss).mean().item()
+        epoch_avg_trn_loss = torch.tensor(epoch_avg_trn_loss).mean().item()
         avg_val_loss = torch.tensor(val_losses).mean().item()
         epoch_avg_val_loss.append(avg_val_loss)
-        if self.scheduler is not None and isinstance(
-            self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
-        ):
-            self.scheduler.step(epoch_avg_val_loss)
         self.losses = {
             "trn": trn_loss,
             "val": epoch_avg_val_loss,
@@ -241,16 +248,33 @@ class Model(nn.Module):
     def log_and_save(self, t0, iteration, avg_trn_loss, avg_val_loss):
         if iteration == 1 * len(self.trnloader):
             self.logger.info(
-                f"    Iteration {iteration}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * (self.cfg.train.nits - iteration) / iteration))}"
+                f"    It. {iteration}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * (self.cfg.train.nits - iteration) / iteration))}"
             )
-        if LOGGING_ENABLED and iteration % max(1, self.cfg.mlflow.get("log_every", self.cfg.train.get("val_freq", len(self.trnloader)))) == 0:
+        if LOGGING_ENABLED and iteration % max(1, int(0.10 * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
             self.mlflow_log_metrics(t0, iteration)
 
-        log_every_percent = 0.10
-        if iteration % max(1, int(self.cfg.train.nits * log_every_percent)) == 0:
+        # log_every_percent = 0.10
+        # if iteration % max(1, int(log_every_percent * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
+        if iteration != 0:
             self.logger.info(
-                f"    It. {iteration}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
+                f"    It. {iteration} (epoch {iteration // len(self.trnloader) + 1}): tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
             )
+        if iteration % max(1, int(0.10 * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
+            self.logger.info(
+                f"Plotting predictions vs targets for iteration {iteration}"
+            )
+            preds, targets = self.evaluate(split="val", during_training=True)
+            import matplotlib.pyplot as plt
+            import numpy as np
+            fig, ax = plt.subplots(figsize=(8, 5))
+            bins = np.linspace(targets.min(), targets.max(), 128)
+            ax.hist(targets.cpu().numpy(), bins=bins, alpha=0.5, label='Targets')
+            ax.hist(preds.cpu().numpy(), bins=bins, alpha=0.5, label='Predictions')
+            ax.set_xlabel('Value')
+            ax.set_ylabel('Frequency')
+            ax.set_yscale('log')
+            ax.legend()
+            fig.savefig(os.path.join(self.model_path, f"preds_vs_targets_{iteration}.png"))
         if self.losses["val"][-1] < self.best_val_loss:
             self.best_val_loss = self.losses["val"][-1]
             if iteration > 10*len(self.trnloader):  # Avoid saving too early
@@ -295,7 +319,7 @@ class Model(nn.Module):
                 pass
         self.losses = state_dicts["losses"]
 
-    def evaluate(self, split=None):
+    def evaluate(self, split=None, during_training=False):
         if split is None or split == "tst":
             loader = self.tstloader
             self.logger.info("Evaluating model on tst set")
@@ -308,12 +332,15 @@ class Model(nn.Module):
         predictions = []
         self.net.eval()
         losses = []
+        targets = [] if during_training else None
         with torch.no_grad():
             t0 = time.time()
             for i, batch in enumerate(loader):
                 x, weight = batch
                 pred = self.predict(x[:, :-1])
                 target = x[:, -1].unsqueeze(-1)
+                if during_training:
+                    targets.append(target.squeeze().detach().cpu())
                 losses.append(
                     self.batch_loss(
                         pred,
@@ -333,10 +360,16 @@ class Model(nn.Module):
                     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
             self.logger.info(f"    Finished sampling. Saving predictions")
         predictions = torch.cat(predictions)
+        if targets is not None:
+            targets = torch.cat(targets)
         dataset_loss = torch.cat(losses).mean().item()
         self.logger.info(f"    Loss on {split} set: {dataset_loss:.3e}")
-        self.dataset_loss[split] = dataset_loss
-        return predictions
+        if not during_training:
+            self.dataset_loss[split] = dataset_loss
+        if targets is not None:
+            return predictions, targets
+        else:
+            return predictions
 
     def batch_loss(self, pred, target, weight, debug=False):
         if debug:
@@ -511,52 +544,64 @@ class Transformer(Model):
     def __init__(self, logger, process, cfg, dims_in, helicity_dict_size, dims_out, model_path, device):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
         assert (
-            cfg.dataset.parameterisation.naive.use
-        ), "Only naive parameterisation is supported for the Transformer model"
+            cfg.dataset.parameterization.naive.use
+        ), "Only naive parameterization is supported for the Transformer model"
+        self.remove_color = cfg.dataset.get("remove_color", False)
         self.init_loss()
         self.init_net()
 
+
     def init_net(self):
         self.dim_embedding = self.cfg.model["dim_embedding"]
-        self.n_particles = self.dims_in // 4
-        input_dim = 4 + self.n_particles
+        if self.cfg.model.get("activation", "gelu") == "relu":
+            self.activation = nn.ReLU()
+        elif self.cfg.model.get("activation", "gelu") == "silu":
+            self.activation = nn.SiLU()
+        elif self.cfg.model.get("activation", "gelu") == "gelu":
+            self.activation = nn.GELU()
+        else:
+            raise NotImplementedError(
+                f"Activation function {self.cfg.model.get('activation', 'gelu')} not implemented"
+            )
+        self.logger.info(
+            f"    Using {self.activation} activation function for Transformer model"
+        )
+        self.features_per_particle = 7 if not self.remove_color else 6
+        self.n_particles = self.dims_in // self.features_per_particle
+        input_dim = self.n_particles + self.features_per_particle
         self.input_proj = nn.Linear(input_dim, self.dim_embedding)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.dim_embedding,
             nhead=self.cfg.model.get("n_head", 8),
             dim_feedforward=self.cfg.model.get("dim_feedforward", 512),
             dropout=self.cfg.model.get("dropout", 0.1),
-            activation=self.cfg.model.get("activation", "gelu"),
+            activation=self.activation,
             batch_first=True,
         )
         self.encoder = nn.TransformerEncoder(
             encoder_layer, num_layers=self.cfg.model.get("n_layers", 6)
         )
         self.regressor = nn.Sequential(
-            nn.Linear(self.dim_embedding, self.dim_embedding),
-            nn.ReLU()
-            if self.cfg.model.get("activation", "gelu") == "relu"
-            else nn.SiLU()
-            if self.cfg.model.get("activation", "gelu") == "SiLU"
-            else nn.GELU(),
-            nn.Linear(self.dim_embedding, 1),
+            nn.Linear(self.dim_embedding, 2*self.dim_embedding),
+            self.activation,
+            nn.Linear(2*self.dim_embedding, self.dim_embedding),
+            self.activation,
+            nn.Linear(self.dim_embedding, self.dims_out)
         )
         self.net = nn.Sequential(self.input_proj, self.encoder, self.regressor)
 
     def forward(self, x):
-        n_particles = x.shape[1] // 4
-        x = x.view(-1, n_particles, 4)
-
+        n_particles = x.shape[1] // self.features_per_particle
+        x = x.view(-1, n_particles, self.features_per_particle)
         # One hot encoding
-        one_hot = torch.eye(self.n_particles, device=x.device)
+        one_hot = torch.eye(n_particles, device=x.device)
         one_hot = one_hot.unsqueeze(0).expand(x.shape[0], -1, -1)
         x = torch.cat([x, one_hot], dim=-1)
-
         x = self.input_proj(x)
         x = self.encoder(x)
         x = x.sum(dim=1) / n_particles
         x = self.regressor(x)
         return x
-
+    
     def predict(self, x):
         return self.forward(x)

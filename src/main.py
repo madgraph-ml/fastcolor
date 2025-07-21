@@ -1,5 +1,6 @@
 import os
 import shutil
+from distutils.dir_util import copy_tree
 import glob
 from datetime import datetime
 import hydra
@@ -81,6 +82,12 @@ def main(cfg: DictConfig):
         with open(config_file, "w") as f:
             f.write(OmegaConf.to_yaml(OmegaConf.create(cfg_to_save)))
 
+        shutil.copytree(
+            "src", os.path.join(run_dir, "src"), dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(
+                '*__pycache__', '*egg-info', 'playground', 'template_files', '*__init__.py'
+            )
+)
     elif cfg.run.type == "plot":
         # Load already existing run directory
         run_dir = cfg.run.path
@@ -142,8 +149,8 @@ def run(logger, run_dir, cfg: DictConfig):
     if LOGGING_ENABLED and device == "cuda" and cfg.run.type == "train":
         logger.info(f"Setting up MLflow tracking")
         mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
-        mlflow.set_experiment(f"{cfg.dataset.process} regression")
-        mlflow.start_run(run_name=cfg.run.name if cfg.run.name is not None else run_dir)
+        mlflow.set_experiment(f"{cfg.dataset.process}")
+        mlflow.start_run(run_name=cfg.model.type+cfg.run.name if cfg.run.name is not None else run_dir)
         # flatten and log top‐level params
         for key, val in {
             **cfg.train,
@@ -208,6 +215,9 @@ def run(logger, run_dir, cfg: DictConfig):
     model.name = cfg.model.type
     logger.info(
         f"    Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+    )
+    logger.info(
+        f"    Dropout rate: {cfg.model.get('dropout', 0.1)}"
     )
     if LOGGING_ENABLED:
         log_mlflow(
