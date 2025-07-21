@@ -1,4 +1,4 @@
-from utils.plots_utils import *
+from src.utils.plots_utils import *
 
 TRUTH_COLOR = "#07078A"
 NEUTRAL_COLOR = "black"
@@ -62,13 +62,16 @@ class Plots:
             loss_name = {'heteroschedastic': r'\text{het}', 'MSE': r'\text{MSE}'}[loss_name]
             process_name = rf"{process_name} $({loss_name})$" if process_name is not None else loss_name
         self.losses = losses
-        self.metrics = dataset_loss if dataset_loss is not None else None
+        self.metrics = {}
+        for k in ["trn", "val", "tst"]:
+            self.metrics[k] = Metric(name=f"{k} loss", value=dataset_loss[k]) if dataset_loss is not None else None
 
         self.process = process
         self.process_name = process_name
         self.regress = regress
         self.regress_name = {
             "r" : "r",
+            "difference": "\Delta_{\\text{FC} - \\text{LC}}",
             "LC" : "A_{\\text{LC}}",
             "FC" : "A_{\\text{FC}}",
         }[regress]
@@ -324,7 +327,7 @@ class Plots:
                 bins = bins_abs_deltas
             )
 
-    def _plot_targets(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, pickle_file: str = None, metrics: np.ndarray = None, bins: Optional[np.ndarray] = None) -> None:
+    def _plot_targets(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, pickle_file: str = None, metrics: Optional[Metric] = None, bins: Optional[np.ndarray] = None) -> None:
         """
         Makes a plot of the regressed factors, whichever they are.
         Args:
@@ -339,7 +342,7 @@ class Plots:
             xlim_bins[0] = 1.1 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
             bins = (
             np.linspace(*xlim_bins, 64)
-            if self.regress == "r" or ppd else
+            if self.regress == "r" or ppd or self.regress == "difference" else
             np.logspace(*np.log10(xlim_bins), 64)
             if np.all(xlim_bins > 0) else
             np.logspace(np.log10(max(1e-10, xlim_bins[0])), np.log10(max(1e-11, xlim_bins[1])), 64)
@@ -375,7 +378,7 @@ class Plots:
             show_ratios=True,
             title=self.process_name if self.process_name is not None else None,
             xlabel=f"${{{self.regress_name}}}(x)$" if not ppd else f"$\\tilde{{{self.regress_name}}}(x)$",
-            xscale="log" if not self.regress == "r" and not ppd else "linear",
+            xscale="linear" if self.regress == "difference" else "log" if not self.regress == "r" and not ppd else "linear",
             no_scale=True,
             metrics=metrics,
             model_name=self.model_name,
@@ -387,7 +390,7 @@ class Plots:
             }
             append_to_pickle(pickle_file, pickle_data)
 
-    def _plot_ratios(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, eps = 1e-20, metrics: np.ndarray = None, bins: Optional[np.ndarray] = None) -> None:
+    def _plot_ratios(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, eps = 1e-20, metrics: Optional[Metric] = None, bins: Optional[np.ndarray] = None) -> None:
         """
         Makes a plot of the ratio of the truth and predicted distributions.
         Args:
@@ -398,12 +401,14 @@ class Plots:
             pickle_file: Path to the output pickle file (optional)
         """
         
-        ratios = truth / pred
+        ratios = truth / pred if not self.regress == "difference" else truth - pred
+        if not ppd:
+            metrics = Metric(name=f"Std", value= np.std(ratios), unit="", tex_label="\sigma")
         if bins is None:
             xlim_bins = np.percentile(ratios, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
             bins = (
             np.linspace(*xlim_bins, 64)
-            if self.regress == "r" or ppd else
+            if self.regress == "r" or ppd or self.regress == "difference" else
             np.logspace(*np.log10(xlim_bins), 64)
             if np.all(xlim_bins > 0) else
             np.logspace(np.log10(max(1e-11, xlim_bins[0])), np.log10(max(1e-11, xlim_bins[1])), 64)
@@ -435,7 +440,7 @@ class Plots:
             bins,
             show_ratios=False,
             xlabel=label,
-            xscale="linear" if self.regress == "r" or ppd else "log",
+            xscale="linear" if self.regress == "r" or ppd or self.regress == "difference" else "log",
             title=self.process_name if self.process_name is not None else None,
             no_scale=True,
             metrics=metrics,
@@ -448,7 +453,7 @@ class Plots:
             }
             append_to_pickle(pickle_file, pickle_data)
     
-    def _plot_deltas(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, eps = 1e-20, abs = False, metrics: np.ndarray = None, bins: Optional[np.ndarray] = None) -> None:
+    def _plot_deltas(self, pp: PdfPages, pred: np.ndarray, truth: np.ndarray, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, eps = 1e-20, abs = False, metrics: Optional[Metric] = None, bins: Optional[np.ndarray] = None) -> None:
         """
         Makes a plot of the delta of the truth and predicted distributions.
         Args:
@@ -564,21 +569,18 @@ class Plots:
                 yscale="linear" if self.regress == "r" or ppd else "log",
             )
 
-    def _plot_2d(self, pp: PdfPages, x: np.ndarray, y: np.ndarray, include_diagonal: bool = False, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, metrics: np.ndarray = None, bins: Optional[np.ndarray] = None, xlabel: str = None, ylabel: str = None, xscale: str = None, yscale: str = None):
+    def _plot_2d(self, pp: PdfPages, x: np.ndarray, y: np.ndarray, include_diagonal: bool = False, ppd: bool = False, percentage_of_ratio_data: float = 100., pickle_file: str = None, metrics: Optional[Metric] = None, bins: Optional[np.ndarray] = None, xlabel: str = None, ylabel: str = None, xscale: str = None, yscale: str = None):
         if bins is None or bins[0] is None or bins[1] is None:
+            min_val = np.nanmin(y)
+            max_val = np.nanmax(y)
+            scale_lo = 0.9 if min_val >= 0 else 1.1   # push lower edge outward
+            scale_hi = 1.1 if max_val >= 0 else 0.9   # push upper edge outward
+            lo = scale_lo * min_val
+            hi = scale_hi * max_val
             xlim_bins = [
-                np.array([0.9 * min(x), 1.1 * max(x)]),
-                np.array([0.9 * min(y), 1.1 * max(y)]),
+                np.percentile(x, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2]),
+                np.array([lo, hi]),
             ]
-            xlim_bins[0] = np.percentile(x, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
-            # correct limits if min or max are negative
-            for i in (0, 1):
-                lo, hi = xlim_bins[i]
-                if lo < 0:
-                    lo *= 1.1
-                if hi < 0:
-                    hi *= 0.91
-                xlim_bins[i] = np.array([lo, hi])
             bins = [
                 np.linspace(*xlim_bins[0], 64) if self.regress == "r" or ppd else np.logspace(*np.log10(xlim_bins[0]), 64) if np.all(xlim_bins[0] > 0) else np.logspace(np.log10(max(1e-11, xlim_bins[0][0])), np.log10(max(1e-11, xlim_bins[0][1])), 64),
                 np.linspace(*xlim_bins[1], 64) if self.regress == "r" or ppd else np.logspace(*np.log10(xlim_bins[1]), 64) if np.all(xlim_bins[1] > 0) else np.logspace(np.log10(max(1e-11, xlim_bins[1][0])), np.log10(max(1e-11, xlim_bins[1][1])), 64),
