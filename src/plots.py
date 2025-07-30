@@ -32,7 +32,7 @@ class Plots:
         logger,
         dataset,
         losses: dict = None,
-        dataset_loss: dict = None,
+        metrics: dict = None,
         process: str = None,
         regress: str = None,
         debug: bool = False,
@@ -62,11 +62,8 @@ class Plots:
             loss_name = {'heteroschedastic': r'\text{het}', 'MSE': r'\text{MSE}'}[loss_name]
             process_name = rf"{process_name} $({loss_name})$" if process_name is not None else loss_name
         self.losses = losses
-        self.metrics = {}
-        for k in ["trn", "val", "tst"]:
-            self.metrics[k] = Metric(name=f"{k} loss", value=dataset_loss[k]) if dataset_loss is not None else None
-
-        self.process = process
+        self.metrics = metrics if metrics is not None else {}
+        self.process = process 
         self.process_name = process_name
         self.regress = regress
         self.regress_name = {
@@ -271,7 +268,37 @@ class Plots:
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
         
-        metrics = self.metrics[split] if not ppd else None
+        metrics = self.metrics[split][{True : "ppd", False : "raw"}[ppd]]
+
+
+        # metrics["r_pred_mean"] = Metric(
+        #     name="r_pred_mean",
+        #     value=np.mean(reweight_factors_pred),
+        #     unit="",
+        #     format="{:.3f}",
+        #     tex_label=rf"\mu"
+        # )
+        # metrics["r_pred_max"] = Metric(
+        #     name="r_pred_max",
+        #     value=np.max(reweight_factors_pred),
+        #     unit="",
+        #     format="{:.3f}",
+        #     tex_label=rf"\omega_{{\max}}"
+        # )
+        metrics["eff_1st_std"] = Metric(
+            name="eff_1st_std",
+            value=np.mean(reweight_factors_truth) / np.max(reweight_factors_truth),
+            unit="",
+            format="{:.3f}",
+            tex_label=rf"\epsilon_{{\text{{1st, std}}}}"
+        )
+        metrics["eff_1st_surr"] = Metric(
+            name="Eff",
+            value=np.mean(reweight_factors_pred) / np.max(reweight_factors_pred),
+            unit="",
+            format="{:.3f}",
+            tex_label=rf"\epsilon_{{\text{{1st, surr}}}}"
+        )
         if fix_bins and not ppd:
             self.logger.info(f"         Fixing bins for factors plots, ppd={ppd}")
             percentage_of_ratio_data = -1
@@ -295,6 +322,7 @@ class Plots:
                 metrics = metrics,
                 bins = bins_targets
             )
+
             self._plot_ratios(
                 pp,
                 reweight_factors_pred,
@@ -302,7 +330,33 @@ class Plots:
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
-                metrics=metrics,
+                metrics = {
+                    "mean" : Metric(
+                    name="Mean",
+                    value=np.mean(reweight_factors_truth / reweight_factors_pred),
+                    unit="",
+                    tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \mu"
+                    ),
+                    "std" : Metric(
+                    name="Std",
+                    value=np.std(reweight_factors_truth / reweight_factors_pred),
+                    unit="",
+                    tex_label=rf"\sigma"
+                    ),
+                    "max" : Metric(
+                    name="Max",
+                    value=np.max(reweight_factors_truth / reweight_factors_pred),
+                    unit="",
+                    tex_label=rf"\omega_{{\max}}"
+                    ),
+                    "eff" : Metric(
+                    name="Eff",
+                    value=np.mean(reweight_factors_truth / reweight_factors_pred) / np.max(reweight_factors_truth / reweight_factors_pred),
+                    unit="",
+                    format="{:.3f}",
+                    tex_label=rf"\epsilon_{{\text{{2nd, surr}}}}"
+                    )
+                },
                 bins = bins_ratios
             )
             self._plot_deltas(
@@ -312,7 +366,20 @@ class Plots:
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
-                metrics=metrics,
+                metrics={
+                    "mean" : Metric(
+                    name="Mean",
+                    value=np.mean((reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth),
+                    unit="",
+                    tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \mu"
+                    ),
+                    "std" : Metric(
+                    name="Std",
+                    value=np.std((reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth),
+                    unit="",
+                    tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \sigma"
+                    )
+                },
                 bins = bins_deltas
             )
             self._plot_deltas(
@@ -323,7 +390,20 @@ class Plots:
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
                 abs=True,
-                metrics=metrics,
+                metrics={
+                    "mean" : Metric(
+                    name="Mean",
+                    value=np.mean(np.abs((reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth)),
+                    unit="",
+                    tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \mu"
+                    ),
+                    "std" : Metric(
+                    name="Std",
+                    value=np.std(np.abs((reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth)),
+                    unit="",
+                    tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \sigma"
+                    ),
+                },
                 bins = bins_abs_deltas
             )
 
@@ -337,6 +417,7 @@ class Plots:
             ppd: If True, use preprocessed data
             pickle_file: Path to the output pickle file (optional)
         """
+        label = f"${{{self.regress_name}}}(x)$" if not ppd else f"$\\tilde{{{self.regress_name}}}(x)$"
         if bins is None:
             xlim_bins = np.array([0.9*min(min(truth), min(pred)), 1.1*max(max(truth), max(pred))])
             xlim_bins[0] = 1.1 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
@@ -347,6 +428,15 @@ class Plots:
             if np.all(xlim_bins > 0) else
             np.logspace(np.log10(max(1e-10, xlim_bins[0])), np.log10(max(1e-11, xlim_bins[1])), 64)
         )
+            if self.regress == "r" and ppd:
+                bins = np.linspace(
+                    *np.percentile(
+                        np.concatenate([pred, truth]),
+                        [0.005, 99.995],
+                    ),
+                    64
+                )
+                label = f"$\\tilde{{{self.regress_name}}}(x)(99.99\\%)$"
 
         y_truth, y_truth_err = compute_hist_data(
             bins, truth, bayesian=False
@@ -377,7 +467,7 @@ class Plots:
             bins,
             show_ratios=True,
             title=self.process_name if self.process_name is not None else None,
-            xlabel=f"${{{self.regress_name}}}(x)$" if not ppd else f"$\\tilde{{{self.regress_name}}}(x)$",
+            xlabel=label,
             xscale="linear" if self.regress == "difference" else "log" if not self.regress == "r" and not ppd else "linear",
             no_scale=True,
             metrics=metrics,
@@ -401,9 +491,8 @@ class Plots:
             pickle_file: Path to the output pickle file (optional)
         """
         
-        ratios = truth / pred if not self.regress == "difference" else truth - pred
-        if not ppd:
-            metrics = Metric(name=f"Std", value= np.std(ratios), unit="", tex_label="\sigma")
+        ratios = truth / pred if not self.regress == "difference" else truth - pred 
+        
         if bins is None:
             xlim_bins = np.percentile(ratios, [50 - percentage_of_ratio_data/2, 50 + percentage_of_ratio_data/2])
             bins = (

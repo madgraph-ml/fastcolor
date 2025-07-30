@@ -1,5 +1,7 @@
 import time
 import os
+import numpy as np
+from src.plots import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -210,7 +212,6 @@ class Model(nn.Module):
                             )
                             stop_training = True
                             break
-                    
         self.save("final")
         self.logger.info(
             f"Finished training after {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Nb of its: {current_it}, epochs: {epoch}"
@@ -346,30 +347,40 @@ class Model(nn.Module):
                         pred,
                         target,
                         weight,
-                        debug=self.cfg.train.get("debug", False),
-                    )[0].squeeze().detach().cpu()
+                    )[0].detach().cpu()
                 )   
                 predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get("loss", "MSE") != "heteroschedastic" else predictions.append(pred[..., 0].squeeze().detach().cpu())
                 t1 = time.time()
-                if i == 0:
+                if i == 0 and not during_training:
                     self.logger.info(
                         f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((t1-t0) * len(loader), 1)))}"
                     )
                 log_every_percent = 0.25
-                if i % max(1, int(len(loader) * log_every_percent)) == 0:
+                if i % max(1, int(len(loader) * log_every_percent)) == 0 and not during_training:
                     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
-            self.logger.info(f"    Finished sampling. Saving predictions")
+            if not during_training:
+                self.logger.info(f"    Finished sampling. Saving predictions")
         predictions = torch.cat(predictions)
         if targets is not None:
             targets = torch.cat(targets)
         dataset_loss = torch.cat(losses).mean().item()
-        self.logger.info(f"    Loss on {split} set: {dataset_loss:.3e}")
         if not during_training:
-            self.dataset_loss[split] = dataset_loss
+            self.logger.info(f"Loss on {split} (ppd) set: {dataset_loss:.3e}")
+            self.dataset_loss["ppd"][split] = dataset_loss
         if targets is not None:
             return predictions, targets
         else:
             return predictions
+    
+    def compute_dataset_loss(self, raw_predictions, raw_targets, split=None):
+        if not hasattr(self, 'dataset_loss'):
+            self.dataset_loss = {}
+        loss, _ = self.batch_loss(
+            raw_predictions, raw_targets, weight=None, debug=self.cfg.train.get("debug", False)
+        )
+        loss = loss.mean().item()
+        self.logger.info(f"Loss on {split} (raw) set: {loss:.3e}")
+        self.dataset_loss["raw"][split] = loss
 
     def batch_loss(self, pred, target, weight, debug=False):
         if debug:

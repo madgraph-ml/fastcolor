@@ -1,14 +1,17 @@
 import os
+import time
 import shutil
 from distutils.dir_util import copy_tree
 import glob
 from datetime import datetime
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from .utils.plots_utils import Metric
 from .utils.logger import setup_logging
 from .utils.mlflow import mlflow, log_mlflow, LOGGING_ENABLED
 from .datasets.gluons import gg_ng, gg_ddbarng
 from .datasets.dataset import compute_observables
+from collections import defaultdict
 from .models.models import Model, MLP, Transformer
 from .models.lgatr import LGATr
 # from lgatr import LGATr as LGATr_legacy
@@ -270,11 +273,17 @@ def run(logger, run_dir, cfg: DictConfig):
 
     ### EVALUATE MODEL ###
     dataset.predicted_factors_ppd = {}
-    model.dataset_loss = {}
+    dataset.predicted_factors_raw = {}
+    model.dataset_loss = defaultdict(dict)
+    model.evaluation_time = defaultdict(dict)
     for k in ["trn", "tst", "val"]:
+        t0 = time.time()
         dataset.predicted_factors_ppd[k] = model.evaluate(
             split=k
         )
+        dataset.apply_preprocessing(reverse=True, split = k)
+        model.evaluation_time[k] = time.time() - t0
+        logger.info(f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds")
         if cfg.evaluate.save_samples:
             os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
             torch.save(
@@ -287,11 +296,33 @@ def run(logger, run_dir, cfg: DictConfig):
                 dataset.events[k],
                 os.path.join(run_dir, f"samples/events_{k}.pt"),
             )
-
-    dataset.apply_preprocessing(reverse=True)
+        
+    # Compute dataset loss for each split
+    for k in ["trn", "tst", "val"]:
+        model.compute_dataset_loss(
+                dataset.predicted_factors_raw[k],
+                dataset.events[k][:, -1],
+                split=k,
+            )
     # ### COMPUTE OBSERVABLES ###
     logger.info("Computing observables")
     compute_observables(dataset, split="tst", include_ppd=True)
+    metrics_dict = defaultdict(lambda: defaultdict(dict))
+    for k in ["trn", "tst", "val"]:
+        for m in model.dataset_loss.keys():
+            metrics_dict[k][m]['loss'] = Metric(
+                name=f"{k} ({m}) loss",
+                value=model.dataset_loss[m][k],
+                tex_label=rf"\text{{{k}}}\ (\text{{{m}}})\ \text{{loss}}",
+                unit="",
+            )
+            metrics_dict[k][m]['eval_time'] = Metric(
+                name=f"{k} eval_time",
+                value=model.evaluation_time[k],
+                tex_label=rf"t_{{\text{{eval}}}}",#rf"\text{{{k}}}\ (\text{{{m}}})\ t_{{\text{{eval}}}}",
+                format="{:.3f}",
+                unit="s",
+            )
 
     ### MAKE PLOTS ###
     logger.info(f"Starting plots")
@@ -299,7 +330,7 @@ def run(logger, run_dir, cfg: DictConfig):
         logger,
         dataset,
         model.losses if hasattr(model, "losses") else None,
-        model.dataset_loss if hasattr(model, "dataset_loss") else None,
+        metrics=metrics_dict,
         process=cfg.dataset.process,
         regress=cfg.dataset.get("regress", "r"),
         debug=False,
