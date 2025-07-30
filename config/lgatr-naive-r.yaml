@@ -3,7 +3,7 @@ dataset:
   process: gg_4g
   trn_tst_val: [.6, .3, .1]
   channels: []
-    
+
   regress: r
   
   preprocessing:
@@ -20,6 +20,6 @@ evaluate:
   save_lines: true
 
 defaults:
-  - model: mlp-200k
-  - mlp-defaults
+  - model: lgatr-200k
+  - lgatr-defaults
   - _self_

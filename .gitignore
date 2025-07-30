@@ -1,6 +1,8 @@
 # Miscellaneous
 *template_files/
 #config/
+config/FC/
+config/model/other_models
 runfiles/
 logs/
 mlruns/

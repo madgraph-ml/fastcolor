@@ -5,7 +5,7 @@ dataset:
   channels: []
     
   regress: r
-  
+
   preprocessing:
     amplitude:
       log: false
@@ -20,6 +20,6 @@ evaluate:
   save_lines: true
 
 defaults:
-  - model: mlp-200k
-  - mlp-defaults
+  - model: transformer-200k
+  - transformer-defaults
   - _self_
