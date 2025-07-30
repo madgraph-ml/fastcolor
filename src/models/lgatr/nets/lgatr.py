@@ -23,10 +23,10 @@ TYPE_TOKEN_DICT = {
     "gg_5g": [0, 1, 2, 3, 4, 5, 6],
     "gg_6g": [0, 1, 2, 3, 4, 5, 6, 7],
     "gg_7g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-    "gg_qqbar2g": [0, 0, 1, 2, 3, 3],
-    "gg_qqbar3g": [0, 0, 1, 2, 3, 3, 3],
-    "gg_qqbar4g": [0, 0, 1, 2, 3, 3, 3, 3],
-    "gg_qqbar5g": [0, 0, 1, 2, 3, 3, 3, 3, 3],
+    "gg_ddbar2g": [0, 0, 1, 2, 3, 3],
+    "gg_ddbar3g": [0, 0, 1, 2, 3, 3, 3],
+    "gg_ddbar4g": [0, 0, 1, 2, 3, 3, 3, 3],
+    "gg_ddbar5g": [0, 0, 1, 2, 3, 3, 3, 3, 3],
 }
 
 
@@ -65,7 +65,6 @@ class LGATr(Model):
     """
     Wrapper that handles interface to the GATr code
     - create dataclasses for attention and mlp
-    - append spurions (symmetry-breaking)
     - interface to geometric algebra
     - extract tagging score with global token or mean-aggregation
     """
