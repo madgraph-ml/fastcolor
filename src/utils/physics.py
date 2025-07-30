@@ -11,6 +11,20 @@ def covariant2(p1: torch.Tensor, p2: torch.Tensor) -> torch.Tensor:
     assert p1.dtype == p2.dtype, f"p1 and p2 have different dtypes {p1.dtype} {p2.dtype}"
     return torch.einsum("...i,ij,...j->...", p1, m, p2)
 
+def covariant2(p1: torch.Tensor, p2: torch.Tensor, keepdim: bool = False) -> torch.Tensor:
+    """
+    Minkowski inner product of two 4-vectors.
+    """
+    assert p1.shape == p2.shape and p1.shape[-1] == 4
+    assert p1.dtype == p2.dtype
+
+    g = torch.tensor([1., -1., -1., -1.],
+                     dtype=p1.dtype,
+                     device=p1.device)
+
+    out = torch.sum(p1 * g * p2, dim=-1, keepdim=keepdim)
+    return out
+
 def delta_eta(
     p: torch.Tensor, eta1: torch.Tensor, eta2: torch.Tensor, abs: bool = True
 ) -> torch.Tensor:
