@@ -249,39 +249,29 @@ class Model(nn.Module):
     def log_and_save(self, t0, iteration, avg_trn_loss, avg_val_loss):
         if iteration == 1 * len(self.trnloader):
             self.logger.info(
-                f"    It. {iteration}: tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * (self.cfg.train.nits - iteration) / iteration))}"
+                f"    Epoch {iteration // len(self.trnloader)} (it. {iteration}): tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * (self.cfg.train.nits - iteration) / iteration))}"
             )
         if LOGGING_ENABLED and iteration % max(1, int(0.10 * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
             self.mlflow_log_metrics(t0, iteration)
 
         # log_every_percent = 0.10
         # if iteration % max(1, int(log_every_percent * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
-        if iteration != 0:
+        if iteration % max(1, int(0.005 * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
             self.logger.info(
-                f"    It. {iteration} (epoch {iteration // len(self.trnloader) + 1}): tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
+                f"    Epoch {iteration // len(self.trnloader)} (it. {iteration}) : tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
             )
-        if iteration % max(1, int(0.10 * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
-            self.logger.info(
-                f"Plotting predictions vs targets for iteration {iteration}"
-            )
-            preds, targets = self.evaluate(split="val", during_training=True)
-            import matplotlib.pyplot as plt
-            import numpy as np
-            fig, ax = plt.subplots(figsize=(8, 5))
-            bins = np.linspace(targets.min(), targets.max(), 128)
-            ax.hist(targets.cpu().numpy(), bins=bins, alpha=0.5, label='Targets')
-            ax.hist(preds.cpu().numpy(), bins=bins, alpha=0.5, label='Predictions')
-            ax.set_xlabel('Value')
-            ax.set_ylabel('Frequency')
-            ax.set_yscale('log')
-            ax.legend()
-            fig.savefig(os.path.join(self.model_path, f"preds_vs_targets_{iteration}.png"))
-        if self.losses["val"][-1] < self.best_val_loss:
-            self.best_val_loss = self.losses["val"][-1]
+
+            if self.cfg.train.get("plot_preds_vs_targets", True):
+                # self.logger.info(
+                #     f"    Plotting predictions vs targets for it. {iteration}"
+                # )
+                self.plot_predictions_vs_targets_at_train(iteration = iteration)
+        if avg_val_loss < self.best_val_loss:
+            self.best_val_loss = avg_val_loss
             if iteration > 10*len(self.trnloader):  # Avoid saving too early
                 self.save("best")
                 self.logger.info(
-                    f"    Saved best model with val_loss={self.losses['val'][-1]:.8f} at it. {iteration}"
+                    f"    Saved best model with val_loss={avg_val_loss:.8f} at it. {iteration}"
                 )
 
 
@@ -321,12 +311,14 @@ class Model(nn.Module):
         self.losses = state_dicts["losses"]
 
     def evaluate(self, split=None, during_training=False):
+            
         if split is None or split == "tst":
             loader = self.tstloader
             self.logger.info("Evaluating model on tst set")
         elif split == "val":
             loader = self.inf_valloader
-            self.logger.info("Evaluating model on val set")
+            if not during_training:
+                self.logger.info("Evaluating model on val set")
         else:
             loader = self.inf_trnloader
             self.logger.info("Evaluating model on trn set")
@@ -473,7 +465,61 @@ class Model(nn.Module):
         het_loss = 0.5 * (reco / sigma2 + logsigma2)
         loss = het_loss + 0.5 * torch.log(torch.tensor(2.0) * torch.pi)
         return loss
-
+    
+    def plot_predictions_vs_targets_at_train(self, iteration):
+        preds, targets = self.evaluate(split="val", during_training=True)
+        tosave = {
+            "preds": preds.cpu().numpy(),
+            "targets": targets.cpu().numpy(),
+        }
+        np.save(os.path.join(self.model_path, f"preds_vs_targets_{iteration}.npy"), tosave)
+        bins = np.linspace(
+            *np.percentile(
+                np.concatenate([preds.cpu().numpy(), targets.cpu().numpy()]),
+                [0.05, 99.95],
+            ),
+            64,
+        )
+        y_targets, y_targets_err = compute_hist_data(
+            bins, targets, bayesian=False
+        )
+        y_preds, y_preds_err = compute_hist_data(
+            bins, preds, bayesian=False
+        )
+        lines = [
+            Line(
+                y=y_targets,
+                y_err=y_targets_err,
+                label="Truth",
+                color=TRUTH_COLOR,
+            ),
+            Line(
+                y=y_preds,
+                y_err=y_preds_err,
+                y_ref=y_targets,
+                label=f"{self.name}",
+                color=NN_COLORS[self.name],
+            ),
+        ]
+        regress_name = {
+            "r" : "r",
+            "difference": "\Delta_{\\text{FC} - \\text{LC}}",
+            "LC" : "A_{\\text{LC}}",
+            "FC" : "A_{\\text{FC}}",
+        }[self.cfg.dataset.get("regress", "r")]
+        with PdfPages(os.path.join(self.model_path, f"preds_vs_targets_{iteration}.pdf")) as pp:
+            hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=True,
+                title=f"It. {iteration}",
+                xlabel=f"$\\tilde{{{regress_name}}}(x)(99.9\%$)",
+                xscale="linear",
+                no_scale=True,
+                metrics=None,
+                model_name=self.name,
+            )
 
 class MLP(Model):
     def __init__(self, logger, process, cfg, dims_in, helicity_dict_size, dims_out, model_path, device):
