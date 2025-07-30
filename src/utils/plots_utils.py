@@ -9,32 +9,55 @@ from matplotlib.colors import LogNorm
 from src.datasets.dataset import Observable
 from dataclasses import dataclass
 from matplotlib.ticker import ScalarFormatter
+from collections import defaultdict
 
 bins_dict = {
     "r" : {
         "targets" : {
             "gg_4g" : np.linspace(0.85, 1.05, 64),
             "gg_5g" : np.linspace(0.75, 1.15, 64),
-            "gg_6g" : np.linspace(0.75, 1.5, 64),
-            "gg_7g" : np.linspace(0.6, 2.0, 64),
+            "gg_6g" : np.linspace(0.65, 1.5, 64),
+            "gg_7g" : np.linspace(0.59, 2.0, 64),
+
+            "gg_ddbar2g" : np.linspace(0.35, 1.15, 64),
+            "gg_ddbar3g" : np.linspace(0.35, 1.15, 64),
+            "gg_ddbar4g" : np.linspace(0.35, 1.2, 64),
+            "gg_ddbar5g" : np.linspace(0.35, 1.5, 64),
         },
         "ratios" : {
-            "gg_4g" : np.linspace(0.95, 1.05, 64),
-            "gg_5g" : np.linspace(0.95, 1.05, 64),
-            "gg_6g" : np.linspace(0.95, 1.05, 64),
-            "gg_7g" : np.linspace(0.95, 1.05, 64),
+            "gg_4g" : np.linspace(0.90, 1.1, 64),
+            "gg_5g" : np.linspace(0.90, 1.1, 64),
+            "gg_6g" : np.linspace(0.90, 1.1, 64),
+            "gg_7g" : np.linspace(0.90, 1.1, 64),
+
+            "gg_ddbar2g" : np.linspace(0.90, 1.1, 64),
+            "gg_ddbar3g" : np.linspace(0.90, 1.1, 64),
+            "gg_ddbar4g" : np.linspace(0.90, 1.1, 64),
+            "gg_ddbar5g" : np.linspace(0.90, 1.1, 64),
         },
         "deltas" : {
-            "gg_4g" : np.linspace(-0.05, 0.05, 64),
-            "gg_5g" : np.linspace(-0.05, 0.05, 64),
-            "gg_6g" : np.linspace(-0.05, 0.05, 64),
-            "gg_7g" : np.linspace(-0.05, 0.05, 64),
+            "gg_4g" : np.linspace(-0.1, 0.1, 64),
+            "gg_5g" : np.linspace(-0.1, 0.1, 64),
+            "gg_6g" : np.linspace(-0.1, 0.1, 64),
+            "gg_7g" : np.linspace(-0.1, 0.1, 64),
+
+            "gg_ddbar2g" : np.linspace(-0.1, 0.1, 64),
+            "gg_ddbar3g" : np.linspace(-0.1, 0.1, 64),
+            "gg_ddbar4g" : np.linspace(-0.1, 0.1, 64),
+            "gg_ddbar5g" : np.linspace(-0.1, 0.1, 64),
+
         },
         "abs_deltas" : {
-            "gg_4g" : np.logspace(-10, -1, 64),
-            "gg_5g" : np.logspace(-10, -1, 64),
-            "gg_6g" : np.logspace(-10, -1, 64),
-            "gg_7g" : np.logspace(-10, -1, 64),
+            "gg_4g" : np.logspace(-14, 2, 64),
+            "gg_5g" : np.logspace(-14, 2, 64),
+            "gg_6g" : np.logspace(-14, 2, 64),
+            "gg_7g" : np.logspace(-14, 2, 64),
+
+            "gg_ddbar2g" : np.logspace(-14, 2, 64),
+            "gg_ddbar3g" : np.logspace(-14, 2, 64),
+            "gg_ddbar4g" : np.logspace(-14, 2, 64),
+            "gg_ddbar5g" : np.logspace(-14, 2, 64),
+
         },
     },
     "FC" : {
@@ -69,7 +92,7 @@ bins_dict = {
 class Metric:
     name: str
     value: float
-    format: Optional[str] = "{:.7f}"
+    format: Optional[str] = None
     unit: Optional[str] = None
     tex_label: Optional[str] = None
 
@@ -83,6 +106,7 @@ class Line:
     linestyle: Optional[str] = "solid"
     fill: bool = False
     vline: bool = False
+    alpha: float = 1.0
 
 def hist_weights_plot(
     pdf: PdfPages,
@@ -150,9 +174,10 @@ def hist_weights_plot(
                 color=line.color,
                 fill=line.fill,
                 linestyle=line.linestyle,
+                alpha=line.alpha,
             )
 
-            if line.y_ref is not None:
+            if line.y_ref is not None and show_ratios:
                 ratio = (line.y * scale) / (line.y_ref * ref_scale)
                 ratio_isnan = np.isnan(ratio)
                 if line.y_err is not None:
@@ -166,7 +191,8 @@ def hist_weights_plot(
                     ratio_err = None
                 ratio[ratio_isnan] = 1.0
                 hist_line(
-                    axs[1], bins, ratio, ratio_err, label=None, color=line.color
+                    axs[1], bins, ratio, ratio_err, label=None, color=line.color, alpha=line.alpha,
+                    linestyle=line.linestyle
                 )
         if show_ratios:
             axs[1].set_ylabel(
@@ -179,18 +205,21 @@ def hist_weights_plot(
             axs[1].axhline(y=0.9, c="black", ls="dotted", lw=0.5)
 
         if metrics is not None:
-            formatted_value = metrics.format.format(metrics.value) if metrics.format is not None else f"{metrics.value:.7f}"
-            label = f"${metrics.tex_label}$" if metrics.tex_label is not None else f"{metrics.name}"
-            metrics_str = rf"{label} = {formatted_value}"
-            axs[-1].text(0.1, 0.1, metrics_str, fontsize=13, transform=axs[-1].transAxes, va='bottom')
-            axs[-1].set_yticks([])
+            for i, metric_type in enumerate(metrics.keys()):
+                metric = metrics[metric_type]
+                formatted_value = metric.format.format(metric.value) if metric.format is not None else f"{metric.value:.3f}" if np.abs(metric.value) > 1e-2 else f"{metric.value:.3e}"
+                label = f"${metric.tex_label}$" if metric.tex_label is not None else f"{metric.name}"
+                metric_str = rf"{label}$ = ${formatted_value}" + (rf"$\ \mathrm{{{metric.unit}}}$" if metric.unit else "")
+                axs[-1].text(0.025 + (1. / len(metrics)) * i, 0.1, metric_str, fontsize=10, transform=axs[-1].transAxes, va='bottom')
+                axs[-1].set_yticks([])
 
         if title is not None:
             corner_text(axs[0], title, "left", "top")
         axs[0].legend(loc="best", frameon=False)
         axs[0].set_ylabel("Normalized") if not no_scale else axs[0].set_ylabel("Events")
         axs[0].set_xscale("linear" if xscale is None else xscale)
-        axs[0].set_yscale("log" if yscale is None else yscale)
+        yscale = "log" if yscale is None else yscale
+        axs[0].set_yscale(yscale)
         if ylim is not None:
             axs[0].set_ylim(*ylim)
 
@@ -372,6 +401,7 @@ def hist_line(
     color: str,
     linestyle: str = "solid",
     fill: bool = False,
+    alpha: float = 1.0
 ):
     """
     Plot a stepped line for a histogram, optionally with error bars.
@@ -390,7 +420,7 @@ def hist_line(
 
     if fill:
         ax.fill_between(
-            bins, dup_last(y), label=label, facecolor=color, step="post", alpha=0.2
+            bins, dup_last(y), label=label, facecolor=color, step="post", alpha=0.2*alpha
         )
     else:
         ax.step(
@@ -401,6 +431,7 @@ def hist_line(
             linewidth=1.0,
             where="post",
             ls=linestyle,
+            alpha=alpha,
         )
     if y_err is not None:
         if len(y_err.shape) == 2:
@@ -414,7 +445,7 @@ def hist_line(
             bins,
             dup_last(y_high),
             color=color,
-            alpha=0.5,
+            alpha=0.5*alpha,
             linewidth=0.5,
             where="post",
         )
@@ -422,7 +453,7 @@ def hist_line(
             bins,
             dup_last(y_low),
             color=color,
-            alpha=0.5,
+            alpha=0.5*alpha,
             linewidth=0.5,
             where="post",
         )
@@ -431,7 +462,7 @@ def hist_line(
             dup_last(y_low),
             dup_last(y_high),
             facecolor=color,
-            alpha=0.3,
+            alpha=0.3*alpha,
             step="post",
         )
 
