@@ -1,5 +1,6 @@
 import warnings
 import pickle
+import os
 from typing import Optional
 import numpy as np
 import matplotlib as mpl
@@ -105,6 +106,160 @@ class Line:
     alpha: float = 1.0
 
 
+def compute_and_log_metrics(
+    reweight_factors_pred: np.ndarray,
+    reweight_factors_truth: np.ndarray,
+    split: str,
+    ppd: bool,
+    metrics: dict,
+    log_file: str | None = None,
+    file: str | None = None,
+):
+    """Compute metrics, update dictionary in-place, and append to log file."""
+
+    ratio = reweight_factors_truth / reweight_factors_pred
+    delta = (reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth
+    abs_delta = np.abs(delta)
+
+    metrics_update = {
+        "r_pred_mean": Metric(
+            name="r_pred_mean",
+            value=np.mean(reweight_factors_pred),
+            unit="",
+            format="{:.3f}",
+            tex_label=r"\overline{s}"
+        ),
+        "r_pred_max": Metric(
+            name="r_pred_max",
+            value=np.max(reweight_factors_pred),
+            unit="",
+            format="{:.3f}",
+            tex_label=r"s_{\max}"
+        ),
+        "eff_1st_surr": Metric(
+            name="eff_1st_surr",
+            value=np.mean(reweight_factors_pred) / np.max(reweight_factors_pred),
+            unit="",
+            format="{:.3f}",
+            tex_label=r"\epsilon_{\text{1st, surr}}",
+        ),
+        "eff_2nd_std": Metric(
+            name="eff_2nd_std",
+            value=np.mean(reweight_factors_truth) / np.max(reweight_factors_truth),
+            unit="",
+            format="{:.3f}",
+            tex_label=r"\epsilon_{\text{2nd, std}}",
+        ),
+        "ratio_mean": Metric(
+            name="ratio_mean",
+            value=np.mean(ratio),
+            unit="",
+            tex_label=r"\mu",
+        ),
+        "ratio_std": Metric(
+            name="ratio_std",
+            value=np.std(ratio),
+            unit="",
+            tex_label=r"\sigma",
+        ),
+        "ratio_max": Metric(
+            name="ratio_max",
+            value=np.max(ratio),
+            unit="",
+            tex_label=r"\max",
+        ),
+        "eff_2nd_surr": Metric(
+            name="eff_2nd_surr",
+            value=np.mean(ratio) / np.max(ratio),
+            unit="",
+            format="{:.3f}",
+            tex_label=r"\epsilon_{\text{2nd, surr}}",
+        ),
+        "delta_mean": Metric(
+            name="delta_mean",
+            value=np.mean(
+                delta
+            ),
+            unit="",
+            tex_label=r"\mu",
+        ),
+        "delta_std": Metric(
+            name="delta_std",
+            value=np.std(
+                delta
+            ),
+            unit="",
+            tex_label=r"\sigma",
+        ),
+        "abs_delta_mean": Metric(
+            name="abs_delta_mean",
+            value=np.mean(
+                abs_delta
+            ),
+            unit="",
+            tex_label=r"\mu",
+        ),
+        "abs_delta_std": Metric(
+            name="abs_delta_std",
+            value=np.std(
+                abs_delta
+            ),
+            unit="",
+            tex_label=r"\sigma",
+        ),
+        "abs_delta_qmin": Metric(
+            name="abs_delta_qmin",
+            value=np.percentile(
+                abs_delta,
+                0.05
+            ),
+            unit="",
+            tex_label=r"q_{0.05}",
+        ),
+        "abs_delta_qmax": Metric(
+            name="abs_delta_qmax",
+            value=np.percentile(
+                abs_delta,
+                99.95
+            ),
+            unit="",
+            tex_label=r"q_{99.95}",
+        ),
+        "abs_delta_min": Metric(
+            name="abs_delta_min",
+            value=np.min(
+                abs_delta
+            ),
+            unit="",
+            tex_label=r"\min",
+        ),
+        "abs_delta_max": Metric(
+            name="abs_delta_max",
+            value=np.max(
+                abs_delta
+            ),
+            unit="",
+            tex_label=r"\max",
+        ),
+    }
+
+    metrics.update(metrics_update)
+
+    # Append to log file
+    if log_file is None:
+        if file is None:
+            raise ValueError("Need either log_file or pdf_file for metrics storage.")
+        log_file = os.path.join(os.path.dirname(file) or ".", "metrics.log")
+    with open(log_file, "a") as f:
+        f.write(f"split_{split}-ppd_{ppd}: ")
+        for i, (k, m) in enumerate(metrics.items()):
+            value = f"{m.value:.10f}" if np.abs(m.value) > 1e-7 else f"{m.value:.3e}"
+            f.write(f"{k}: {value}")
+            if i < len(metrics) - 1:
+                f.write(", ")
+        f.write("\n")
+        f.close()
+
 def hist_weights_plot(
     pdf: PdfPages,
     lines: list[Line],
@@ -120,6 +275,7 @@ def hist_weights_plot(
     model_name: Optional[str] = "NN",
     rect=(0.13, 0.18, 0.96, 0.96),
     size_multipler: float = 1.0,
+    legend_kwargs: Optional[dict] = None,
 ):
     """
     Makes a single histogram plot for the weights
@@ -227,7 +383,7 @@ def hist_weights_plot(
                     rf"$\ \mathrm{{{metric.unit}}}$" if metric.unit else ""
                 )
                 axs[-1].text(
-                    0.025 + (1.0 / len(metrics)) * i,
+                    0.025 + (1.01 / len(metrics)) * i,
                     0.1,
                     metric_str,
                     fontsize=10,
@@ -238,7 +394,10 @@ def hist_weights_plot(
 
         if title is not None:
             corner_text(axs[0], title, "left", "top")
-        axs[0].legend(loc="best", frameon=False)
+        if legend_kwargs is None:
+            axs[0].legend(loc="best", frameon=False)
+        else:
+            axs[0].legend(frameon=False, **legend_kwargs)
         axs[0].set_ylabel("Normalized") if not no_scale else axs[0].set_ylabel("Events")
         axs[0].set_xscale("linear" if xscale is None else xscale)
         yscale = "log" if yscale is None else yscale
