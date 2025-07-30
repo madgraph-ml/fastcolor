@@ -155,7 +155,7 @@ class gg_ng:
 
         self.events = events
         self.logger.info(
-            f"    Using channels {self.input_channels[:-1]} for regression, preprocessing only {self.channels_to_preprocess}, with channel {self.input_channels[-1]} ({self.cfg.get('regress', 'r')}) as the target"
+            f"    Using channels {self.input_channels[:-1]} for regression, preprocessing {self.channels_to_preprocess}, with channel {self.input_channels[-1]} ({self.cfg.get('regress', 'r')}) as the target"
         )
 
     def split_data(self, events, trn_tst_val):
@@ -169,7 +169,7 @@ class gg_ng:
         }
         return events_split
 
-    def apply_preprocessing(self, reverse=False, eps=1e-15):
+    def apply_preprocessing(self, reverse=False, eps=1e-15, split=None):
         pp_cfg = self.cfg.preprocessing
         if not hasattr(self, "events_ppd") and reverse:
             raise ValueError(
@@ -201,11 +201,6 @@ class gg_ng:
                     mass_channels,
                     eps,
                 )
-                
-            if pp_cfg.standardize:
-                self.mean = events_ppd[:, self.channels_to_preprocess].mean()
-                self.std = events_ppd[:, self.channels_to_preprocess].std()
-                events_ppd[:, self.channels_to_preprocess] = (events_ppd[:, self.channels_to_preprocess] - self.mean) / (self.std + eps)
 
             if pp_cfg.equivariant:
                 self.logger.info(
@@ -217,8 +212,13 @@ class gg_ng:
                 self.std = events_ppd[:, self.channels_to_preprocess].std()
                 events_ppd[:, self.channels_to_preprocess] = events_ppd[:, self.channels_to_preprocess] / (self.std + eps)
 
+            if pp_cfg.standardize:
+                self.mean = events_ppd[:, self.channels_to_preprocess].mean()
+                self.std = events_ppd[:, self.channels_to_preprocess].std()
+                events_ppd[:, self.channels_to_preprocess] = (events_ppd[:, self.channels_to_preprocess] - self.mean) / (self.std + eps)
+
             if pp_cfg.amplitude.log:
-                self.logger.info(f"    Log scaling for channel {events_ppd.shape[1] - 1}")
+                self.logger.info(f"    Log preprocessing for channel {events_ppd.shape[1] - 1}")
                 events_ppd[:, -1] = torch.log(
                     events_ppd[:, -1] + eps
                 )
@@ -235,7 +235,7 @@ class gg_ng:
                 events_ppd[:, -1] -= 5
             
             if pp_cfg.amplitude.arctanh:
-                self.logger.info(f"    Arctanh scaling for channel {events_ppd.shape[1] - 1}")
+                self.logger.info(f"    Arctanh preprocessing for channel {events_ppd.shape[1] - 1}")
                 self.ampl_min = events_ppd[:, -1].min()
                 self.ampl_max = events_ppd[:, -1].max()
                 arg = 2 * (1-1e-16) * ((events_ppd[:, -1]-self.ampl_min) / (self.ampl_max-self.ampl_min) - 1/2)
@@ -259,34 +259,32 @@ class gg_ng:
                 f"    [Train, Test, Val] events: [{len(self.events_ppd['trn'])}, {len(self.events_ppd['tst'])}, {len(self.events_ppd['val'])}]"
             )
         else:
-            # reverse preprocessing for the predicted factors
-            self.predicted_factors_raw = {}
-            for split in ["trn", "tst", "val"]:
+            if split is None:
+                raise ValueError("Split must be specified for reverse preprocessing")
+            predicted_factors_raw = (
+                self.predicted_factors_ppd[split].clone().to(self.device)
+            )
+
+            if pp_cfg.amplitude.standardize:
                 predicted_factors_raw = (
-                    self.predicted_factors_ppd[split].clone().to(self.device)
+                    predicted_factors_raw * (self.ampl_std + eps) + self.ampl_mean
                 )
 
-                if pp_cfg.amplitude.standardize:
-                    predicted_factors_raw = (
-                        predicted_factors_raw * (self.ampl_std + eps) + self.ampl_mean
-                    )
+            if pp_cfg.amplitude.arctanh:
+                predicted_factors_raw = (torch.tanh(predicted_factors_raw) / (2*(1-1e-16)) + 0.5)*(self.ampl_max-self.ampl_min) + self.ampl_min
 
-                if pp_cfg.amplitude.arctanh:
-                    predicted_factors_raw = (torch.tanh(predicted_factors_raw) / (2*(1-1e-16)) + 0.5)*(self.ampl_max-self.ampl_min) + self.ampl_min
+            if pp_cfg.amplitude.minmax_scaling:
+                predicted_factors_raw += 5
+                predicted_factors_raw /= 10
+                predicted_factors_raw = (
+                    predicted_factors_raw * (self.ampl_max - self.ampl_min)
+                    + self.ampl_min
+                )
 
-                if pp_cfg.amplitude.minmax_scaling:
-                    predicted_factors_raw += 5
-                    predicted_factors_raw /= 10
-                    predicted_factors_raw = (
-                        predicted_factors_raw * (self.ampl_max - self.ampl_min)
-                        + self.ampl_min
-                    )
+            if pp_cfg.amplitude.log:
+                predicted_factors_raw = torch.exp(predicted_factors_raw) - eps
 
-
-                if pp_cfg.amplitude.log:
-                    predicted_factors_raw = torch.exp(predicted_factors_raw) - eps
-
-                self.predicted_factors_raw[split] = predicted_factors_raw
+            self.predicted_factors_raw[split] = predicted_factors_raw
 
     def init_observables(self, n_bins: int = 50) -> list[Observable]:
         self.observables = []
@@ -360,8 +358,8 @@ class gg_ng:
 
 
 class gg_ddbarng(gg_ng):
-    def __init__(self, cfg):
-        super().__init__(cfg)
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
 
     def init_observables(self, n_bins: int = 50) -> list[Observable]:
         self.observables = []
@@ -451,8 +449,8 @@ class gg_ddbarng(gg_ng):
                             compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
                             tex_label=f"p_{{{type1}_{i+1}}}\\cdot p_{{{type2}_{j+1}}}",
                             unit=r"\text{GeV}^{2}",
-                            bins=lambda p, idx: get_quantile_bins(
-                                obs=p[..., idx],
+                            bins=lambda p, idx=idx: get_quantile_bins(
+                                obs=p,
                                 n_bins=n_bins,
                                 percentage_of_data_to_show=99.0,
                                 xscale="log",
