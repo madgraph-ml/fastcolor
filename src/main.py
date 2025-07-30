@@ -328,7 +328,7 @@ def run(logger, run_dir, cfg: DictConfig):
             metrics_dict[k][m]["loss"] = Metric(
                 name=f"{k} ({m}) loss",
                 value=model.dataset_loss[m][k],
-                tex_label=rf"\text{{{k}}}\ (\text{{{m}}})\ \text{{loss}}",
+                tex_label=rf"\text{{loss}}",
                 unit="",
             )
             metrics_dict[k][m]["eval_time"] = Metric(
@@ -367,7 +367,7 @@ def run(logger, run_dir, cfg: DictConfig):
     # logger.info(f"    Plotting ppd observables")
     # plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
     logger.info(f"    Plotting regressed factors and ratio correlations")
-    for k in ["trn", "tst", "val"]:
+    for k in ["tst", "val", "trn"]:
         for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
             logger.info(
                 f"        Plotting {k} set and { {True : 'ppd', False : 'raw'}[ppd_flag] }..."
@@ -392,6 +392,16 @@ def run(logger, run_dir, cfg: DictConfig):
                 else None,
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
+        plots.plot_amplitudes_closure_test(
+            cfg,
+            os.path.join(run_dir, f"FCvsrLC_{k}.pdf"),
+            split=k,
+            ppd=False,
+            pickle_file=os.path.join(run_dir, "pkl", f"FCvsrLC_{k}.pkl")
+            if cfg.evaluate.get("save_lines", False)
+            else None,
+            metrics= None,
+        )
 
     if device == "cuda":
         max_used = torch.cuda.max_memory_allocated()

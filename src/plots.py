@@ -1,4 +1,5 @@
 from src.utils.plots_utils import *
+from src.utils.paths_dict import paths as paths_dict
 
 TRUTH_COLOR = "#07078A"
 NEUTRAL_COLOR = "black"
@@ -169,95 +170,6 @@ class Plots:
                 fig.savefig(pp, format="pdf")
                 plt.close()
 
-    def plot_observables(self, file: str, pickle_file: Optional[str] = None):
-        """
-        Makes histograms of truth and generated distributions for all observables.
-        Args:
-            file: Path to the output PDF file
-            pickle_file: Path to the output pickle file (optional)
-        """
-        pickle_data = []
-        with PdfPages(file) as pp:
-            for obs, bins, data in zip(
-                self.observables,
-                self.bins,
-                self.obs,
-            ):
-                y, y_err = compute_hist_data(bins, data, bayesian=False)
-
-                lines = [
-                    Line(
-                        y=y,
-                        y_err=y_err,
-                        label="Events",
-                        color=TRUTH_COLOR,
-                    ),
-                ]
-                hist_plot(
-                    pp,
-                    lines,
-                    bins,
-                    obs,
-                    show_ratios=False,
-                    title=self.process_name if self.process_name is not None else None,
-                    model_name=self.model_name,
-                )
-                if pickle_file is not None:
-                    pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
-        if pickle_file is not None:
-            with open(pickle_file, "wb") as f:
-                pickle.dump(pickle_data, f)
-
-    def plot_observables_ppd(self, file: str, pickle_file: Optional[str] = None):
-        """
-        Makes histograms of truth and generated distributions for all observables.
-        Args:
-            file: Path to the output PDF file
-            pickle_file: Path to the output pickle file (optional)
-        """
-        pickle_data = []
-        with PdfPages(file) as pp:
-            for obs, data in zip(
-                self.observables,
-                self.obs_ppd,
-            ):
-
-                xlim_bins = np.percentile(data, [0.5, 99.5])
-                xlim_bins[0] = (
-                    1.1 * xlim_bins[0] if xlim_bins[0] < 0 else 0.91 * xlim_bins[0]
-                )
-                xlim_bins[1] = (
-                    0.91 * xlim_bins[1] if xlim_bins[1] < 0 else 1.1 * xlim_bins[1]
-                )
-                bins = np.linspace(*np.array(xlim_bins), 51)
-                # if obs.channel not in self.channels:
-                #     # avoid plotting primary channels not used for unfolding
-                #     continue
-                y, y_err = compute_hist_data(bins, data, bayesian=False)
-
-                lines = [
-                    Line(
-                        y=y,
-                        y_err=y_err,
-                        label="Events",
-                        color=TRUTH_COLOR,
-                    ),
-                ]
-                hist_plot(
-                    pp,
-                    lines,
-                    bins,
-                    obs,
-                    show_ratios=False,
-                    title=self.process_name if self.process_name is not None else None,
-                    model_name=self.model_name,
-                )
-                if pickle_file is not None:
-                    pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
-        if pickle_file is not None:
-            with open(pickle_file, "wb") as f:
-                pickle.dump(pickle_data, f)
-
     def plot_weights(
         self,
         file: str,
@@ -286,37 +198,17 @@ class Plots:
             reweight_factors_pred = (
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
-
-        metrics = self.metrics[split][{True: "ppd", False: "raw"}[ppd]]
-
-        # metrics["r_pred_mean"] = Metric(
-        #     name="r_pred_mean",
-        #     value=np.mean(reweight_factors_pred),
-        #     unit="",
-        #     format="{:.3f}",
-        #     tex_label=rf"\mu"
-        # )
-        # metrics["r_pred_max"] = Metric(
-        #     name="r_pred_max",
-        #     value=np.max(reweight_factors_pred),
-        #     unit="",
-        #     format="{:.3f}",
-        #     tex_label=rf"\omega_{{\max}}"
-        # )
-        metrics["eff_1st_std"] = Metric(
-            name="eff_1st_std",
-            value=np.mean(reweight_factors_truth) / np.max(reweight_factors_truth),
-            unit="",
-            format="{:.3f}",
-            tex_label=rf"\epsilon_{{\text{{1st, std}}}}",
+        
+        split_mode_metrics = self.metrics[split][{True: "ppd", False: "raw"}[ppd]] # select
+        compute_and_log_metrics(
+            reweight_factors_pred=reweight_factors_pred,
+            reweight_factors_truth=reweight_factors_truth,
+            split=split,
+            ppd=ppd,
+            file=file,
+            metrics=split_mode_metrics,
         )
-        metrics["eff_1st_surr"] = Metric(
-            name="Eff",
-            value=np.mean(reweight_factors_pred) / np.max(reweight_factors_pred),
-            unit="",
-            format="{:.3f}",
-            tex_label=rf"\epsilon_{{\text{{1st, surr}}}}",
-        )
+
         if fix_bins and not ppd:
             self.logger.info(f"         Fixing bins for factors plots, ppd={ppd}")
             percentage_of_ratio_data = -1
@@ -337,10 +229,9 @@ class Plots:
                 reweight_factors_truth,
                 ppd=ppd,
                 pickle_file=pickle_file,
-                metrics=metrics,
+                metrics = {k: split_mode_metrics[k] for k in ["loss", "eval_time", "eff_2nd_std", "eff_1st_surr"] if k in split_mode_metrics},
                 bins=bins_targets,
             )
-
             self._plot_ratios(
                 pp,
                 reweight_factors_pred,
@@ -348,34 +239,7 @@ class Plots:
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
-                metrics={
-                    "mean": Metric(
-                        name="Mean",
-                        value=np.mean(reweight_factors_truth / reweight_factors_pred),
-                        unit="",
-                        tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \mu",
-                    ),
-                    "std": Metric(
-                        name="Std",
-                        value=np.std(reweight_factors_truth / reweight_factors_pred),
-                        unit="",
-                        tex_label=rf"\sigma",
-                    ),
-                    "max": Metric(
-                        name="Max",
-                        value=np.max(reweight_factors_truth / reweight_factors_pred),
-                        unit="",
-                        tex_label=rf"\omega_{{\max}}",
-                    ),
-                    "eff": Metric(
-                        name="Eff",
-                        value=np.mean(reweight_factors_truth / reweight_factors_pred)
-                        / np.max(reweight_factors_truth / reweight_factors_pred),
-                        unit="",
-                        format="{:.3f}",
-                        tex_label=rf"\epsilon_{{\text{{2nd, surr}}}}",
-                    ),
-                },
+                metrics= {k: split_mode_metrics[k] for k in ["ratio_mean", "ratio_max", "eff_2nd_surr"] if k in split_mode_metrics},
                 bins=bins_ratios,
             )
             self._plot_deltas(
@@ -385,26 +249,7 @@ class Plots:
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
-                metrics={
-                    "mean": Metric(
-                        name="Mean",
-                        value=np.mean(
-                            (reweight_factors_pred - reweight_factors_truth)
-                            / reweight_factors_truth
-                        ),
-                        unit="",
-                        tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \mu",
-                    ),
-                    "std": Metric(
-                        name="Std",
-                        value=np.std(
-                            (reweight_factors_pred - reweight_factors_truth)
-                            / reweight_factors_truth
-                        ),
-                        unit="",
-                        tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \sigma",
-                    ),
-                },
+                metrics= {k: split_mode_metrics[k] for k in ["delta_mean", "delta_std"] if k in split_mode_metrics},
                 bins=bins_deltas,
             )
             self._plot_deltas(
@@ -415,30 +260,7 @@ class Plots:
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
                 abs=True,
-                metrics={
-                    "mean": Metric(
-                        name="Mean",
-                        value=np.mean(
-                            np.abs(
-                                (reweight_factors_pred - reweight_factors_truth)
-                                / reweight_factors_truth
-                            )
-                        ),
-                        unit="",
-                        tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \mu",
-                    ),
-                    "std": Metric(
-                        name="Std",
-                        value=np.std(
-                            np.abs(
-                                (reweight_factors_pred - reweight_factors_truth)
-                                / reweight_factors_truth
-                            )
-                        ),
-                        unit="",
-                        tex_label=rf"\text{{{split}}}\ (\text{{{'ppd' if ppd else 'raw'}}})\ \sigma",
-                    ),
-                },
+                metrics= {k: split_mode_metrics[k] for k in ["abs_delta_mean", "abs_delta_qmin", "abs_delta_qmax", "abs_delta_min", "abs_delta_max"] if k in split_mode_metrics},
                 bins=bins_abs_deltas,
             )
 
@@ -689,6 +511,192 @@ class Plots:
             }
             append_to_pickle(pickle_file, pickle_data)
 
+    def plot_amplitudes_closure_test(
+        self,
+        cfg,
+        file: PdfPages,
+        split: str = "tst",
+        ppd: bool = False,
+        pickle_file: str = None,
+        metrics: Optional[Metric] = None,
+    ) -> None:
+        """
+        Makes a plot of the closure test of the regression.
+        The idea is to plot r_pred * LC amplitude, which should have a relative precision equal to r_pred,
+        but matching almost perfectly the FC amplitude.
+        Args:
+            pp: PdfPages object
+            split: Data split to use (e.g., "tst", "trn", "val")
+            ppd: Always False, as this method is not implemented for ppd data
+            pickle_file: Path to the output pickle file (optional)
+            metrics: Metrics to be displayed on the plot (optional)
+            bins: Bins to be used for the histogram (optional)
+        """
+        assert self.regress_name == "r", "This method is only for the 'r' regression type."
+        assert not ppd, "This method is not implemented for ppd data."
+        bins = bins_dict["FC"]["targets"][self.process]
+        reweight_factors_pred = (
+            self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
+            )
+        label = (
+            r"$\mathcal{A}_{\text{FC}}$"
+        )
+        data_path = cfg.dataset.data_path
+        type = cfg.dataset.type
+        process = cfg.dataset.process
+        file_path = os.path.join(data_path, type, paths_dict[process])
+
+        try:
+            momenta = (
+                np.load(file_path)[..., -3:]
+            )
+        except FileNotFoundError:
+            self.logger.error(f"File not found: {file_path}. Please check the path.")
+            return
+         # split the data
+        for i, s in enumerate(["trn", "tst", "val"]):
+            globals()[f"{s}_slice"] = int(momenta.shape[0] * cfg.dataset.trn_tst_val[i])
+        momenta = {
+            "trn": momenta[:trn_slice],
+            "tst": momenta[trn_slice : trn_slice + tst_slice],
+            "val": momenta[-val_slice:],
+        }[split]
+    
+        FC = momenta[:, -1]
+        LC = momenta[:, -3]
+        FC_pred = reweight_factors_pred * LC
+        
+
+        with PdfPages(file) as pp:
+            y_truth, y_truth_err = compute_hist_data(bins, FC, bayesian=False)
+            y_pred, y_pred_err = compute_hist_data(bins, FC_pred, bayesian=False)
+
+            lines = [
+                Line(
+                    y=y_truth,
+                    y_err=y_truth_err,
+                    label="Truth",
+                    color=TRUTH_COLOR,
+                ),
+                Line(
+                    y=y_pred,
+                    y_err=y_pred_err,
+                    y_ref=y_truth,
+                    label=rf"$\text{{{self.model_name}}}\ (r^{{\text{{pred}}}} \cdot \mathcal{{A}}_{{\text{{LC}}}})$",
+                    color=NN_COLORS[self.model_name],
+                ),
+            ]
+            hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=True,
+                title=self.process_name if self.process_name is not None else None,
+                xlabel=label,
+                xscale="log",
+                no_scale=True,
+                metrics=None ,
+                model_name=self.model_name,
+            )
+            if pickle_file is not None:
+                pickle_data = {"ampl-targets-lines": lines, "ampl-targets-bins": bins}
+                append_to_pickle(pickle_file, pickle_data)
+
+
+
+
+            bins = bins_dict["r"]["ratios"][self.process]
+            y_ratio, y_ratio_err = compute_hist_data(bins, FC / FC_pred, bayesian=False)
+            lines = [
+                Line(
+                    y=y_ratio,
+                    y_err=y_ratio_err,
+                    y_ref=None,
+                    label=rf"$\text{{{self.model_name}}}\ (r^{{\text{{pred}}}} \cdot \mathcal{{A}}_{{\text{{LC}}}})$",
+                    color=NN_COLORS[self.model_name],
+                ),
+            ]
+            hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=False,
+                title=self.process_name if self.process_name is not None else None,
+                xlabel=r"$\mathcal{A}_{\text{FC}} / (r^{\text{pred}} \cdot \mathcal{A}_{\text{LC}})$",
+                xscale="linear",
+                no_scale=True,
+                metrics=None ,
+                model_name=self.model_name,
+            )
+            if pickle_file is not None:
+                pickle_data = {"ampl-ratios-lines": lines, "ampl-ratios-bins": bins}
+                append_to_pickle(pickle_file, pickle_data)
+
+
+
+            bins = bins_dict["r"]["deltas"][self.process]
+            deltas = (FC_pred - FC) / FC
+            y_deltas, y_deltas_err = compute_hist_data(bins, deltas, bayesian=False)
+            lines = [
+                Line(
+                    y=y_deltas,
+                    y_err=y_deltas_err,
+                    y_ref=None,
+                    label=rf"$\text{{{self.model_name}}}\ (r^{{\text{{pred}}}} \cdot \mathcal{{A}}_{{\text{{LC}}}})$",
+                    color=NN_COLORS[self.model_name],
+                ),
+            ]
+            hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=False,
+                title=self.process_name if self.process_name is not None else None,
+                xlabel= r"$\Delta_{\mathcal{A}_{\text{FC}}} = \frac{r^{\text{pred}} \cdot \mathcal{A}_{\text{LC}} - \mathcal{A}_{\text{FC}} }{\mathcal{A}_{\text{FC}}}$",
+                xscale="linear",
+                no_scale=True,
+                metrics=None ,
+                model_name=self.model_name,
+            )
+            if pickle_file is not None:
+                pickle_data = {"ampl-deltas-lines": lines, "ampl-deltas-bins": bins}
+                append_to_pickle(pickle_file, pickle_data)
+
+
+            bins = bins_dict["r"]["abs_deltas"][self.process]
+            y_abs_deltas, y_abs_deltas_err = compute_hist_data(bins, np.abs(deltas), bayesian=False)
+            lines = [
+                Line(
+                    y=y_abs_deltas,
+                    y_err=y_abs_deltas_err,
+                    y_ref=None,
+                    label=rf"$\text{{{self.model_name}}}\ (r^{{\text{{pred}}}} \cdot \mathcal{{A}}_{{\text{{LC}}}})$",
+                    color=NN_COLORS[self.model_name],
+                ),
+            ]
+            hist_weights_plot(
+                pp,
+                lines,
+                bins,
+                show_ratios=False,
+                title=self.process_name if self.process_name is not None else None,
+                xlabel= r"$|\Delta_{\mathcal{A}_{\text{FC}}}|$",
+                xscale="log",
+                no_scale=True,
+                metrics=None ,
+                model_name=self.model_name,
+            )
+            if pickle_file is not None:
+                pickle_data = {"ampl-deltas_abs-lines": lines, "ampl-deltas_abs-bins": bins}
+                append_to_pickle(pickle_file, pickle_data)
+
+
+
+
+
+
+
+
     def plot_2d_correlations(
         self,
         file: str,
@@ -865,3 +873,92 @@ class Plots:
                 "norm": norm,
             }
             append_to_pickle(pickle_file, pickle_data)
+
+    def plot_observables(self, file: str, pickle_file: Optional[str] = None):
+        """
+        Makes histograms of truth and generated distributions for all observables.
+        Args:
+            file: Path to the output PDF file
+            pickle_file: Path to the output pickle file (optional)
+        """
+        pickle_data = []
+        with PdfPages(file) as pp:
+            for obs, bins, data in zip(
+                self.observables,
+                self.bins,
+                self.obs,
+            ):
+                y, y_err = compute_hist_data(bins, data, bayesian=False)
+
+                lines = [
+                    Line(
+                        y=y,
+                        y_err=y_err,
+                        label="Events",
+                        color=TRUTH_COLOR,
+                    ),
+                ]
+                hist_plot(
+                    pp,
+                    lines,
+                    bins,
+                    obs,
+                    show_ratios=False,
+                    title=self.process_name if self.process_name is not None else None,
+                    model_name=self.model_name,
+                )
+                if pickle_file is not None:
+                    pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
+        if pickle_file is not None:
+            with open(pickle_file, "wb") as f:
+                pickle.dump(pickle_data, f)
+
+    def plot_observables_ppd(self, file: str, pickle_file: Optional[str] = None):
+        """
+        Makes histograms of truth and generated distributions for all observables.
+        Args:
+            file: Path to the output PDF file
+            pickle_file: Path to the output pickle file (optional)
+        """
+        pickle_data = []
+        with PdfPages(file) as pp:
+            for obs, data in zip(
+                self.observables,
+                self.obs_ppd,
+            ):
+
+                xlim_bins = np.percentile(data, [0.5, 99.5])
+                xlim_bins[0] = (
+                    1.1 * xlim_bins[0] if xlim_bins[0] < 0 else 0.91 * xlim_bins[0]
+                )
+                xlim_bins[1] = (
+                    0.91 * xlim_bins[1] if xlim_bins[1] < 0 else 1.1 * xlim_bins[1]
+                )
+                bins = np.linspace(*np.array(xlim_bins), 51)
+                # if obs.channel not in self.channels:
+                #     # avoid plotting primary channels not used for unfolding
+                #     continue
+                y, y_err = compute_hist_data(bins, data, bayesian=False)
+
+                lines = [
+                    Line(
+                        y=y,
+                        y_err=y_err,
+                        label="Events",
+                        color=TRUTH_COLOR,
+                    ),
+                ]
+                hist_plot(
+                    pp,
+                    lines,
+                    bins,
+                    obs,
+                    show_ratios=False,
+                    title=self.process_name if self.process_name is not None else None,
+                    model_name=self.model_name,
+                )
+                if pickle_file is not None:
+                    pickle_data.append({"lines": lines, "bins": bins, "obs": obs})
+        if pickle_file is not None:
+            with open(pickle_file, "wb") as f:
+                pickle.dump(pickle_data, f)
