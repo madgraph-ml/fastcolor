@@ -57,7 +57,7 @@ class gg_ng:
             elif self.regress_target == "FC":
                 momenta = np.concatenate([momenta[:, :-3], momenta[:, -1:]], axis=1)
             elif self.regress_target == "LC":
-                momenta = np.concatenate([momenta[:, :-3], momenta[:, -3:2]], axis=1)
+                momenta = np.concatenate([momenta[:, :-3], momenta[:, -3:-2]], axis=1)
             else:
                 raise ValueError(f"Unknown regression target {self.regress_target}")
             self.logger.info(f"    Loaded data from {file_path}, shape {momenta.shape}")
