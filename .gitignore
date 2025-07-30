@@ -10,7 +10,7 @@ data/
 results/
 outputs/
 madrecolor.code-workspace
-*.ipynb
+#*.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
