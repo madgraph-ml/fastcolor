@@ -12,81 +12,76 @@ from matplotlib.ticker import ScalarFormatter
 from collections import defaultdict
 
 bins_dict = {
-    "r" : {
-        "targets" : {
-            "gg_4g" : np.linspace(0.85, 1.05, 64),
-            "gg_5g" : np.linspace(0.75, 1.15, 64),
-            "gg_6g" : np.linspace(0.65, 1.5, 64),
-            "gg_7g" : np.linspace(0.59, 2.0, 64),
-
-            "gg_ddbar2g" : np.linspace(0.35, 1.15, 64),
-            "gg_ddbar3g" : np.linspace(0.35, 1.15, 64),
-            "gg_ddbar4g" : np.linspace(0.35, 1.2, 64),
-            "gg_ddbar5g" : np.linspace(0.35, 1.5, 64),
+    "r": {
+        "targets": {
+            "gg_4g": np.linspace(0.85, 1.05, 64),
+            "gg_5g": np.linspace(0.75, 1.15, 64),
+            "gg_6g": np.linspace(0.65, 1.5, 64),
+            "gg_7g": np.linspace(0.59, 2.0, 64),
+            "gg_ddbar2g": np.linspace(0.35, 1.15, 64),
+            "gg_ddbar3g": np.linspace(0.35, 1.15, 64),
+            "gg_ddbar4g": np.linspace(0.35, 1.2, 64),
+            "gg_ddbar5g": np.linspace(0.35, 1.5, 64),
         },
-        "ratios" : {
-            "gg_4g" : np.linspace(0.90, 1.1, 64),
-            "gg_5g" : np.linspace(0.90, 1.1, 64),
-            "gg_6g" : np.linspace(0.90, 1.1, 64),
-            "gg_7g" : np.linspace(0.90, 1.1, 64),
-
-            "gg_ddbar2g" : np.linspace(0.90, 1.1, 64),
-            "gg_ddbar3g" : np.linspace(0.90, 1.1, 64),
-            "gg_ddbar4g" : np.linspace(0.90, 1.1, 64),
-            "gg_ddbar5g" : np.linspace(0.90, 1.1, 64),
+        "ratios": {
+            "gg_4g": np.linspace(0.90, 1.1, 64),
+            "gg_5g": np.linspace(0.90, 1.1, 64),
+            "gg_6g": np.linspace(0.90, 1.1, 64),
+            "gg_7g": np.linspace(0.90, 1.1, 64),
+            "gg_ddbar2g": np.linspace(0.90, 1.1, 64),
+            "gg_ddbar3g": np.linspace(0.90, 1.1, 64),
+            "gg_ddbar4g": np.linspace(0.90, 1.1, 64),
+            "gg_ddbar5g": np.linspace(0.90, 1.1, 64),
         },
-        "deltas" : {
-            "gg_4g" : np.linspace(-0.1, 0.1, 64),
-            "gg_5g" : np.linspace(-0.1, 0.1, 64),
-            "gg_6g" : np.linspace(-0.1, 0.1, 64),
-            "gg_7g" : np.linspace(-0.1, 0.1, 64),
-
-            "gg_ddbar2g" : np.linspace(-0.1, 0.1, 64),
-            "gg_ddbar3g" : np.linspace(-0.1, 0.1, 64),
-            "gg_ddbar4g" : np.linspace(-0.1, 0.1, 64),
-            "gg_ddbar5g" : np.linspace(-0.1, 0.1, 64),
-
+        "deltas": {
+            "gg_4g": np.linspace(-0.1, 0.1, 64),
+            "gg_5g": np.linspace(-0.1, 0.1, 64),
+            "gg_6g": np.linspace(-0.1, 0.1, 64),
+            "gg_7g": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbar2g": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbar3g": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbar4g": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbar5g": np.linspace(-0.1, 0.1, 64),
         },
-        "abs_deltas" : {
-            "gg_4g" : np.logspace(-14, 2, 64),
-            "gg_5g" : np.logspace(-14, 2, 64),
-            "gg_6g" : np.logspace(-14, 2, 64),
-            "gg_7g" : np.logspace(-14, 2, 64),
-
-            "gg_ddbar2g" : np.logspace(-14, 2, 64),
-            "gg_ddbar3g" : np.logspace(-14, 2, 64),
-            "gg_ddbar4g" : np.logspace(-14, 2, 64),
-            "gg_ddbar5g" : np.logspace(-14, 2, 64),
-
+        "abs_deltas": {
+            "gg_4g": np.logspace(-14, 2, 64),
+            "gg_5g": np.logspace(-14, 2, 64),
+            "gg_6g": np.logspace(-14, 2, 64),
+            "gg_7g": np.logspace(-14, 2, 64),
+            "gg_ddbar2g": np.logspace(-14, 2, 64),
+            "gg_ddbar3g": np.logspace(-14, 2, 64),
+            "gg_ddbar4g": np.logspace(-14, 2, 64),
+            "gg_ddbar5g": np.logspace(-14, 2, 64),
         },
     },
-    "FC" : {
-        "targets" : {
-            "gg_4g" : np.logspace(-11, 5, 64),
-            "gg_5g" : np.logspace(-15, 3, 64),
-            "gg_6g" : np.logspace(-18, 2, 64),
-            "gg_7g" : np.logspace(-22, 1, 64),
+    "FC": {
+        "targets": {
+            "gg_4g": np.logspace(-11, 5, 64),
+            "gg_5g": np.logspace(-15, 3, 64),
+            "gg_6g": np.logspace(-18, 2, 64),
+            "gg_7g": np.logspace(-22, 1, 64),
         },
-        "ratios" : {
-            "gg_4g" : np.logspace(-3, 3, 64),
-            "gg_5g" : np.logspace(-3, 3, 64),
-            "gg_6g" : np.logspace(-3, 3, 64),
-            "gg_7g" : np.logspace(-3, 3, 64),
+        "ratios": {
+            "gg_4g": np.logspace(-3, 3, 64),
+            "gg_5g": np.logspace(-3, 3, 64),
+            "gg_6g": np.logspace(-3, 3, 64),
+            "gg_7g": np.logspace(-3, 3, 64),
         },
-        "deltas" : {
-            "gg_4g" : np.linspace(-5, 30, 64),
-            "gg_5g" : np.linspace(-5, 30, 64),
-            "gg_6g" : np.linspace(-5, 30, 64),
-            "gg_7g" : np.linspace(-5, 30, 64),
+        "deltas": {
+            "gg_4g": np.linspace(-5, 30, 64),
+            "gg_5g": np.linspace(-5, 30, 64),
+            "gg_6g": np.linspace(-5, 30, 64),
+            "gg_7g": np.linspace(-5, 30, 64),
         },
-        "abs_deltas" : {
-            "gg_4g" : np.logspace(-9, 4, 64),
-            "gg_5g" : np.logspace(-9, 4, 64),
-            "gg_6g" : np.logspace(-9, 4, 64),
-            "gg_7g" : np.logspace(-9, 4, 64),
+        "abs_deltas": {
+            "gg_4g": np.logspace(-9, 4, 64),
+            "gg_5g": np.logspace(-9, 4, 64),
+            "gg_6g": np.logspace(-9, 4, 64),
+            "gg_7g": np.logspace(-9, 4, 64),
         },
     },
 }
+
 
 @dataclass
 class Metric:
@@ -95,6 +90,7 @@ class Metric:
     format: Optional[str] = None
     unit: Optional[str] = None
     tex_label: Optional[str] = None
+
 
 @dataclass
 class Line:
@@ -107,6 +103,7 @@ class Line:
     fill: bool = False
     vline: bool = False
     alpha: float = 1.0
+
 
 def hist_weights_plot(
     pdf: PdfPages,
@@ -121,7 +118,7 @@ def hist_weights_plot(
     metrics: Optional[float] = None,
     ylim: tuple[float, float] = None,
     model_name: Optional[str] = "NN",
-    rect=(0.13,0.18,0.96,0.96),
+    rect=(0.13, 0.18, 0.96, 0.96),
     size_multipler: float = 1.0,
 ):
     """
@@ -140,10 +137,13 @@ def hist_weights_plot(
             n_panels,
             1,
             sharex=True,
-            figsize=(size_multipler*6, size_multipler*4.5),
-            gridspec_kw={"height_ratios": (12, 1+2*int(show_ratios), 1)[:n_panels], "hspace": 0.00},
+            figsize=(size_multipler * 6, size_multipler * 4.5),
+            gridspec_kw={
+                "height_ratios": (12, 1 + 2 * int(show_ratios), 1)[:n_panels],
+                "hspace": 0.00,
+            },
         )
-        
+
         if n_panels == 1:
             axs = [axs]
 
@@ -191,13 +191,17 @@ def hist_weights_plot(
                     ratio_err = None
                 ratio[ratio_isnan] = 1.0
                 hist_line(
-                    axs[1], bins, ratio, ratio_err, label=None, color=line.color, alpha=line.alpha,
-                    linestyle=line.linestyle
+                    axs[1],
+                    bins,
+                    ratio,
+                    ratio_err,
+                    label=None,
+                    color=line.color,
+                    alpha=line.alpha,
+                    linestyle=line.linestyle,
                 )
         if show_ratios:
-            axs[1].set_ylabel(
-                f"$\\frac{{\\text{{{model_name}}}}}{{\\text{{Truth}}}}$"
-            )
+            axs[1].set_ylabel(f"$\\frac{{\\text{{{model_name}}}}}{{\\text{{Truth}}}}$")
             axs[1].set_yticks([0.9, 1, 1.1])
             axs[1].set_ylim([0.85, 1.15])
             axs[1].axhline(y=1, c="black", ls="--", lw=0.7)
@@ -207,10 +211,29 @@ def hist_weights_plot(
         if metrics is not None:
             for i, metric_type in enumerate(metrics.keys()):
                 metric = metrics[metric_type]
-                formatted_value = metric.format.format(metric.value) if metric.format is not None else f"{metric.value:.3f}" if np.abs(metric.value) > 1e-2 else f"{metric.value:.3e}"
-                label = f"${metric.tex_label}$" if metric.tex_label is not None else f"{metric.name}"
-                metric_str = rf"{label}$ = ${formatted_value}" + (rf"$\ \mathrm{{{metric.unit}}}$" if metric.unit else "")
-                axs[-1].text(0.025 + (1. / len(metrics)) * i, 0.1, metric_str, fontsize=10, transform=axs[-1].transAxes, va='bottom')
+                formatted_value = (
+                    metric.format.format(metric.value)
+                    if metric.format is not None
+                    else f"{metric.value:.3f}"
+                    if np.abs(metric.value) > 1e-2
+                    else f"{metric.value:.3e}"
+                )
+                label = (
+                    f"${metric.tex_label}$"
+                    if metric.tex_label is not None
+                    else f"{metric.name}"
+                )
+                metric_str = rf"{label}$ = ${formatted_value}" + (
+                    rf"$\ \mathrm{{{metric.unit}}}$" if metric.unit else ""
+                )
+                axs[-1].text(
+                    0.025 + (1.0 / len(metrics)) * i,
+                    0.1,
+                    metric_str,
+                    fontsize=10,
+                    transform=axs[-1].transAxes,
+                    va="bottom",
+                )
                 axs[-1].set_yticks([])
 
         if title is not None:
@@ -237,10 +260,11 @@ def append_to_pickle(pickle_file, new_entry):
             pickle_data = pickle.load(f)
     except (FileNotFoundError, EOFError):
         pickle_data = []
-        
+
     pickle_data.append(new_entry)
     with open(pickle_file, "wb") as f:
         pickle.dump(pickle_data, f)
+
 
 def compute_hist_data(bins: np.ndarray, data: np.ndarray, bayesian=False, weights=None):
     if bayesian:
@@ -351,7 +375,9 @@ def hist_plot(
         )
         axs[0].set_ylabel("Normalized")
         axs[0].set_yscale(observable.yscale if yscale is None else yscale)
-        axs[0].set_xscale(observable.xscale if observable.xscale is not None else "linear")
+        axs[0].set_xscale(
+            observable.xscale if observable.xscale is not None else "linear"
+        )
 
         if show_ratios:
             axs[1].set_ylabel(f"$\\frac{{\\text{{{model_name}}}}}{{\\text{{Truth}}}}$")
@@ -367,6 +393,7 @@ def hist_plot(
         axs[-1].set_xlim(bins[0], bins[-1])
         plt.savefig(pdf, format="pdf")
         plt.close()
+
 
 def safe_lognorm(data: np.ndarray) -> LogNorm:
     """
@@ -401,7 +428,7 @@ def hist_line(
     color: str,
     linestyle: str = "solid",
     fill: bool = False,
-    alpha: float = 1.0
+    alpha: float = 1.0,
 ):
     """
     Plot a stepped line for a histogram, optionally with error bars.
@@ -420,7 +447,12 @@ def hist_line(
 
     if fill:
         ax.fill_between(
-            bins, dup_last(y), label=label, facecolor=color, step="post", alpha=0.2*alpha
+            bins,
+            dup_last(y),
+            label=label,
+            facecolor=color,
+            step="post",
+            alpha=0.2 * alpha,
         )
     else:
         ax.step(
@@ -445,7 +477,7 @@ def hist_line(
             bins,
             dup_last(y_high),
             color=color,
-            alpha=0.5*alpha,
+            alpha=0.5 * alpha,
             linewidth=0.5,
             where="post",
         )
@@ -453,7 +485,7 @@ def hist_line(
             bins,
             dup_last(y_low),
             color=color,
-            alpha=0.5*alpha,
+            alpha=0.5 * alpha,
             linewidth=0.5,
             where="post",
         )
@@ -462,7 +494,7 @@ def hist_line(
             dup_last(y_low),
             dup_last(y_high),
             facecolor=color,
-            alpha=0.3*alpha,
+            alpha=0.3 * alpha,
             step="post",
         )
 

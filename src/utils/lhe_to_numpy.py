@@ -4,6 +4,7 @@ import os
 import numpy as np
 from lhereader import LHEReader
 
+
 def lhe_to_array(dir: str):
     """
     LHE to numpy array reader
@@ -14,7 +15,17 @@ def lhe_to_array(dir: str):
         # particles_out = filter(lambda x: x.status == 1, event.particles)
         momenta = []
         for particle in event.particles:
-            mom = np.array([particle.pdgid, particle.color_idx, particle.helicity, particle.energy, particle.px, particle.py, particle.pz])
+            mom = np.array(
+                [
+                    particle.pdgid,
+                    particle.color_idx,
+                    particle.helicity,
+                    particle.energy,
+                    particle.px,
+                    particle.py,
+                    particle.pz,
+                ]
+            )
             momenta.append(mom)
         momenta = np.hstack(momenta)
         # append as last element the LC_to_FC_factor
@@ -26,7 +37,7 @@ def lhe_to_array(dir: str):
         # momenta = np.append(momenta, event.LC)
         # momenta = np.append(momenta, event.FC)
         events.append(momenta)
-        if (i+1) % 10_000 == 0:
+        if (i + 1) % 10_000 == 0:
             print(f"Read {i+1} events, total shape ({len(events)}, {momenta.shape})")
         # if i==9:
         #     print(f"Read {i+1} events, stopping early for testing.")
@@ -35,14 +46,12 @@ def lhe_to_array(dir: str):
     return events
 
 
-    
-
 def concat_lhe_across_seeds(
     base_filename: str,
     seed_start: int = 101,
     seed_end: int = 110,
     input_root: str = "/remote/gpu02/marino/data/gg_ddbarng/seeds/",
-    output_dir: str = "/remote/gpu02/marino/data/gg_ddbarng/"
+    output_dir: str = "/remote/gpu02/marino/data/gg_ddbarng/",
 ) -> str:
     """
     Iterate over seed directories, read each LHE file with the given base filename,
@@ -66,7 +75,7 @@ def concat_lhe_across_seeds(
     output_path : str
         Path to the saved .npy file.
     """
-    base_filename+= ".lhe.rwgt"  # Append the file extension
+    base_filename += ".lhe.rwgt"  # Append the file extension
     print(f"\nStarting to read LHE seed files with base filename: {base_filename}")
     arrays = []
     total_events = 0
@@ -84,8 +93,8 @@ def concat_lhe_across_seeds(
             pass
         if ".gz" in file_path:
             file_pathgz = file_path
-            file_path = file_pathgz.rstrip('.gz')
-            with gzip.open(file_pathgz, 'rb') as f_in, open(file_path, 'wb') as f_out:
+            file_path = file_pathgz.rstrip(".gz")
+            with gzip.open(file_pathgz, "rb") as f_in, open(file_path, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
         arr = lhe_to_array(file_path)
         if os.path.exists(file_path + ".gz"):
@@ -96,7 +105,9 @@ def concat_lhe_across_seeds(
         print(f"Completed reading seed {seed}. Cumulative events: {total_events}")
 
     if not arrays:
-        raise RuntimeError("No LHE files were read; please check seed range and filenames.")
+        raise RuntimeError(
+            "No LHE files were read; please check seed range and filenames."
+        )
 
     concatenated = np.concatenate(arrays, axis=0)
     print("Permutating the events to ensure randomness in seeds")
@@ -107,9 +118,12 @@ def concat_lhe_across_seeds(
     output_path = os.path.join(output_dir, base_filename + ".npy")
 
     np.save(output_path, concatenated)
-    print(f"Saved concatenated events to {output_path} (total events: {concatenated.shape[0]})")
+    print(
+        f"Saved concatenated events to {output_path} (total events: {concatenated.shape[0]})"
+    )
 
     return output_path
+
 
 # single file usage example
 # arr = lhe_to_array("/Users/jamarino/Documents/Heidelberg/Work/MadRecolor/madrecolor/data/gg_ng/events_5g_1M_ext.comb")
@@ -127,9 +141,6 @@ for base_filename in [
     "events_6_2_21_21_1_-1_21_21_3_1_2_5_6_4",
     "events_7_2_21_21_1_-1_21_21_21_3_1_2_5_6_7_4",
     "events_8_2_21_21_1_-1_21_21_21_21_3_1_2_5_6_7_8_4",
-    "events_9_2_21_21_1_-1_21_21_21_21_21_3_1_2_5_6_7_8_9_4"
-
+    "events_9_2_21_21_1_-1_21_21_21_21_21_3_1_2_5_6_7_8_9_4",
 ]:
-    concat_lhe_across_seeds(
-        base_filename=base_filename
-    )
+    concat_lhe_across_seeds(base_filename=base_filename)

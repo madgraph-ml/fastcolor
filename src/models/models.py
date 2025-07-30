@@ -9,6 +9,7 @@ from src.utils.mlflow import mlflow, LOGGING_ENABLED
 from mlflow.tracking import MlflowClient
 from mlflow.entities import Metric
 
+
 class EarlyStopping:
     def __init__(self, patience=10):
         self.patience = patience
@@ -24,6 +25,7 @@ class EarlyStopping:
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
+
 
 class Model(nn.Module):
     def __init__(self, logger, cfg, dims_in, dims_out, model_path, device):
@@ -77,11 +79,13 @@ class Model(nn.Module):
                 weights[f"{split}"].to(torch.float64),
             )
         self.trnloader = torch.utils.data.DataLoader(
-            trnset, batch_size=self.cfg.train.batch_size,
+            trnset,
+            batch_size=self.cfg.train.batch_size,
             shuffle=True,
         )
         self.valloader = torch.utils.data.DataLoader(
-            valset, batch_size=self.cfg.train.batch_size,
+            valset,
+            batch_size=self.cfg.train.batch_size,
             shuffle=True,
         )
         self.tstloader = torch.utils.data.DataLoader(
@@ -109,7 +113,9 @@ class Model(nn.Module):
         else:
             raise NotImplementedError(f"Optimizer {optim} not implemented")
         self.optimizer = optimizer
-        self.logger.info(f"    Using optimizer {optim} with lr={lr} and weight decay={wd}")
+        self.logger.info(
+            f"    Using optimizer {optim} with lr={lr} and weight decay={wd}"
+        )
 
     def init_scheduler(self):
         sched = self.cfg.train.get("scheduler", None)
@@ -121,20 +127,28 @@ class Model(nn.Module):
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimizer,
                 factor=self.cfg.train.get("lr_factor", 0.1),
-                patience=self.cfg.train.get("lr_patience", 10), # nb specified in epochs, but we use iterations
+                patience=self.cfg.train.get(
+                    "lr_patience", 10
+                ),  # nb specified in epochs, but we use iterations
             )
         elif sched is None:
             scheduler = None
         else:
             raise NotImplementedError(f"Scheduler {sched} not implemented")
         self.scheduler = scheduler
-        self.logger.info(f"    Using scheduler {sched}") if not hasattr(self.scheduler, 'patience') else self.logger.info(f"    Using scheduler {sched} with factor {getattr(self.scheduler, 'factor')} and patience {getattr(self.scheduler, 'patience')}.")
+        self.logger.info(f"    Using scheduler {sched}") if not hasattr(
+            self.scheduler, "patience"
+        ) else self.logger.info(
+            f"    Using scheduler {sched} with factor {getattr(self.scheduler, 'factor')} and patience {getattr(self.scheduler, 'patience')}."
+        )
 
     def train(self):
         if LOGGING_ENABLED:
             self.mlflowclient = MlflowClient()
         nits = self.cfg.train.nits  # Number of training iterations (steps)
-        val_freq = self.cfg.train.get("val_freq", len(self.trnloader))  # How often to validate/save, default: per epoch
+        val_freq = self.cfg.train.get(
+            "val_freq", len(self.trnloader)
+        )  # How often to validate/save, default: per epoch
         self.init_optimizer()
         self.init_scheduler()
         if self.cfg.train.get("warm_start", False):
@@ -148,13 +162,15 @@ class Model(nn.Module):
         self.best_val_loss = 1e20
         if self.cfg.train.early_stopping.get("use", False):
             patience = self.cfg.train.early_stopping.get("patience", 10)
-            early_stopping = EarlyStopping(
-                patience=patience
-            )
+            early_stopping = EarlyStopping(patience=patience)
             self.logger.info(f"    Using early stopping with patience {patience}")
-        self.logger.info(f"Training model for {nits} iterations (= {nits // len(self.trnloader)} epochs)")
-        self.logger.info(f"    Validation frequency: {val_freq} its. Nb of train batches: {len(self.trnloader)}")
-        
+        self.logger.info(
+            f"Training model for {nits} iterations (= {nits // len(self.trnloader)} epochs)"
+        )
+        self.logger.info(
+            f"    Validation frequency: {val_freq} its. Nb of train batches: {len(self.trnloader)}"
+        )
+
         current_it = 0
         epoch = 0
         t0 = time.time()
@@ -199,7 +215,15 @@ class Model(nn.Module):
                 current_it += 1
 
                 if current_it % val_freq == 0 or current_it == nits:
-                    avg_val_loss = self.validate(t0=t0, current_it=current_it, trn_loss=trn_loss, epoch_avg_trn_loss=epoch_avg_trn_loss, epoch_avg_val_loss=epoch_avg_val_loss, trn_lr=trn_lr, grd_norm=grd_norm)
+                    avg_val_loss = self.validate(
+                        t0=t0,
+                        current_it=current_it,
+                        trn_loss=trn_loss,
+                        epoch_avg_trn_loss=epoch_avg_trn_loss,
+                        epoch_avg_val_loss=epoch_avg_val_loss,
+                        trn_lr=trn_lr,
+                        grd_norm=grd_norm,
+                    )
                     if self.scheduler is not None and isinstance(
                         self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
                     ):
@@ -219,7 +243,16 @@ class Model(nn.Module):
         self.logger.info(f"Best validation loss: {self.best_val_loss:.8f}")
         self.logger.info(f"Last validation loss: {self.losses['val'][-1]:.8f}")
 
-    def validate(self, t0, current_it, trn_loss, epoch_avg_trn_loss, epoch_avg_val_loss, trn_lr, grd_norm):
+    def validate(
+        self,
+        t0,
+        current_it,
+        trn_loss,
+        epoch_avg_trn_loss,
+        epoch_avg_val_loss,
+        trn_lr,
+        grd_norm,
+    ):
         val_losses = []
         for j, vbatch in enumerate(self.valloader):
             with torch.no_grad():
@@ -245,18 +278,34 @@ class Model(nn.Module):
         self.log_and_save(t0, current_it, epoch_avg_trn_loss, avg_val_loss)
         return avg_val_loss
 
-
     def log_and_save(self, t0, iteration, avg_trn_loss, avg_val_loss):
         if iteration == 1 * len(self.trnloader):
             self.logger.info(
                 f"    Epoch {iteration // len(self.trnloader)} (it. {iteration}): tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}; ETA={time.strftime('%H:%M:%S', time.gmtime((time.time() - t0) * (self.cfg.train.nits - iteration) / iteration))}"
             )
-        if LOGGING_ENABLED and iteration % max(1, int(0.10 * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
+        if (
+            LOGGING_ENABLED
+            and iteration
+            % max(
+                1,
+                int(0.10 * self.cfg.train.nits // len(self.trnloader))
+                * self.cfg.train.get("val_freq", len(self.trnloader)),
+            )
+            == 0
+        ):
             self.mlflow_log_metrics(t0, iteration)
 
         # log_every_percent = 0.10
         # if iteration % max(1, int(log_every_percent * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
-        if iteration % max(1, int(0.005 * self.cfg.train.nits // len(self.trnloader))*self.cfg.train.get("val_freq", len(self.trnloader))) == 0:
+        if (
+            iteration
+            % max(
+                1,
+                int(0.005 * self.cfg.train.nits // len(self.trnloader))
+                * self.cfg.train.get("val_freq", len(self.trnloader)),
+            )
+            == 0
+        ):
             self.logger.info(
                 f"    Epoch {iteration // len(self.trnloader)} (it. {iteration}) : tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
             )
@@ -265,15 +314,14 @@ class Model(nn.Module):
                 # self.logger.info(
                 #     f"    Plotting predictions vs targets for it. {iteration}"
                 # )
-                self.plot_predictions_vs_targets_at_train(iteration = iteration)
+                self.plot_predictions_vs_targets_at_train(iteration=iteration)
         if avg_val_loss < self.best_val_loss:
             self.best_val_loss = avg_val_loss
-            if iteration > 10*len(self.trnloader):  # Avoid saving too early
+            if iteration > 10 * len(self.trnloader):  # Avoid saving too early
                 self.save("best")
                 self.logger.info(
                     f"    Saved best model with val_loss={avg_val_loss:.8f} at it. {iteration}"
                 )
-
 
     def save(self, name: str):
         """
@@ -311,7 +359,7 @@ class Model(nn.Module):
         self.losses = state_dicts["losses"]
 
     def evaluate(self, split=None, during_training=False):
-            
+
         if split is None or split == "tst":
             loader = self.tstloader
             self.logger.info("Evaluating model on tst set")
@@ -339,16 +387,25 @@ class Model(nn.Module):
                         pred,
                         target,
                         weight,
-                    )[0].detach().cpu()
-                )   
-                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get("loss", "MSE") != "heteroschedastic" else predictions.append(pred[..., 0].squeeze().detach().cpu())
+                    )[0]
+                    .detach()
+                    .cpu()
+                )
+                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get(
+                    "loss", "MSE"
+                ) != "heteroschedastic" else predictions.append(
+                    pred[..., 0].squeeze().detach().cpu()
+                )
                 t1 = time.time()
                 if i == 0 and not during_training:
                     self.logger.info(
                         f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((t1-t0) * len(loader), 1)))}"
                     )
                 log_every_percent = 0.25
-                if i % max(1, int(len(loader) * log_every_percent)) == 0 and not during_training:
+                if (
+                    i % max(1, int(len(loader) * log_every_percent)) == 0
+                    and not during_training
+                ):
                     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
             if not during_training:
                 self.logger.info(f"    Finished sampling. Saving predictions")
@@ -363,12 +420,15 @@ class Model(nn.Module):
             return predictions, targets
         else:
             return predictions
-    
+
     def compute_dataset_loss(self, raw_predictions, raw_targets, split=None):
-        if not hasattr(self, 'dataset_loss'):
+        if not hasattr(self, "dataset_loss"):
             self.dataset_loss = {}
         loss, _ = self.batch_loss(
-            raw_predictions, raw_targets, weight=None, debug=self.cfg.train.get("debug", False)
+            raw_predictions,
+            raw_targets,
+            weight=None,
+            debug=self.cfg.train.get("debug", False),
         )
         loss = loss.mean().item()
         self.logger.info(f"Loss on {split} (raw) set: {loss:.3e}")
@@ -385,14 +445,12 @@ class Model(nn.Module):
             "reg_loss": regression_loss,
         }
         return loss, loss_terms
-    
+
     def mlflow_log_metrics(self, t0, iteration):
         if mlflow.active_run() is None:
-            self.logger.warning(
-                "MLflow is not active. Cannot log metrics."
-            )
+            self.logger.warning("MLflow is not active. Cannot log metrics.")
         else:
-            ts = int((time.time()-t0) * 1000)
+            ts = int((time.time() - t0) * 1000)
             metrics_batch = []
             # for step_idx, loss_val in enumerate(self.losses["trn"]):
             #     metrics_batch.append(
@@ -405,34 +463,34 @@ class Model(nn.Module):
             #     )
             metrics_batch.append(
                 {
-                    "key":       "trn_loss",
-                    "value":     self.losses["trn"][-1],
+                    "key": "trn_loss",
+                    "value": self.losses["trn"][-1],
                     "timestamp": ts,
-                    "step":      iteration,
+                    "step": iteration,
                 }
             )
             metrics_batch.append(
                 {
-                    "key":       "val_loss",
-                    "value":     self.losses["val"][-1],
+                    "key": "val_loss",
+                    "value": self.losses["val"][-1],
                     "timestamp": ts,
-                    "step":      iteration,
+                    "step": iteration,
                 }
             )
             metrics_batch.append(
                 {
-                    "key":       "lr",
-                    "value":     self.losses["lr"][-1],
+                    "key": "lr",
+                    "value": self.losses["lr"][-1],
                     "timestamp": ts,
-                    "step":      iteration,
+                    "step": iteration,
                 }
             )
             metrics_batch.append(
                 {
-                    "key":       "grad_norm",
-                    "value":     self.losses["grad_norm"][-1],
+                    "key": "grad_norm",
+                    "value": self.losses["grad_norm"][-1],
                     "timestamp": ts,
-                    "step":      iteration,
+                    "step": iteration,
                 }
             )
             metrics = [
@@ -444,19 +502,21 @@ class Model(nn.Module):
                 )
                 for m in metrics_batch
             ]
-            self.mlflowclient.log_batch(run_id=mlflow.active_run().info.run_id, metrics=metrics)
-    
+            self.mlflowclient.log_batch(
+                run_id=mlflow.active_run().info.run_id, metrics=metrics
+            )
+
     def init_loss(self):
         loss_type = self.cfg.train.get("loss", "MSE")
         if loss_type == "MSE":
-            self.loss_fct = nn.MSELoss(reduction='none')
+            self.loss_fct = nn.MSELoss(reduction="none")
         elif loss_type == "L1":
-            self.loss_fct = nn.L1Loss(reduction='none')
+            self.loss_fct = nn.L1Loss(reduction="none")
         elif loss_type == "heteroschedastic":
             self.loss_fct = self.het_loss
         else:
             raise NotImplementedError(f"Loss type {loss_type} not implemented")
-        
+
     def het_loss(self, pred, target):
         mu, logsigma2 = pred[..., 0:1], pred[..., 1:2]
         logsigma2 = logsigma2.clamp(-30, 11)
@@ -465,14 +525,16 @@ class Model(nn.Module):
         het_loss = 0.5 * (reco / sigma2 + logsigma2)
         loss = het_loss + 0.5 * torch.log(torch.tensor(2.0) * torch.pi)
         return loss
-    
+
     def plot_predictions_vs_targets_at_train(self, iteration):
         preds, targets = self.evaluate(split="val", during_training=True)
         tosave = {
             "preds": preds.cpu().numpy(),
             "targets": targets.cpu().numpy(),
         }
-        np.save(os.path.join(self.model_path, f"preds_vs_targets_{iteration}.npy"), tosave)
+        np.save(
+            os.path.join(self.model_path, f"preds_vs_targets_{iteration}.npy"), tosave
+        )
         bins = np.linspace(
             *np.percentile(
                 np.concatenate([preds.cpu().numpy(), targets.cpu().numpy()]),
@@ -480,12 +542,8 @@ class Model(nn.Module):
             ),
             64,
         )
-        y_targets, y_targets_err = compute_hist_data(
-            bins, targets, bayesian=False
-        )
-        y_preds, y_preds_err = compute_hist_data(
-            bins, preds, bayesian=False
-        )
+        y_targets, y_targets_err = compute_hist_data(bins, targets, bayesian=False)
+        y_preds, y_preds_err = compute_hist_data(bins, preds, bayesian=False)
         lines = [
             Line(
                 y=y_targets,
@@ -502,12 +560,14 @@ class Model(nn.Module):
             ),
         ]
         regress_name = {
-            "r" : "r",
+            "r": "r",
             "difference": "\Delta_{\\text{FC} - \\text{LC}}",
-            "LC" : "A_{\\text{LC}}",
-            "FC" : "A_{\\text{FC}}",
+            "LC": "A_{\\text{LC}}",
+            "FC": "A_{\\text{FC}}",
         }[self.cfg.dataset.get("regress", "r")]
-        with PdfPages(os.path.join(self.model_path, f"preds_vs_targets_{iteration}.pdf")) as pp:
+        with PdfPages(
+            os.path.join(self.model_path, f"preds_vs_targets_{iteration}.pdf")
+        ) as pp:
             hist_weights_plot(
                 pp,
                 lines,
@@ -521,8 +581,19 @@ class Model(nn.Module):
                 model_name=self.name,
             )
 
+
 class MLP(Model):
-    def __init__(self, logger, process, cfg, dims_in, helicity_dict_size, dims_out, model_path, device):
+    def __init__(
+        self,
+        logger,
+        process,
+        cfg,
+        dims_in,
+        helicity_dict_size,
+        dims_out,
+        model_path,
+        device,
+    ):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
         self.helicity_dict_size = helicity_dict_size
         self.init_loss()
@@ -542,17 +613,30 @@ class MLP(Model):
 
         if self.cfg.dataset.embed_helicities.get("use", False):
             feature_layers = []
-            feature_layers.append(nn.Linear(self.dims_in - 1, self.cfg.model["internal_size"]))
+            feature_layers.append(
+                nn.Linear(self.dims_in - 1, self.cfg.model["internal_size"])
+            )
             feature_layers.append(activation)
-            feature_embed = nn.Sequential(*feature_layers) 
+            feature_embed = nn.Sequential(*feature_layers)
 
             hel_layers = []
-            hel_layers.append(nn.Embedding(self.helicity_dict_size, self.cfg.dataset.embed_helicities.get("embed_dimension", 64)))
+            hel_layers.append(
+                nn.Embedding(
+                    self.helicity_dict_size,
+                    self.cfg.dataset.embed_helicities.get("embed_dimension", 64),
+                )
+            )
             hel_layers.append(activation)
             helicity_embed = nn.Sequential(*hel_layers)
 
             head = []
-            head.append(nn.Linear(self.cfg.model["internal_size"] + self.cfg.dataset.embed_helicities.get("embed_dimension", 64), self.cfg.model["internal_size"]))
+            head.append(
+                nn.Linear(
+                    self.cfg.model["internal_size"]
+                    + self.cfg.dataset.embed_helicities.get("embed_dimension", 64),
+                    self.cfg.model["internal_size"],
+                )
+            )
             head.append(activation)
             for _ in range(self.cfg.model["hidden_layers"]):
                 head.append(
@@ -564,11 +648,13 @@ class MLP(Model):
             head.append(nn.Linear(self.cfg.model["internal_size"], self.dims_out))
             head_net = nn.Sequential(*head)
 
-            self.net = nn.ModuleDict({
-                'feature_embed': feature_embed,
-                'helicity_embed': helicity_embed,
-                'head_net': head_net,
-            })
+            self.net = nn.ModuleDict(
+                {
+                    "feature_embed": feature_embed,
+                    "helicity_embed": helicity_embed,
+                    "head_net": head_net,
+                }
+            )
         else:
             layers = []
             layers.append(nn.Linear(self.dims_in, self.cfg.model["internal_size"]))
@@ -586,10 +672,10 @@ class MLP(Model):
     def forward(self, x):
         if self.cfg.dataset.embed_helicities.get("use", False):
             features, helicities = x[:, :-1], x[:, -1].long()
-            feat_embed = self.net['feature_embed'](features)
-            hel_embed = self.net['helicity_embed'](helicities)
+            feat_embed = self.net["feature_embed"](features)
+            hel_embed = self.net["helicity_embed"](helicities)
             cat = torch.cat([feat_embed, hel_embed], dim=-1)
-            return self.net['head_net'](cat)
+            return self.net["head_net"](cat)
         else:
             return self.net(x)
 
@@ -598,7 +684,17 @@ class MLP(Model):
 
 
 class Transformer(Model):
-    def __init__(self, logger, process, cfg, dims_in, helicity_dict_size, dims_out, model_path, device):
+    def __init__(
+        self,
+        logger,
+        process,
+        cfg,
+        dims_in,
+        helicity_dict_size,
+        dims_out,
+        model_path,
+        device,
+    ):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
         assert (
             cfg.dataset.parameterization.naive.use
@@ -606,7 +702,6 @@ class Transformer(Model):
         self.remove_color = cfg.dataset.get("remove_color", False)
         self.init_loss()
         self.init_net()
-
 
     def init_net(self):
         self.dim_embedding = self.cfg.model["dim_embedding"]
@@ -639,11 +734,11 @@ class Transformer(Model):
             encoder_layer, num_layers=self.cfg.model.get("n_layers", 6)
         )
         self.regressor = nn.Sequential(
-            nn.Linear(self.dim_embedding, 2*self.dim_embedding),
+            nn.Linear(self.dim_embedding, 2 * self.dim_embedding),
             self.activation,
-            nn.Linear(2*self.dim_embedding, self.dim_embedding),
+            nn.Linear(2 * self.dim_embedding, self.dim_embedding),
             self.activation,
-            nn.Linear(self.dim_embedding, self.dims_out)
+            nn.Linear(self.dim_embedding, self.dims_out),
         )
         self.net = nn.Sequential(self.input_proj, self.encoder, self.regressor)
 
@@ -659,6 +754,6 @@ class Transformer(Model):
         x = x.sum(dim=1) / n_particles
         x = self.regressor(x)
         return x
-    
+
     def predict(self, x):
         return self.forward(x)

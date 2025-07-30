@@ -12,9 +12,7 @@ class gg_ng:
         self.cfg = cfg
         self.channels = self.cfg.get("channels", None)
         self.parameterization = self.cfg.get("parameterization", None)
-        self.logger.info(
-            f"    Regressing {self.cfg.get('regress', 'r')}"
-        )
+        self.logger.info(f"    Regressing {self.cfg.get('regress', 'r')}")
         self.regress_target = self.cfg.get("regress", "r")
         self.remove_color = self.cfg.get("remove_color", False)
         self.features_per_particle = 7 if not self.remove_color else 6
@@ -43,17 +41,19 @@ class gg_ng:
         process = self.cfg.process
         #
         file_path = os.path.join(data_path, type, paths_dict[process])
-        
+
         try:
             momenta = (
-                np.load(file_path)[:n_data]
-                if n_data is not None
-                else np.load(file_path)
+                np.load(file_path)[:n_data] if n_data is not None else np.load(file_path)
             )
             if self.regress_target == "r":
-                momenta = np.concatenate([momenta[:, :-3], momenta[:, -1:] / momenta[:, -3:-2]], axis=1)
+                momenta = np.concatenate(
+                    [momenta[:, :-3], momenta[:, -1:] / momenta[:, -3:-2]], axis=1
+                )
             elif self.regress_target == "difference":
-                momenta = np.concatenate([momenta[:, :-3], momenta[:, -3:-2] - momenta[:, -1:]], axis=1)
+                momenta = np.concatenate(
+                    [momenta[:, :-3], momenta[:, -3:-2] - momenta[:, -1:]], axis=1
+                )
             elif self.regress_target == "FC":
                 momenta = np.concatenate([momenta[:, :-3], momenta[:, -1:]], axis=1)
             elif self.regress_target == "LC":
@@ -62,7 +62,9 @@ class gg_ng:
                 raise ValueError(f"Unknown regression target {self.regress_target}")
             self.logger.info(f"    Loaded data from {file_path}, shape {momenta.shape}")
         except FileNotFoundError:
-            self.logger.error(f"File {file_path} not found. Please check the data path and process name.")
+            self.logger.error(
+                f"File {file_path} not found. Please check the data path and process name."
+            )
             raise
 
         self.n_particles = (momenta.shape[1] - 1) // 7
@@ -73,9 +75,7 @@ class gg_ng:
             momenta = np.delete(momenta, [1], axis=-1)
             momenta = momenta.reshape(-1, 6 * self.n_particles)
             momenta = np.concatenate([momenta, target], axis=1)
-            self.logger.info(
-                f"    Removed color channel."
-            )
+            self.logger.info(f"    Removed color channel.")
         self.logger.info(
             f"    Number of particles: {self.n_particles}, per-particle features: {(momenta.shape[1] - 1) / self.n_particles}"
         )
@@ -84,22 +84,31 @@ class gg_ng:
             momenta = torch.tensor(momenta, device=self.device, dtype=torch.float64)
             events = momenta[:, :-1]
             self.input_channels = torch.arange(
-                self.features_per_particle * self.n_particles, dtype=torch.int16, device=self.device
+                self.features_per_particle * self.n_particles,
+                dtype=torch.int16,
+                device=self.device,
             ).tolist()
         elif self.parameterization.lorentz_products.use:
-            target = momenta[:, -1:] # the last column is the regression factor
-            momenta = momenta[:, :-1] # remove the regression factor from the momenta
-            reshaped_momenta = momenta.reshape(-1, self.n_particles, self.features_per_particle)
+            target = momenta[:, -1:]  # the last column is the regression factor
+            momenta = momenta[:, :-1]  # remove the regression factor from the momenta
+            reshaped_momenta = momenta.reshape(
+                -1, self.n_particles, self.features_per_particle
+            )
 
-            pdg_ids     = reshaped_momenta[:, :, 0]
-            colors      = reshaped_momenta[:, :, 1] if not self.remove_color else None
-            helicities  = reshaped_momenta[:, :, 2-int(self.remove_color)]
-            momenta     = reshaped_momenta[:, :, 3-int(self.remove_color):].reshape(-1, 4 * self.n_particles)
+            pdg_ids = reshaped_momenta[:, :, 0]
+            colors = reshaped_momenta[:, :, 1] if not self.remove_color else None
+            helicities = reshaped_momenta[:, :, 2 - int(self.remove_color)]
+            momenta = reshaped_momenta[:, :, 3 - int(self.remove_color) :].reshape(
+                -1, 4 * self.n_particles
+            )
             momenta = np.concatenate([momenta, target], axis=1)
             momenta = torch.tensor(momenta, device=self.device, dtype=torch.float64)
-            
+
             if self.cfg.embed_helicities.use:
-                config_dict = {tuple(cfg): idx for idx, cfg in enumerate(np.unique(helicities, axis = 0))}
+                config_dict = {
+                    tuple(cfg): idx
+                    for idx, cfg in enumerate(np.unique(helicities, axis=0))
+                }
                 config_ids = np.array([config_dict[tuple(cfg)] for cfg in helicities])
             # compute the lorentz products for all possible pairs
             base = []
@@ -110,7 +119,11 @@ class gg_ng:
                             momenta[:, i * 4 : i * 4 + 4], momenta[:, j * 4 : j * 4 + 4]
                         )
                     )
-            self.input_channels = torch.arange(self.n_particles * (self.n_particles - 1) // 2, dtype=torch.int16, device=self.device).tolist()
+            self.input_channels = torch.arange(
+                self.n_particles * (self.n_particles - 1) // 2,
+                dtype=torch.int16,
+                device=self.device,
+            ).tolist()
             events = torch.stack(base, dim=1).to(dtype=torch.float64, device=self.device)
         else:
             raise ValueError("No parameterization specified")
@@ -127,7 +140,9 @@ class gg_ng:
                 events = torch.cat(
                     [
                         events[..., :-1],
-                        torch.tensor(config_ids, device=self.device, dtype=torch.int16).unsqueeze(1),
+                        torch.tensor(
+                            config_ids, device=self.device, dtype=torch.int16
+                        ).unsqueeze(1),
                         events[..., -1:],
                     ],
                     dim=1,
@@ -146,12 +161,16 @@ class gg_ng:
             # Use all of channels by default
             self.input_channels = [i for i in range(events.shape[1])]
             if self.cfg.embed_helicities.use:
-                self.channels_to_preprocess = [i for i in self.input_channels if i != helicity_channel]
+                self.channels_to_preprocess = [
+                    i for i in self.input_channels if i != helicity_channel
+                ]
             else:
                 self.channels_to_preprocess = [
-                    i for i in self.input_channels if i%self.features_per_particle in [x - int(self.remove_color) for x in [3, 4, 5, 6]]
+                    i
+                    for i in self.input_channels
+                    if i % self.features_per_particle
+                    in [x - int(self.remove_color) for x in [3, 4, 5, 6]]
                 ]
-
 
         self.events = events
         self.logger.info(
@@ -184,10 +203,13 @@ class gg_ng:
                 phi_channels = []
                 eta_channels = []
                 mass_channels = []
-                
 
             elif self.cfg.parameterization.lorentz_products.use:
-                pt_channels = [i for i in range(int(self.n_particles * (self.n_particles - 1) / 2)) if i in self.channels_to_preprocess]
+                pt_channels = [
+                    i
+                    for i in range(int(self.n_particles * (self.n_particles - 1) / 2))
+                    if i in self.channels_to_preprocess
+                ]
                 phi_channels = []
                 eta_channels = []
                 mass_channels = []
@@ -210,18 +232,22 @@ class gg_ng:
                     self.cfg.parameterization.naive.use == True
                 ), f"    Equivariant preprocessing only applicable for naive parameterization, not {[p for p in self.cfg.parameterization if self.cfg.parameterization[p].use]}"
                 self.std = events_ppd[:, self.channels_to_preprocess].std()
-                events_ppd[:, self.channels_to_preprocess] = events_ppd[:, self.channels_to_preprocess] / (self.std + eps)
+                events_ppd[:, self.channels_to_preprocess] = events_ppd[
+                    :, self.channels_to_preprocess
+                ] / (self.std + eps)
 
             if pp_cfg.standardize:
                 self.mean = events_ppd[:, self.channels_to_preprocess].mean()
                 self.std = events_ppd[:, self.channels_to_preprocess].std()
-                events_ppd[:, self.channels_to_preprocess] = (events_ppd[:, self.channels_to_preprocess] - self.mean) / (self.std + eps)
+                events_ppd[:, self.channels_to_preprocess] = (
+                    events_ppd[:, self.channels_to_preprocess] - self.mean
+                ) / (self.std + eps)
 
             if pp_cfg.amplitude.log:
-                self.logger.info(f"    Log preprocessing for channel {events_ppd.shape[1] - 1}")
-                events_ppd[:, -1] = torch.log(
-                    events_ppd[:, -1] + eps
+                self.logger.info(
+                    f"    Log preprocessing for channel {events_ppd.shape[1] - 1}"
                 )
+                events_ppd[:, -1] = torch.log(events_ppd[:, -1] + eps)
 
             if pp_cfg.amplitude.minmax_scaling:
                 # Minmax to [0, 1]
@@ -231,18 +257,30 @@ class gg_ng:
                 events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_min) / (
                     self.ampl_max - self.ampl_min
                 )
-                events_ppd[:, -1] *=10
+                events_ppd[:, -1] *= 10
                 events_ppd[:, -1] -= 5
-            
+
             if pp_cfg.amplitude.arctanh:
-                self.logger.info(f"    Arctanh preprocessing for channel {events_ppd.shape[1] - 1}")
+                self.logger.info(
+                    f"    Arctanh preprocessing for channel {events_ppd.shape[1] - 1}"
+                )
                 self.ampl_min = events_ppd[:, -1].min()
                 self.ampl_max = events_ppd[:, -1].max()
-                arg = 2 * (1-1e-16) * ((events_ppd[:, -1]-self.ampl_min) / (self.ampl_max-self.ampl_min) - 1/2)
+                arg = (
+                    2
+                    * (1 - 1e-16)
+                    * (
+                        (events_ppd[:, -1] - self.ampl_min)
+                        / (self.ampl_max - self.ampl_min)
+                        - 1 / 2
+                    )
+                )
                 events_ppd[:, -1] = torch.arctanh(arg)
 
             if pp_cfg.amplitude.standardize:
-                self.logger.info(f"    Standard preprocessing for {events_ppd.shape[1] - 1}")
+                self.logger.info(
+                    f"    Standard preprocessing for {events_ppd.shape[1] - 1}"
+                )
                 self.ampl_mean = events_ppd[:, -1].mean()
                 self.ampl_std = events_ppd[:, -1].std()
                 events_ppd[:, -1] = (events_ppd[:, -1] - self.ampl_mean) / (
@@ -271,7 +309,9 @@ class gg_ng:
                 )
 
             if pp_cfg.amplitude.arctanh:
-                predicted_factors_raw = (torch.tanh(predicted_factors_raw) / (2*(1-1e-16)) + 0.5)*(self.ampl_max-self.ampl_min) + self.ampl_min
+                predicted_factors_raw = (
+                    torch.tanh(predicted_factors_raw) / (2 * (1 - 1e-16)) + 0.5
+                ) * (self.ampl_max - self.ampl_min) + self.ampl_min
 
             if pp_cfg.amplitude.minmax_scaling:
                 predicted_factors_raw += 5

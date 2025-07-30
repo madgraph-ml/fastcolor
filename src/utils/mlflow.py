@@ -12,7 +12,11 @@ LOGGING_ENABLED = False
 
 
 def log_mlflow(
-    logger, key: str, value: Union[float, str], step: Optional[int] = None, kind: str = "metric"
+    logger,
+    key: str,
+    value: Union[float, str],
+    step: Optional[int] = None,
+    kind: str = "metric",
 ) -> None:
     """Logs metric or param to MLflow.
 

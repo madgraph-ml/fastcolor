@@ -69,7 +69,17 @@ class LGATr(Model):
     - extract tagging score with global token or mean-aggregation
     """
 
-    def __init__(self, logger, process, cfg, dims_in, helicity_dict_size, dims_out, model_path, device):
+    def __init__(
+        self,
+        logger,
+        process,
+        cfg,
+        dims_in,
+        helicity_dict_size,
+        dims_out,
+        model_path,
+        device,
+    ):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
 
         in_mv_channels = cfg.model["in_mv_channels"]
@@ -93,8 +103,6 @@ class LGATr(Model):
         in_s_channels = token_size + 3 - int(self.remove_color)
         self.global_token = global_token
 
-        
-        
         self.net = LGATr_net(
             in_mv_channels=in_mv_channels,
             out_mv_channels=out_mv_channels,
@@ -109,15 +117,17 @@ class LGATr(Model):
             dropout_prob=dropout_prob,
             double_layernorm=double_layernorm,
         )
-        self.amplitude_wrapper = AmplitudeWrapper(self.net, token_size, self.remove_color, self.features_per_particle)
+        self.amplitude_wrapper = AmplitudeWrapper(
+            self.net, token_size, self.remove_color, self.features_per_particle
+        )
         self.init_loss()
 
     def init_loss(self):
         loss_type = self.cfg.train.get("loss", "MSE")
         if loss_type == "MSE":
-            self.loss_fct = nn.MSELoss(reduction='none')
+            self.loss_fct = nn.MSELoss(reduction="none")
         elif loss_type == "L1":
-            self.loss_fct = nn.L1Loss(reduction='none')
+            self.loss_fct = nn.L1Loss(reduction="none")
         elif loss_type == "heteroschedastic":
             self.loss_fct = self.het_loss
         else:
@@ -306,7 +316,14 @@ class LGATr_net(nn.Module):
 
 
 class AmplitudeWrapper(nn.Module):
-    def __init__(self, net, token_size, remove_color, features_per_particle, reinsert_type_token=False):
+    def __init__(
+        self,
+        net,
+        token_size,
+        remove_color,
+        features_per_particle,
+        reinsert_type_token=False,
+    ):
         super().__init__()
         self.net = net
         self.token_size = token_size
@@ -327,8 +344,10 @@ class AmplitudeWrapper(nn.Module):
         inputs = inputs.unsqueeze(0)
         inputs = inputs.view(1, batchsize, num_objects, self.features_per_particle)
         nprocesses, batchsize, num_objects, _ = inputs.shape
-        inputs_s = inputs[..., 0:3-int(self.remove_color)]  # extract scalar inputs
-        inputs_mv = inputs[..., 3-int(self.remove_color):]  # extract multivector inputs
+        inputs_s = inputs[..., 0 : 3 - int(self.remove_color)]  # extract scalar inputs
+        inputs_mv = inputs[
+            ..., 3 - int(self.remove_color) :
+        ]  # extract multivector inputs
 
         # encode momenta in multivectors
         multivector = embed_vector(inputs_mv)
@@ -351,13 +370,16 @@ class AmplitudeWrapper(nn.Module):
                 type_token,
                 inputs_s.squeeze(0),
             ],
-            dim=-1
+            dim=-1,
         )
-        pad = torch.zeros(*global_token.shape[:-1], 3 - int(self.remove_color),  # pad to 3 for Lorentz scalars
-                        device=global_token.device,
-                        dtype=global_token.dtype)          # [B, 1, 3]
+        pad = torch.zeros(
+            *global_token.shape[:-1],
+            3 - int(self.remove_color),  # pad to 3 for Lorentz scalars
+            device=global_token.device,
+            dtype=global_token.dtype,
+        )  # [B, 1, 3]
 
-        global_token = torch.cat([global_token, pad], dim=-1)   # [B, 1, 9]
+        global_token = torch.cat([global_token, pad], dim=-1)  # [B, 1, 9]
 
         # global token
         global_token_mv = torch.zeros(

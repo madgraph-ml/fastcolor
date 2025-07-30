@@ -44,9 +44,7 @@ energy = E_BEAM * torch.ones(n)
 ##=============== EVALUATE ME2 ==================##
 
 dirname = os.path.dirname(__file__)
-API_PATH = os.path.join(
-    dirname, "cpp/SubProcesses/P1_Sigma_sm_gg_gggg/mg5_vectorized.so"
-)
+API_PATH = os.path.join(dirname, "cpp/SubProcesses/P1_Sigma_sm_gg_gggg/mg5_vectorized.so")
 PARAM_CARD = os.path.join(dirname, "Cards/param_card.dat")
 mg5_api = MG5AmplitudeWrapper(API_PATH, PARAM_CARD)
 m2_real = mg5_api.me2(p_ext)

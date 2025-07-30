@@ -30,7 +30,7 @@ def Sij_unnormalized(
     Ej = pj[:, 0]
     y_ij = yij(pi, pj)
     d_ijm1 = 1 / dij(sqrts, Ei, Ej, y_ij)
-    S_ij = d_ijm1 #* Ej**2 / (Ei**2 + Ej**2)
+    S_ij = d_ijm1  # * Ej**2 / (Ei**2 + Ej**2)
     return S_ij
 
 

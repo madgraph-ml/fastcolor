@@ -14,6 +14,7 @@ from .datasets.dataset import compute_observables
 from collections import defaultdict
 from .models.models import Model, MLP, Transformer
 from .models.lgatr import LGATr
+
 # from lgatr import LGATr as LGATr_legacy
 from .plots import Plots
 import torch
@@ -86,11 +87,17 @@ def main(cfg: DictConfig):
             f.write(OmegaConf.to_yaml(OmegaConf.create(cfg_to_save)))
 
         shutil.copytree(
-            "src", os.path.join(run_dir, "src"), dirs_exist_ok=True,
+            "src",
+            os.path.join(run_dir, "src"),
+            dirs_exist_ok=True,
             ignore=shutil.ignore_patterns(
-                '*__pycache__', '*egg-info', 'playground', 'template_files', '*__init__.py'
-            )
-)
+                "*__pycache__",
+                "*egg-info",
+                "playground",
+                "template_files",
+                "*__init__.py",
+            ),
+        )
     elif cfg.run.type == "plot":
         # Load already existing run directory
         run_dir = cfg.run.path
@@ -122,7 +129,7 @@ def main(cfg: DictConfig):
                 else:
                     os.remove(os.path.join(old_dir, item))
                 os.rename(item_path, os.path.join(old_dir, item))
-            
+
     else:
         raise NotImplementedError(f"Run type {cfg.run.type} not recognised")
 
@@ -153,7 +160,11 @@ def run(logger, run_dir, cfg: DictConfig):
         logger.info(f"Setting up MLflow tracking")
         mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
         mlflow.set_experiment(f"{cfg.dataset.process}")
-        mlflow.start_run(run_name=cfg.model.type+cfg.run.name if cfg.run.name is not None else run_dir)
+        mlflow.start_run(
+            run_name=cfg.model.type + cfg.run.name
+            if cfg.run.name is not None
+            else run_dir
+        )
         # flatten and log top‐level params
         for key, val in {
             **cfg.train,
@@ -162,9 +173,11 @@ def run(logger, run_dir, cfg: DictConfig):
             **cfg.dataset.parameterization.naive,
             **cfg.dataset.parameterization.lorentz_products,
             **cfg.dataset.preprocessing,
-            **{"run_type": cfg.run.type,
-            "run_name": cfg.run.name,
-            "dataset": cfg.dataset},
+            **{
+                "run_type": cfg.run.type,
+                "run_name": cfg.run.name,
+                "dataset": cfg.dataset,
+            },
         }.items():
             log_mlflow(logger, key, str(val), kind="param")
 
@@ -183,7 +196,7 @@ def run(logger, run_dir, cfg: DictConfig):
     dataset.init_observables()
 
     ### INITIALIZE MODEL AND DATALOADERS ###
-    dims_out = 2 if cfg.train.get('loss', 'MSE') == 'heteroschedastic' else 1
+    dims_out = 2 if cfg.train.get("loss", "MSE") == "heteroschedastic" else 1
     dims_in = len(dataset.input_channels) - 1
     logger.info(
         f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.get('loss', 'heteroschedastic')}"
@@ -195,11 +208,15 @@ def run(logger, run_dir, cfg: DictConfig):
         process=cfg.dataset.process,
         cfg=cfg,
         dims_in=dims_in,
-        helicity_dict_size=dataset.helicity_dict_size if hasattr(dataset, 'helicity_dict_size') else None,
+        helicity_dict_size=dataset.helicity_dict_size
+        if hasattr(dataset, "helicity_dict_size")
+        else None,
         dims_out=dims_out,
         model_path=model_path,
         device=device,
-    ).to(device) #if cfg.model.type != "LGATr_legacy" else LGATr_legacy(
+    ).to(
+        device
+    )  # if cfg.model.type != "LGATr_legacy" else LGATr_legacy(
     #     in_mv_channels = cfg.model["in_mv_channels"],
     #     out_mv_channels = cfg.model["out_mv_channels"],
     #     hidden_mv_channels = cfg.model["hidden_mv_channels"],
@@ -219,9 +236,7 @@ def run(logger, run_dir, cfg: DictConfig):
     logger.info(
         f"    Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
     )
-    logger.info(
-        f"    Dropout rate: {cfg.model.get('dropout', 0.1)}"
-    )
+    logger.info(f"    Dropout rate: {cfg.model.get('dropout', 0.1)}")
     if LOGGING_ENABLED:
         log_mlflow(
             logger,
@@ -278,12 +293,12 @@ def run(logger, run_dir, cfg: DictConfig):
     model.evaluation_time = defaultdict(dict)
     for k in ["trn", "tst", "val"]:
         t0 = time.time()
-        dataset.predicted_factors_ppd[k] = model.evaluate(
-            split=k
-        )
-        dataset.apply_preprocessing(reverse=True, split = k)
+        dataset.predicted_factors_ppd[k] = model.evaluate(split=k)
+        dataset.apply_preprocessing(reverse=True, split=k)
         model.evaluation_time[k] = time.time() - t0
-        logger.info(f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds")
+        logger.info(
+            f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
+        )
         if cfg.evaluate.save_samples:
             os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
             torch.save(
@@ -296,30 +311,30 @@ def run(logger, run_dir, cfg: DictConfig):
                 dataset.events[k],
                 os.path.join(run_dir, f"samples/events_{k}.pt"),
             )
-        
+
     # Compute dataset loss for each split
     for k in ["trn", "tst", "val"]:
         model.compute_dataset_loss(
-                dataset.predicted_factors_raw[k],
-                dataset.events[k][:, -1],
-                split=k,
-            )
+            dataset.predicted_factors_raw[k],
+            dataset.events[k][:, -1],
+            split=k,
+        )
     # ### COMPUTE OBSERVABLES ###
     logger.info("Computing observables")
     compute_observables(dataset, split="tst", include_ppd=True)
     metrics_dict = defaultdict(lambda: defaultdict(dict))
     for k in ["trn", "tst", "val"]:
         for m in model.dataset_loss.keys():
-            metrics_dict[k][m]['loss'] = Metric(
+            metrics_dict[k][m]["loss"] = Metric(
                 name=f"{k} ({m}) loss",
                 value=model.dataset_loss[m][k],
                 tex_label=rf"\text{{{k}}}\ (\text{{{m}}})\ \text{{loss}}",
                 unit="",
             )
-            metrics_dict[k][m]['eval_time'] = Metric(
+            metrics_dict[k][m]["eval_time"] = Metric(
                 name=f"{k} eval_time",
                 value=model.evaluation_time[k],
-                tex_label=rf"t_{{\text{{eval}}}}",#rf"\text{{{k}}}\ (\text{{{m}}})\ t_{{\text{{eval}}}}",
+                tex_label=rf"t_{{\text{{eval}}}}",  # rf"\text{{{k}}}\ (\text{{{m}}})\ t_{{\text{{eval}}}}",
                 format="{:.3f}",
                 unit="s",
             )
@@ -338,10 +353,9 @@ def run(logger, run_dir, cfg: DictConfig):
         loss_name=cfg.train.get("loss", "MSE"),
     )
 
-
-
-
-    percentage_of_ratio_data = 99.0 # showing 99% to avoid the massive (very few) outliers
+    percentage_of_ratio_data = (
+        99.0  # showing 99% to avoid the massive (very few) outliers
+    )
 
     if cfg.evaluate.get("save_lines", False):
         os.makedirs(os.path.join(run_dir, "pkl"), exist_ok=True)
@@ -355,13 +369,17 @@ def run(logger, run_dir, cfg: DictConfig):
     logger.info(f"    Plotting regressed factors and ratio correlations")
     for k in ["trn", "tst", "val"]:
         for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
-            logger.info(f"        Plotting {k} set and { {True : 'ppd', False : 'raw'}[ppd_flag] }...")
+            logger.info(
+                f"        Plotting {k} set and { {True : 'ppd', False : 'raw'}[ppd_flag] }..."
+            )
             plots.plot_weights(
                 os.path.join(run_dir, f"factors{ppd_s}_{k}.pdf"),
                 split=k,
                 ppd=ppd_flag,
                 percentage_of_ratio_data=percentage_of_ratio_data,
-                pickle_file=os.path.join(run_dir, 'pkl', f"factors{ppd_s}_{k}.pkl") if cfg.evaluate.get("save_lines", False) else None,
+                pickle_file=os.path.join(run_dir, "pkl", f"factors{ppd_s}_{k}.pkl")
+                if cfg.evaluate.get("save_lines", False)
+                else None,
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
             plots.plot_2d_correlations(
@@ -369,7 +387,9 @@ def run(logger, run_dir, cfg: DictConfig):
                 split=k,
                 ppd=ppd_flag,
                 percentage_of_ratio_data=percentage_of_ratio_data,
-                pickle_file=os.path.join(run_dir, 'pkl', f"ratio_corr{ppd_s}_{k}.pkl") if cfg.evaluate.get("save_lines", False) else None,
+                pickle_file=os.path.join(run_dir, "pkl", f"ratio_corr{ppd_s}_{k}.pkl")
+                if cfg.evaluate.get("save_lines", False)
+                else None,
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
 

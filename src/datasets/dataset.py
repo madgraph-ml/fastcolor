@@ -35,7 +35,13 @@ class Observable:
 def get_hardcoded_bins(n_bins, lower, upper):
     return torch.linspace(lower, upper, n_bins + 1)
 
-def get_quantile_bins(obs: torch.Tensor, n_bins: int, percentage_of_data_to_show: float, xscale: str = "linear"):
+
+def get_quantile_bins(
+    obs: torch.Tensor,
+    n_bins: int,
+    percentage_of_data_to_show: float,
+    xscale: str = "linear",
+):
     q_lo = 0.5 - percentage_of_data_to_show / 200
     q_hi = 0.5 + percentage_of_data_to_show / 200
     xlims = torch.quantile(obs, torch.tensor([q_lo, q_hi], device=obs.device))
@@ -44,7 +50,9 @@ def get_quantile_bins(obs: torch.Tensor, n_bins: int, percentage_of_data_to_show
             xlims = torch.log10(xlims)
             bins = torch.logspace(xlims[0], xlims[1], n_bins + 1)
         else:
-            raise ValueError("Logarithmic scale is not supported for non-positive values.")
+            raise ValueError(
+                "Logarithmic scale is not supported for non-positive values."
+            )
     else:
         bins = torch.linspace(xlims[0], xlims[1], n_bins + 1)
     return bins

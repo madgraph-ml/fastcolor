@@ -14,8 +14,8 @@ class Particle:
     py: float
     pz: float
     energy: float
-    color_idx: int = None, # optional
-    helicity: int = None, # optional
+    color_idx: int = (None,)  # optional
+    helicity: int = (None,)  # optional
 
     def p4(self):
         return LorentzVector(self.px, self.py, self.pz, self.energy)
@@ -71,11 +71,10 @@ class LHEReader:
         # Read header
         event_header = lines[0].strip()
         next = int(event_header.split()[0].strip())
-        
 
         amp_times_weight = float(event_header.split()[2].strip())
         weight = float(event_header.split()[6].strip())
-        
+
         helicity_conf = []
         color_indeces = []
         for i in range(next):
@@ -86,13 +85,15 @@ class LHEReader:
 
         r_LC_to_FC = float(lines[2].strip().split()[0].strip())
         r_LC_to_NLC = float(lines[2].strip().split()[1].strip())
-        A_LC, A_NLC, A_FC = float(lines[2].split()[2].strip()), float(lines[2].split()[3].strip()), float(lines[2].split()[4].strip())
+        A_LC, A_NLC, A_FC = (
+            float(lines[2].split()[2].strip()),
+            float(lines[2].split()[3].strip()),
+            float(lines[2].split()[4].strip()),
+        )
 
         # weight_LC = float(lines[4].strip().split()[0].strip())
         # weight_NLC = float(lines[4].strip().split()[1].strip())
         # weight_FC = float(lines[4].strip().split()[2].strip())
-
-        
 
         event.amp_times_weight = amp_times_weight
         event.A_LC = A_LC
@@ -101,9 +102,9 @@ class LHEReader:
         event.weight = weight
         event.r_LC_to_FC = r_LC_to_FC
         event.r_LC_to_NLC = r_LC_to_NLC
-        event.weight_LC = None # weight_LC
-        event.weight_NLC = None # nullweight_NLC
-        event.weight_FC = None # nullweight_FC
+        event.weight_LC = None  # weight_LC
+        event.weight_NLC = None  # nullweight_NLC
+        event.weight_FC = None  # nullweight_FC
         event.helicity_conf = helicity_conf
         event.color_indeces = color_indeces
 
