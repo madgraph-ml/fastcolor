@@ -8,7 +8,7 @@ BASE_WAIT_TIME = 0.2  # Base wait time between attempts in seconds
 WAIT_TIME_FACTOR = 1.5  # Increase of the wait time for each successive trial
 WAIT_TIME_RANDOM = 0.5  # Upper bound on random wait time that is added to break synchronicity of multiple jobs
 
-LOGGING_ENABLED = True
+LOGGING_ENABLED = False
 
 
 def log_mlflow(
