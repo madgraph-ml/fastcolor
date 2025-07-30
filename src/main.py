@@ -400,7 +400,7 @@ def run(logger, run_dir, cfg: DictConfig):
             pickle_file=os.path.join(run_dir, "pkl", f"FCvsrLC_{k}.pkl")
             if cfg.evaluate.get("save_lines", False)
             else None,
-            metrics= None,
+            metrics=None,
         )
 
     if device == "cuda":

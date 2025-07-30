@@ -198,8 +198,10 @@ class Plots:
             reweight_factors_pred = (
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
-        
-        split_mode_metrics = self.metrics[split][{True: "ppd", False: "raw"}[ppd]] # select
+
+        split_mode_metrics = self.metrics[split][
+            {True: "ppd", False: "raw"}[ppd]
+        ]  # select
         compute_and_log_metrics(
             reweight_factors_pred=reweight_factors_pred,
             reweight_factors_truth=reweight_factors_truth,
@@ -229,7 +231,11 @@ class Plots:
                 reweight_factors_truth,
                 ppd=ppd,
                 pickle_file=pickle_file,
-                metrics = {k: split_mode_metrics[k] for k in ["loss", "eval_time", "eff_2nd_std", "eff_1st_surr"] if k in split_mode_metrics},
+                metrics={
+                    k: split_mode_metrics[k]
+                    for k in ["loss", "eval_time", "eff_2nd_std", "eff_1st_surr"]
+                    if k in split_mode_metrics
+                },
                 bins=bins_targets,
             )
             self._plot_ratios(
@@ -239,7 +245,11 @@ class Plots:
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
-                metrics= {k: split_mode_metrics[k] for k in ["ratio_mean", "ratio_max", "eff_2nd_surr"] if k in split_mode_metrics},
+                metrics={
+                    k: split_mode_metrics[k]
+                    for k in ["ratio_mean", "ratio_max", "eff_2nd_surr"]
+                    if k in split_mode_metrics
+                },
                 bins=bins_ratios,
             )
             self._plot_deltas(
@@ -249,7 +259,11 @@ class Plots:
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
-                metrics= {k: split_mode_metrics[k] for k in ["delta_mean", "delta_std"] if k in split_mode_metrics},
+                metrics={
+                    k: split_mode_metrics[k]
+                    for k in ["delta_mean", "delta_std"]
+                    if k in split_mode_metrics
+                },
                 bins=bins_deltas,
             )
             self._plot_deltas(
@@ -260,7 +274,17 @@ class Plots:
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
                 abs=True,
-                metrics= {k: split_mode_metrics[k] for k in ["abs_delta_mean", "abs_delta_qmin", "abs_delta_qmax", "abs_delta_min", "abs_delta_max"] if k in split_mode_metrics},
+                metrics={
+                    k: split_mode_metrics[k]
+                    for k in [
+                        "abs_delta_mean",
+                        "abs_delta_qmin",
+                        "abs_delta_qmax",
+                        "abs_delta_min",
+                        "abs_delta_max",
+                    ]
+                    if k in split_mode_metrics
+                },
                 bins=bins_abs_deltas,
             )
 
@@ -532,28 +556,26 @@ class Plots:
             metrics: Metrics to be displayed on the plot (optional)
             bins: Bins to be used for the histogram (optional)
         """
-        assert self.regress_name == "r", "This method is only for the 'r' regression type."
+        assert (
+            self.regress_name == "r"
+        ), "This method is only for the 'r' regression type."
         assert not ppd, "This method is not implemented for ppd data."
         bins = bins_dict["FC"]["targets"][self.process]
         reweight_factors_pred = (
             self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
-            )
-        label = (
-            r"$\mathcal{A}_{\text{FC}}$"
         )
+        label = r"$\mathcal{A}_{\text{FC}}$"
         data_path = cfg.dataset.data_path
         type = cfg.dataset.type
         process = cfg.dataset.process
         file_path = os.path.join(data_path, type, paths_dict[process])
 
         try:
-            momenta = (
-                np.load(file_path)[..., -3:]
-            )
+            momenta = np.load(file_path)[..., -3:]
         except FileNotFoundError:
             self.logger.error(f"File not found: {file_path}. Please check the path.")
             return
-         # split the data
+        # split the data
         for i, s in enumerate(["trn", "tst", "val"]):
             globals()[f"{s}_slice"] = int(momenta.shape[0] * cfg.dataset.trn_tst_val[i])
         momenta = {
@@ -561,11 +583,10 @@ class Plots:
             "tst": momenta[trn_slice : trn_slice + tst_slice],
             "val": momenta[-val_slice:],
         }[split]
-    
+
         FC = momenta[:, -1]
         LC = momenta[:, -3]
         FC_pred = reweight_factors_pred * LC
-        
 
         with PdfPages(file) as pp:
             y_truth, y_truth_err = compute_hist_data(bins, FC, bayesian=False)
@@ -595,15 +616,12 @@ class Plots:
                 xlabel=label,
                 xscale="log",
                 no_scale=True,
-                metrics=None ,
+                metrics=None,
                 model_name=self.model_name,
             )
             if pickle_file is not None:
                 pickle_data = {"ampl-targets-lines": lines, "ampl-targets-bins": bins}
                 append_to_pickle(pickle_file, pickle_data)
-
-
-
 
             bins = bins_dict["r"]["ratios"][self.process]
             y_ratio, y_ratio_err = compute_hist_data(bins, FC / FC_pred, bayesian=False)
@@ -625,14 +643,12 @@ class Plots:
                 xlabel=r"$\mathcal{A}_{\text{FC}} / (r^{\text{pred}} \cdot \mathcal{A}_{\text{LC}})$",
                 xscale="linear",
                 no_scale=True,
-                metrics=None ,
+                metrics=None,
                 model_name=self.model_name,
             )
             if pickle_file is not None:
                 pickle_data = {"ampl-ratios-lines": lines, "ampl-ratios-bins": bins}
                 append_to_pickle(pickle_file, pickle_data)
-
-
 
             bins = bins_dict["r"]["deltas"][self.process]
             deltas = (FC_pred - FC) / FC
@@ -652,19 +668,20 @@ class Plots:
                 bins,
                 show_ratios=False,
                 title=self.process_name if self.process_name is not None else None,
-                xlabel= r"$\Delta_{\mathcal{A}_{\text{FC}}} = \frac{r^{\text{pred}} \cdot \mathcal{A}_{\text{LC}} - \mathcal{A}_{\text{FC}} }{\mathcal{A}_{\text{FC}}}$",
+                xlabel=r"$\Delta_{\mathcal{A}_{\text{FC}}} = \frac{r^{\text{pred}} \cdot \mathcal{A}_{\text{LC}} - \mathcal{A}_{\text{FC}} }{\mathcal{A}_{\text{FC}}}$",
                 xscale="linear",
                 no_scale=True,
-                metrics=None ,
+                metrics=None,
                 model_name=self.model_name,
             )
             if pickle_file is not None:
                 pickle_data = {"ampl-deltas-lines": lines, "ampl-deltas-bins": bins}
                 append_to_pickle(pickle_file, pickle_data)
 
-
             bins = bins_dict["r"]["abs_deltas"][self.process]
-            y_abs_deltas, y_abs_deltas_err = compute_hist_data(bins, np.abs(deltas), bayesian=False)
+            y_abs_deltas, y_abs_deltas_err = compute_hist_data(
+                bins, np.abs(deltas), bayesian=False
+            )
             lines = [
                 Line(
                     y=y_abs_deltas,
@@ -680,22 +697,18 @@ class Plots:
                 bins,
                 show_ratios=False,
                 title=self.process_name if self.process_name is not None else None,
-                xlabel= r"$|\Delta_{\mathcal{A}_{\text{FC}}}|$",
+                xlabel=r"$|\Delta_{\mathcal{A}_{\text{FC}}}|$",
                 xscale="log",
                 no_scale=True,
-                metrics=None ,
+                metrics=None,
                 model_name=self.model_name,
             )
             if pickle_file is not None:
-                pickle_data = {"ampl-deltas_abs-lines": lines, "ampl-deltas_abs-bins": bins}
+                pickle_data = {
+                    "ampl-deltas_abs-lines": lines,
+                    "ampl-deltas_abs-bins": bins,
+                }
                 append_to_pickle(pickle_file, pickle_data)
-
-
-
-
-
-
-
 
     def plot_2d_correlations(
         self,

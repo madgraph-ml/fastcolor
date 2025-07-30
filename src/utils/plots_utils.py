@@ -127,14 +127,14 @@ def compute_and_log_metrics(
             value=np.mean(reweight_factors_pred),
             unit="",
             format="{:.3f}",
-            tex_label=r"\overline{s}"
+            tex_label=r"\overline{s}",
         ),
         "r_pred_max": Metric(
             name="r_pred_max",
             value=np.max(reweight_factors_pred),
             unit="",
             format="{:.3f}",
-            tex_label=r"s_{\max}"
+            tex_label=r"s_{\max}",
         ),
         "eff_1st_surr": Metric(
             name="eff_1st_surr",
@@ -177,67 +177,49 @@ def compute_and_log_metrics(
         ),
         "delta_mean": Metric(
             name="delta_mean",
-            value=np.mean(
-                delta
-            ),
+            value=np.mean(delta),
             unit="",
             tex_label=r"\mu",
         ),
         "delta_std": Metric(
             name="delta_std",
-            value=np.std(
-                delta
-            ),
+            value=np.std(delta),
             unit="",
             tex_label=r"\sigma",
         ),
         "abs_delta_mean": Metric(
             name="abs_delta_mean",
-            value=np.mean(
-                abs_delta
-            ),
+            value=np.mean(abs_delta),
             unit="",
             tex_label=r"\mu",
         ),
         "abs_delta_std": Metric(
             name="abs_delta_std",
-            value=np.std(
-                abs_delta
-            ),
+            value=np.std(abs_delta),
             unit="",
             tex_label=r"\sigma",
         ),
         "abs_delta_qmin": Metric(
             name="abs_delta_qmin",
-            value=np.percentile(
-                abs_delta,
-                0.05
-            ),
+            value=np.percentile(abs_delta, 0.05),
             unit="",
             tex_label=r"q_{0.05}",
         ),
         "abs_delta_qmax": Metric(
             name="abs_delta_qmax",
-            value=np.percentile(
-                abs_delta,
-                99.95
-            ),
+            value=np.percentile(abs_delta, 99.95),
             unit="",
             tex_label=r"q_{99.95}",
         ),
         "abs_delta_min": Metric(
             name="abs_delta_min",
-            value=np.min(
-                abs_delta
-            ),
+            value=np.min(abs_delta),
             unit="",
             tex_label=r"\min",
         ),
         "abs_delta_max": Metric(
             name="abs_delta_max",
-            value=np.max(
-                abs_delta
-            ),
+            value=np.max(abs_delta),
             unit="",
             tex_label=r"\max",
         ),
@@ -259,6 +241,7 @@ def compute_and_log_metrics(
                 f.write(", ")
         f.write("\n")
         f.close()
+
 
 def hist_weights_plot(
     pdf: PdfPages,
