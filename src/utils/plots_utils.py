@@ -250,6 +250,7 @@ def hist_weights_plot(
     show_ratios: bool = False,
     title: Optional[str] = None,
     xlabel: str = f"$r(x)$",
+    ylabel: Optional[str] = None,
     no_scale: bool = False,
     xscale: Optional[str] = None,
     yscale: Optional[str] = None,
@@ -378,10 +379,12 @@ def hist_weights_plot(
         if title is not None:
             corner_text(axs[0], title, "left", "top")
         if legend_kwargs is None:
-            axs[0].legend(loc="best", frameon=False)
+            axs[0].legend(loc="best", frameon=False, handlelength=1., fontsize=12)
         else:
-            axs[0].legend(frameon=False, **legend_kwargs)
-        axs[0].set_ylabel("Normalized") if not no_scale else axs[0].set_ylabel("Events")
+            legend_kwargs.pop('handlelength', 1.)
+            legend_kwargs.pop('fontsize', 12)
+            axs[0].legend(frameon=False, handlelength=1., fontsize=12, **legend_kwargs)
+        axs[0].set_ylabel("Normalized") if not no_scale and ylabel is None else axs[0].set_ylabel("Events") if ylabel is None else axs[0].set_ylabel(ylabel)
         axs[0].set_xscale("linear" if xscale is None else xscale)
         yscale = "log" if yscale is None else yscale
         axs[0].set_yscale(yscale)
