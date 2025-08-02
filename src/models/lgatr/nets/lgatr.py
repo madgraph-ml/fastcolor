@@ -8,7 +8,7 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from src.models.models import Model
+from models.train import Model
 from ..layers.attention.config import SelfAttentionConfig
 from ..layers.lgatr_block import LGATrBlock
 from ..layers.linear import EquiLinear

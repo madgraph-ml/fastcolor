@@ -12,7 +12,8 @@ from .utils.mlflow import mlflow, log_mlflow, LOGGING_ENABLED
 from .datasets.gluons import gg_ng, gg_ddbarng
 from .datasets.dataset import compute_observables
 from collections import defaultdict
-from .models.models import Model, MLP, Transformer
+from .models.train import Model
+from .models.models import MLP, Transformer
 from .models.lgatr import LGATr
 
 # from lgatr import LGATr as LGATr_legacy
@@ -392,16 +393,16 @@ def run(logger, run_dir, cfg: DictConfig):
                 else None,
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
-        plots.plot_amplitudes_closure_test(
-            cfg,
-            os.path.join(run_dir, f"FCvsrLC_{k}.pdf"),
-            split=k,
-            ppd=False,
-            pickle_file=os.path.join(run_dir, "pkl", f"FCvsrLC_{k}.pkl")
-            if cfg.evaluate.get("save_lines", False)
-            else None,
-            metrics=None,
-        )
+        # plots.plot_amplitudes_closure_test(
+        #     cfg,
+        #     os.path.join(run_dir, f"FCvsrLC_{k}.pdf"),
+        #     split=k,
+        #     ppd=False,
+        #     pickle_file=os.path.join(run_dir, "pkl", f"FCvsrLC_{k}.pkl")
+        #     if cfg.evaluate.get("save_lines", False)
+        #     else None,
+        #     metrics=None,
+        # )
 
     if device == "cuda":
         max_used = torch.cuda.max_memory_allocated()
