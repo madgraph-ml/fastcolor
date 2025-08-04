@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from .train import Model
 
+
 class MLP(Model):
     def __init__(
         self,
@@ -177,7 +178,7 @@ class Transformer(Model):
 
     def predict(self, x):
         return self.forward(x)
-    
+
 
 class TransformerExtrapolator(Model):
     def __init__(
@@ -249,13 +250,23 @@ class TransformerExtrapolator(Model):
         if n_particles < max_n_particles:
             pad_size = max_n_particles - n_particles
             x = x.view(batch_size, n_particles, features_per_particle)
-            pad = torch.zeros(batch_size, pad_size, features_per_particle, device=x.device, dtype=x.dtype)
+            pad = torch.zeros(
+                batch_size,
+                pad_size,
+                features_per_particle,
+                device=x.device,
+                dtype=x.dtype,
+            )
             x = torch.cat([x, pad], dim=1)
         else:
             x = x.view(batch_size, n_particles, features_per_particle)
 
         # One-hot for slot identity
-        one_hot = torch.eye(max_n_particles, device=x.device).unsqueeze(0).expand(batch_size, -1, -1)
+        one_hot = (
+            torch.eye(max_n_particles, device=x.device)
+            .unsqueeze(0)
+            .expand(batch_size, -1, -1)
+        )
         x = torch.cat([x, one_hot], dim=-1)
         x = self.input_proj(x)
         x = self.encoder(x)
@@ -267,8 +278,7 @@ class TransformerExtrapolator(Model):
 
         x = (x * mask).sum(dim=1) / mask.sum(dim=1)
         x = self.regressor(x)
-        return x    
-
+        return x
 
     def predict(self, x):
         return self.forward(x)

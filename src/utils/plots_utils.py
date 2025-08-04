@@ -380,11 +380,13 @@ def hist_weights_plot(
         if title is not None:
             corner_text(axs[0], title, "left", "top")
         if legend_kwargs is None:
-            axs[0].legend(loc="best", frameon=False, handlelength=1.)
+            axs[0].legend(loc="best", frameon=False, handlelength=1.0)
         else:
-            legend_kwargs.pop('handlelength', 1.)
-            axs[0].legend(frameon=False, handlelength=1., **legend_kwargs)
-        axs[0].set_ylabel("Normalized") if not no_scale and ylabel is None else axs[0].set_ylabel("Events") if ylabel is None else axs[0].set_ylabel(ylabel)
+            legend_kwargs.pop("handlelength", 1.0)
+            axs[0].legend(frameon=False, handlelength=1.0, **legend_kwargs)
+        axs[0].set_ylabel("Normalized") if not no_scale and ylabel is None else axs[
+            0
+        ].set_ylabel("Events") if ylabel is None else axs[0].set_ylabel(ylabel)
         axs[0].set_xscale("linear" if xscale is None else xscale)
         yscale = "log" if yscale is None else yscale
         axs[0].set_yscale(yscale)
