@@ -13,7 +13,7 @@ from .datasets.gluons import gg_ng, gg_ddbarng
 from .datasets.dataset import compute_observables
 from collections import defaultdict
 from .models.train import Model
-from .models.models import MLP, Transformer
+from .models.models import MLP, Transformer, TransformerExtrapolator
 from .models.lgatr import LGATr
 
 # from lgatr import LGATr as LGATr_legacy
@@ -233,7 +233,7 @@ def run(logger, run_dir, cfg: DictConfig):
     #     dropout_prob = cfg.model.get("dropout_prob", None),
     #     double_layernorm = cfg.model.get("double_layernorm", False),
     # ).to(device)
-    model.name = cfg.model.type
+    model.name = cfg.model.type if cfg.model.type != "TransformerExtrapolator" else "Transformer"
     logger.info(
         f"    Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
     )
@@ -268,6 +268,7 @@ def run(logger, run_dir, cfg: DictConfig):
             model_name = cfg.evaluate.model_name
             try:
                 model.load(model_name)
+                logger.info(f"Loaded model {model_name} from {model_path}/{model_name}.pth")
             except FileNotFoundError:
                 raise FileNotFoundError(
                     f"Model {model_name} not found in {model_path}/{model_name}.pth. Please train the model first."

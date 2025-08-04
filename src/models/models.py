@@ -177,3 +177,98 @@ class Transformer(Model):
 
     def predict(self, x):
         return self.forward(x)
+    
+
+class TransformerExtrapolator(Model):
+    def __init__(
+        self,
+        logger,
+        process,
+        cfg,
+        dims_in,
+        helicity_dict_size,
+        dims_out,
+        model_path,
+        device,
+    ):
+        super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
+        assert (
+            cfg.dataset.parameterization.naive.use
+        ), "Only naive parameterization is supported for the Transformer model"
+        self.remove_color = cfg.dataset.get("remove_color", False)
+        self.init_loss()
+        self.init_net()
+
+    def init_net(self):
+        self.dim_embedding = self.cfg.model["dim_embedding"]
+        if self.cfg.model.get("activation", "gelu") == "relu":
+            self.activation = nn.ReLU()
+        elif self.cfg.model.get("activation", "gelu") == "silu":
+            self.activation = nn.SiLU()
+        elif self.cfg.model.get("activation", "gelu") == "gelu":
+            self.activation = nn.GELU()
+        else:
+            raise NotImplementedError(
+                f"Activation function {self.cfg.model.get('activation', 'gelu')} not implemented"
+            )
+        self.logger.info(
+            f"    Using {self.activation} activation function for Transformer model"
+        )
+        self.max_n_particles = 9  # Set this globally
+        self.features_per_particle = 7 if not self.remove_color else 6
+        input_dim = self.features_per_particle + self.max_n_particles
+        self.input_proj = nn.Linear(input_dim, self.dim_embedding)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.dim_embedding,
+            nhead=self.cfg.model.get("n_head", 8),
+            dim_feedforward=self.cfg.model.get("dim_feedforward", 512),
+            dropout=self.cfg.model.get("dropout", 0.1),
+            activation=self.activation,
+            batch_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=self.cfg.model.get("n_layers", 6)
+        )
+        self.regressor = nn.Sequential(
+            nn.Linear(self.dim_embedding, 2 * self.dim_embedding),
+            self.activation,
+            nn.Linear(2 * self.dim_embedding, self.dim_embedding),
+            self.activation,
+            nn.Linear(self.dim_embedding, self.dims_out),
+        )
+        self.net = nn.Sequential(self.input_proj, self.encoder, self.regressor)
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+        features_per_particle = self.features_per_particle
+        max_n_particles = self.max_n_particles
+
+        n_particles = x.shape[1] // features_per_particle
+
+        # Pad if needed
+        if n_particles < max_n_particles:
+            pad_size = max_n_particles - n_particles
+            x = x.view(batch_size, n_particles, features_per_particle)
+            pad = torch.zeros(batch_size, pad_size, features_per_particle, device=x.device, dtype=x.dtype)
+            x = torch.cat([x, pad], dim=1)
+        else:
+            x = x.view(batch_size, n_particles, features_per_particle)
+
+        # One-hot for slot identity
+        one_hot = torch.eye(max_n_particles, device=x.device).unsqueeze(0).expand(batch_size, -1, -1)
+        x = torch.cat([x, one_hot], dim=-1)
+        x = self.input_proj(x)
+        x = self.encoder(x)
+
+        # Create mask: 1 for real, 0 for padded --> only real particles contribute to the mean
+        mask = torch.zeros(batch_size, max_n_particles, device=x.device, dtype=x.dtype)
+        mask[:, :n_particles] = 1.0
+        mask = mask.unsqueeze(-1)
+
+        x = (x * mask).sum(dim=1) / mask.sum(dim=1)
+        x = self.regressor(x)
+        return x    
+
+
+    def predict(self, x):
+        return self.forward(x)

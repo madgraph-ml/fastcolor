@@ -608,19 +608,20 @@ class Model(nn.Module):
         preds_shear = preds_shear.cpu().numpy()
         
 
-
-        tosave = {
-            "preds": preds,
-            "preds_boosted": preds_boosted,
-            "preds_SO3": preds_SO3,
-            "preds_SL4": preds_SL4,
-            "preds_shear": preds_shear,
-            "preds_SO2": preds_SO2,
-            "targets": targets,
-        }
-        np.save(
-            os.path.join(self.model_path, f"preds_vs_targets_{iteration}.npy"), tosave
-        )
+        random_uniform_number_between_0_and_1 = np.random.uniform(0, 1)
+        if random_uniform_number_between_0_and_1 < 0.25: # decreasing a bit the frequency of saving and plots
+            tosave = {
+                "preds": preds,
+                "preds_boosted": preds_boosted,
+                "preds_SO3": preds_SO3,
+                "preds_SL4": preds_SL4,
+                "preds_shear": preds_shear,
+                "preds_SO2": preds_SO2,
+                "targets": targets,
+            }
+            np.save(
+                os.path.join(self.model_path, f"preds_vs_targets_{iteration}.npy"), tosave
+            )
 
         regress_name = {
                 "r": "r",
@@ -637,491 +638,494 @@ class Model(nn.Module):
         )
         delta_bins = np.linspace(-5, 5, 64)
         abs_delta_bins = np.logspace(-14, 6, 64)
-        with PdfPages(
-            os.path.join(self.model_path, f"preds_vs_targets_{iteration}.pdf")
-        ) as pp:
-            # targets
-            y_targets, y_targets_err = compute_hist_data(bins, targets, bayesian=False)
-            y_preds, y_preds_err = compute_hist_data(bins, preds, bayesian=False)
-            y_preds_boosted, y_preds_boosted_err = compute_hist_data(bins, preds_boosted, bayesian=False)
-            y_preds_SO3, y_preds_SO3_err = compute_hist_data(bins, preds_SO3, bayesian=False)
-            y_preds_SL4, y_preds_SL4_err = compute_hist_data(bins, preds_SL4, bayesian=False)
-            y_preds_shear, y_preds_shear_err = compute_hist_data(bins, preds_shear, bayesian=False)
-            y_preds_SO2, y_preds_SO2_err = compute_hist_data(bins, preds_SO2, bayesian=False)
-            
-            target_lines = [
-                Line(
-                    y=y_targets,
-                    y_err=y_targets_err,
-                    label="Truth",
-                    color=TRUTH_COLOR,
-                ),
-                Line(
-                    y=y_preds,
-                    y_err=y_preds_err,
-                    y_ref=y_targets,
-                    label=rf"{self.name}$(x)$",
-                    color=NN_COLORS[self.name],
-                ),
-                Line(
-                    y=y_preds_SO2,
-                    y_err=y_preds_SO2_err,
-                    y_ref=y_targets,
-                    label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
-                    color=COLOR_SO2,
-                ),
-                Line(
-                    y=y_preds_SO3,
-                    y_err=y_preds_SO3_err,
-                    y_ref=y_targets,
-                    label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
-                    color=COLOR_SO3,
-                ),
-                Line(
-                    y=y_preds_boosted,
-                    y_err=y_preds_boosted_err,
-                    y_ref=y_targets,
-                    label=rf"{self.name}$(x_{{\text{{boost}}}})$",
-                    color=COLOR_BOOST,
-                ),
-                Line(
-                    y=y_preds_SL4,
-                    y_err=y_preds_SL4_err,
-                    y_ref=y_targets,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                ),
-                Line(
-                    y=y_preds_shear,
-                    y_err=y_preds_shear_err,
-                    y_ref=y_targets,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                ),
-            ]
+        
+        # targets
+        y_targets, y_targets_err = compute_hist_data(bins, targets, bayesian=False)
+        y_preds, y_preds_err = compute_hist_data(bins, preds, bayesian=False)
+        y_preds_boosted, y_preds_boosted_err = compute_hist_data(bins, preds_boosted, bayesian=False)
+        y_preds_SO3, y_preds_SO3_err = compute_hist_data(bins, preds_SO3, bayesian=False)
+        y_preds_SL4, y_preds_SL4_err = compute_hist_data(bins, preds_SL4, bayesian=False)
+        y_preds_shear, y_preds_shear_err = compute_hist_data(bins, preds_shear, bayesian=False)
+        y_preds_SO2, y_preds_SO2_err = compute_hist_data(bins, preds_SO2, bayesian=False)
+        
+        target_lines = [
+            Line(
+                y=y_targets,
+                y_err=y_targets_err,
+                label="Truth",
+                color=TRUTH_COLOR,
+            ),
+            Line(
+                y=y_preds,
+                y_err=y_preds_err,
+                y_ref=y_targets,
+                label=rf"{self.name}$(x)$",
+                color=NN_COLORS[self.name],
+            ),
+            Line(
+                y=y_preds_SO2,
+                y_err=y_preds_SO2_err,
+                y_ref=y_targets,
+                label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
+                color=COLOR_SO2,
+            ),
+            Line(
+                y=y_preds_SO3,
+                y_err=y_preds_SO3_err,
+                y_ref=y_targets,
+                label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
+                color=COLOR_SO3,
+            ),
+            Line(
+                y=y_preds_boosted,
+                y_err=y_preds_boosted_err,
+                y_ref=y_targets,
+                label=rf"{self.name}$(x_{{\text{{boost}}}})$",
+                color=COLOR_BOOST,
+            ),
+            Line(
+                y=y_preds_SL4,
+                y_err=y_preds_SL4_err,
+                y_ref=y_targets,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+            ),
+            Line(
+                y=y_preds_shear,
+                y_err=y_preds_shear_err,
+                y_ref=y_targets,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+            ),
+        ]
 
-            # (rpred - rtrue) / rtrue
-            delta_preds = (preds - targets) / targets
-            y_delta_preds, y_delta_preds_err = compute_hist_data(delta_bins, delta_preds, bayesian=False)
-            y_delta_preds_abs, y_delta_preds_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds), bayesian=False)
-            
-            delta_preds_boosted = (preds_boosted - targets) / targets
-            y_delta_preds_boosted, y_delta_preds_boosted_err = compute_hist_data(delta_bins, delta_preds_boosted, bayesian=False)
-            y_abs_delta_boosted_abs, y_abs_delta_boosted_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_boosted), bayesian=False)
+        # (rpred - rtrue) / rtrue
+        delta_preds = (preds - targets) / targets
+        y_delta_preds, y_delta_preds_err = compute_hist_data(delta_bins, delta_preds, bayesian=False)
+        y_delta_preds_abs, y_delta_preds_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds), bayesian=False)
+        
+        delta_preds_boosted = (preds_boosted - targets) / targets
+        y_delta_preds_boosted, y_delta_preds_boosted_err = compute_hist_data(delta_bins, delta_preds_boosted, bayesian=False)
+        y_abs_delta_boosted_abs, y_abs_delta_boosted_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_boosted), bayesian=False)
 
-            delta_preds_SO3 = (preds_SO3 - targets) / targets
-            y_delta_preds_SO3, y_delta_preds_SO3_err = compute_hist_data(delta_bins, delta_preds_SO3, bayesian=False)
-            y_delta_preds_SO3_abs, y_delta_preds_SO3_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SO3), bayesian=False)
+        delta_preds_SO3 = (preds_SO3 - targets) / targets
+        y_delta_preds_SO3, y_delta_preds_SO3_err = compute_hist_data(delta_bins, delta_preds_SO3, bayesian=False)
+        y_delta_preds_SO3_abs, y_delta_preds_SO3_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SO3), bayesian=False)
 
-            delta_preds_SL4 = (preds_SL4 - targets) / targets
-            y_delta_preds_SL4, y_delta_preds_SL4_err = compute_hist_data(delta_bins, delta_preds_SL4, bayesian=False)
-            y_delta_preds_SL4_abs, y_delta_preds_SL4_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SL4), bayesian=False)
+        delta_preds_SL4 = (preds_SL4 - targets) / targets
+        y_delta_preds_SL4, y_delta_preds_SL4_err = compute_hist_data(delta_bins, delta_preds_SL4, bayesian=False)
+        y_delta_preds_SL4_abs, y_delta_preds_SL4_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SL4), bayesian=False)
 
-            delta_preds_shear = (preds_shear - targets) / targets
-            y_delta_preds_shear, y_delta_preds_shear_err = compute_hist_data(delta_bins, delta_preds_shear, bayesian=False)
-            y_delta_preds_shear_abs, y_delta_preds_shear_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_shear), bayesian=False)
+        delta_preds_shear = (preds_shear - targets) / targets
+        y_delta_preds_shear, y_delta_preds_shear_err = compute_hist_data(delta_bins, delta_preds_shear, bayesian=False)
+        y_delta_preds_shear_abs, y_delta_preds_shear_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_shear), bayesian=False)
 
-            delta_preds_SO2 = (preds_SO2 - targets) / targets
-            y_delta_preds_SO2, y_delta_preds_SO2_err = compute_hist_data(delta_bins, delta_preds_SO2, bayesian=False)
-            y_delta_preds_SO2_abs, y_delta_preds_SO2_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SO2), bayesian=False)   
+        delta_preds_SO2 = (preds_SO2 - targets) / targets
+        y_delta_preds_SO2, y_delta_preds_SO2_err = compute_hist_data(delta_bins, delta_preds_SO2, bayesian=False)
+        y_delta_preds_SO2_abs, y_delta_preds_SO2_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SO2), bayesian=False)   
 
-            delta_true_lines = [
-                Line(
-                    y=y_delta_preds,
-                    y_err=y_delta_preds_err,
-                    label=rf"{self.name}$(x)$",
-                    color=NN_COLORS[self.name],
-                ),
-                Line(
-                    y=y_delta_preds_SO2,
-                    y_err=y_delta_preds_SO2_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
-                    color=COLOR_SO2,
-                ),
-                Line(
-                    y=y_delta_preds_SO3,
-                    y_err=y_delta_preds_SO3_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
-                    color=COLOR_SO3
-                ),
-                Line(
-                    y=y_delta_preds_boosted,
-                    y_err=y_delta_preds_boosted_err,
-                    label=rf"{self.name}$(x_{{\text{{boost}}}})$",
-                    color=COLOR_BOOST,
-                ),
-                Line(
-                    y=y_delta_preds_SL4,
-                    y_err=y_delta_preds_SL4_err,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                ),
-                Line(
-                    y=y_delta_preds_shear,
-                    y_err=y_delta_preds_shear_err,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                ),
-            ]
-            delta_true_abs_lines = [
-                Line(
-                    y=y_delta_preds_abs,
-                    y_err=y_delta_preds_abs_err,
-                    label=rf"{self.name}$(x)$",
-                    color=NN_COLORS[self.name],
-                ),
-                Line(
-                    y=y_delta_preds_SO2_abs,
-                    y_err=y_delta_preds_SO2_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
-                    color=COLOR_SO2,
-                ),
-                Line(
-                    y=y_delta_preds_SO3_abs,
-                    y_err=y_delta_preds_SO3_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
-                    color=COLOR_SO3,
-                ),
-                Line(
-                    y=y_abs_delta_boosted_abs,
-                    y_err=y_abs_delta_boosted_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{boost}}}})$",
-                    color=COLOR_BOOST,
-                ),
-                Line(
-                    y=y_delta_preds_SL4_abs,
-                    y_err=y_delta_preds_SL4_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                ),
-                Line(
-                    y=y_delta_preds_shear_abs,
-                    y_err=y_delta_preds_shear_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                ),
-            ]
+        delta_true_lines = [
+            Line(
+                y=y_delta_preds,
+                y_err=y_delta_preds_err,
+                label=rf"{self.name}$(x)$",
+                color=NN_COLORS[self.name],
+            ),
+            Line(
+                y=y_delta_preds_SO2,
+                y_err=y_delta_preds_SO2_err,
+                label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
+                color=COLOR_SO2,
+            ),
+            Line(
+                y=y_delta_preds_SO3,
+                y_err=y_delta_preds_SO3_err,
+                label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
+                color=COLOR_SO3
+            ),
+            Line(
+                y=y_delta_preds_boosted,
+                y_err=y_delta_preds_boosted_err,
+                label=rf"{self.name}$(x_{{\text{{boost}}}})$",
+                color=COLOR_BOOST,
+            ),
+            Line(
+                y=y_delta_preds_SL4,
+                y_err=y_delta_preds_SL4_err,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+            ),
+            Line(
+                y=y_delta_preds_shear,
+                y_err=y_delta_preds_shear_err,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+            ),
+        ]
+        delta_true_abs_lines = [
+            Line(
+                y=y_delta_preds_abs,
+                y_err=y_delta_preds_abs_err,
+                label=rf"{self.name}$(x)$",
+                color=NN_COLORS[self.name],
+            ),
+            Line(
+                y=y_delta_preds_SO2_abs,
+                y_err=y_delta_preds_SO2_abs_err,
+                label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
+                color=COLOR_SO2,
+            ),
+            Line(
+                y=y_delta_preds_SO3_abs,
+                y_err=y_delta_preds_SO3_abs_err,
+                label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
+                color=COLOR_SO3,
+            ),
+            Line(
+                y=y_abs_delta_boosted_abs,
+                y_err=y_abs_delta_boosted_abs_err,
+                label=rf"{self.name}$(x_{{\text{{boost}}}})$",
+                color=COLOR_BOOST,
+            ),
+            Line(
+                y=y_delta_preds_SL4_abs,
+                y_err=y_delta_preds_SL4_abs_err,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+            ),
+            Line(
+                y=y_delta_preds_shear_abs,
+                y_err=y_delta_preds_shear_abs_err,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+            ),
+        ]
 
 
-            # (rpred(~x) - rpred(x)) / rpred(x)
-            # # boosted
-            deltas_boost = (preds_boosted - preds) / preds
-            y_deltas_boost, y_deltas_boost_err = compute_hist_data(delta_bins, deltas_boost, bayesian=False)
-            y_deltas_boost_abs, y_deltas_boost_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_boost), bayesian=False)
+        # (rpred(~x) - rpred(x)) / rpred(x)
+        # # boosted
+        deltas_boost = (preds_boosted - preds) / preds
+        y_deltas_boost, y_deltas_boost_err = compute_hist_data(delta_bins, deltas_boost, bayesian=False)
+        y_deltas_boost_abs, y_deltas_boost_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_boost), bayesian=False)
 
-            # # SO3
-            deltas_SO3 = (preds_SO3 - preds) / preds
-            y_deltas_SO3, y_deltas_SO3_err = compute_hist_data(delta_bins, deltas_SO3, bayesian=False)
-            y_deltas_SO3_abs, y_deltas_SO3_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SO3), bayesian=False)
-            
-            # # SL4
-            deltas_SL4 = (preds_SL4 - preds) / preds
-            y_deltas_SL4, y_deltas_SL4_err = compute_hist_data(delta_bins, deltas_SL4, bayesian=False)
-            y_deltas_SL4_abs, y_deltas_SL4_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SL4), bayesian=False)
+        # # SO3
+        deltas_SO3 = (preds_SO3 - preds) / preds
+        y_deltas_SO3, y_deltas_SO3_err = compute_hist_data(delta_bins, deltas_SO3, bayesian=False)
+        y_deltas_SO3_abs, y_deltas_SO3_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SO3), bayesian=False)
+        
+        # # SL4
+        deltas_SL4 = (preds_SL4 - preds) / preds
+        y_deltas_SL4, y_deltas_SL4_err = compute_hist_data(delta_bins, deltas_SL4, bayesian=False)
+        y_deltas_SL4_abs, y_deltas_SL4_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SL4), bayesian=False)
 
-            # # shear 
-            deltas_shear = (preds_shear - preds) / preds
-            y_deltas_shear, y_deltas_shear_err = compute_hist_data(delta_bins, deltas_shear, bayesian=False)
-            y_deltas_shear_abs, y_deltas_shear_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_shear), bayesian=False)
+        # # shear 
+        deltas_shear = (preds_shear - preds) / preds
+        y_deltas_shear, y_deltas_shear_err = compute_hist_data(delta_bins, deltas_shear, bayesian=False)
+        y_deltas_shear_abs, y_deltas_shear_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_shear), bayesian=False)
 
-            # # SO2
-            deltas_SO2 = (preds_SO2 - preds) / preds
-            y_deltas_SO2, y_deltas_SO2_err = compute_hist_data(delta_bins, deltas_SO2, bayesian=False)
-            y_deltas_SO2_abs, y_deltas_SO2_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SO2), bayesian=False)
+        # # SO2
+        deltas_SO2 = (preds_SO2 - preds) / preds
+        y_deltas_SO2, y_deltas_SO2_err = compute_hist_data(delta_bins, deltas_SO2, bayesian=False)
+        y_deltas_SO2_abs, y_deltas_SO2_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SO2), bayesian=False)
 
-            mu_deltas_boost_abs = np.mean(np.abs(deltas_boost))
-            mu_deltas_SO3_abs = np.mean(np.abs(deltas_SO3))
-            mu_deltas_SL4_abs = np.mean(np.abs(deltas_SL4))
-            mu_deltas_shear_abs = np.mean(np.abs(deltas_shear))
-            mu_deltas_SO2_abs = np.mean(np.abs(deltas_SO2))
+        mu_deltas_boost_abs = np.mean(np.abs(deltas_boost))
+        mu_deltas_SO3_abs = np.mean(np.abs(deltas_SO3))
+        mu_deltas_SL4_abs = np.mean(np.abs(deltas_SL4))
+        mu_deltas_shear_abs = np.mean(np.abs(deltas_shear))
+        mu_deltas_SO2_abs = np.mean(np.abs(deltas_SO2))
 
-            # median
-            median_deltas_boost_abs = np.median(np.abs(deltas_boost))
-            median_deltas_SO3_abs = np.median(np.abs(deltas_SO3))
-            median_deltas_SL4_abs = np.median(np.abs(deltas_SL4))
-            median_deltas_shear_abs = np.median(np.abs(deltas_shear))
-            median_deltas_SO2_abs = np.median(np.abs(deltas_SO2))
+        # median
+        median_deltas_boost_abs = np.median(np.abs(deltas_boost))
+        median_deltas_SO3_abs = np.median(np.abs(deltas_SO3))
+        median_deltas_SL4_abs = np.median(np.abs(deltas_SL4))
+        median_deltas_shear_abs = np.median(np.abs(deltas_shear))
+        median_deltas_SO2_abs = np.median(np.abs(deltas_SO2))
 
-            std_deltas_boost_abs = np.std(np.abs(deltas_boost))
-            std_deltas_SO3_abs = np.std(np.abs(deltas_SO3))
-            std_deltas_SL4_abs = np.std(np.abs(deltas_SL4))
-            std_deltas_shear_abs = np.std(np.abs(deltas_shear))
-            std_deltas_SO2_abs = np.std(np.abs(deltas_SO2))
+        std_deltas_boost_abs = np.std(np.abs(deltas_boost))
+        std_deltas_SO3_abs = np.std(np.abs(deltas_SO3))
+        std_deltas_SL4_abs = np.std(np.abs(deltas_SL4))
+        std_deltas_shear_abs = np.std(np.abs(deltas_shear))
+        std_deltas_SO2_abs = np.std(np.abs(deltas_SO2))
 
-            run_dir = os.path.dirname(self.model_path)
-            log_path = os.path.join(run_dir, "grokking.log")
-            with open(log_path, "a") as f:
-                f.write(
-                    f"iteration: {iteration}, "
-                    f"loss_median: {loss[1]}, "
-                    f"loss_SO2_median: {loss_SO2[1]}, "
-                    f"loss_SO3_median: {loss_SO3[1]}, "
-                    f"loss_boosted_median: {loss_boosted[1]}, "
-                    f"loss_SL4_median: {loss_SL4[1]}, "
-                    f"loss_shear_median: {loss_shear[1]}, "
-                    f"loss_SO2_mean: {loss_SO2[0]}, "
-                    f"loss_SO3_mean: {loss_SO3[0]}, "
-                    f"loss_boosted_mean: {loss_boosted[0]}, "
-                    f"loss_SL4_mean: {loss_SL4[0]}, "
-                    f"loss_shear_mean: {loss_shear[0]}, "
-                    f"loss_shear_median: {loss_shear[1]}, "
-                    f"mu_deltas_SO2_abs: {mu_deltas_SO2_abs}, "
-                    f"mu_deltas_SO3_abs: {mu_deltas_SO3_abs}, "
-                    f"mu_deltas_SL4_abs: {mu_deltas_SL4_abs}, "
-                    f"mu_deltas_boost_abs: {mu_deltas_boost_abs}, "
-                    f"mu_deltas_shear_abs: {mu_deltas_shear_abs}, "
-                    f"median_deltas_SO2_abs: {median_deltas_SO2_abs}, "
-                    f"median_deltas_SO3_abs: {median_deltas_SO3_abs}, "
-                    f"median_deltas_boost_abs: {median_deltas_boost_abs}, "
-                    f"median_deltas_SL4_abs: {median_deltas_SL4_abs}, "
-                    f"median_deltas_shear_abs: {median_deltas_shear_abs}, "
-                    f"std_deltas_SO2_abs: {std_deltas_SO2_abs}, "
-                    f"std_deltas_SO3_abs: {std_deltas_SO3_abs}, "
-                    f"std_deltas_boost_abs: {std_deltas_boost_abs}, "
-                    f"std_deltas_SL4_abs: {std_deltas_SL4_abs}, "
-                    f"std_deltas_shear_abs: {std_deltas_shear_abs}\n"
+        run_dir = os.path.dirname(self.model_path)
+        log_path = os.path.join(run_dir, "grokking.log")
+        with open(log_path, "a") as f:
+            f.write(
+                f"iteration: {iteration}, "
+                f"loss_median: {loss[1]}, "
+                f"loss_mean: {loss[0]}, "
+                f"loss_SO2_median: {loss_SO2[1]}, "
+                f"loss_SO3_median: {loss_SO3[1]}, "
+                f"loss_boosted_median: {loss_boosted[1]}, "
+                f"loss_SL4_median: {loss_SL4[1]}, "
+                f"loss_shear_median: {loss_shear[1]}, "
+                f"loss_SO2_mean: {loss_SO2[0]}, "
+                f"loss_SO3_mean: {loss_SO3[0]}, "
+                f"loss_boosted_mean: {loss_boosted[0]}, "
+                f"loss_SL4_mean: {loss_SL4[0]}, "
+                f"loss_shear_mean: {loss_shear[0]}, "
+                f"loss_shear_median: {loss_shear[1]}, "
+                f"mu_deltas_SO2_abs: {mu_deltas_SO2_abs}, "
+                f"mu_deltas_SO3_abs: {mu_deltas_SO3_abs}, "
+                f"mu_deltas_SL4_abs: {mu_deltas_SL4_abs}, "
+                f"mu_deltas_boost_abs: {mu_deltas_boost_abs}, "
+                f"mu_deltas_shear_abs: {mu_deltas_shear_abs}, "
+                f"median_deltas_SO2_abs: {median_deltas_SO2_abs}, "
+                f"median_deltas_SO3_abs: {median_deltas_SO3_abs}, "
+                f"median_deltas_boost_abs: {median_deltas_boost_abs}, "
+                f"median_deltas_SL4_abs: {median_deltas_SL4_abs}, "
+                f"median_deltas_shear_abs: {median_deltas_shear_abs}, "
+                f"std_deltas_SO2_abs: {std_deltas_SO2_abs}, "
+                f"std_deltas_SO3_abs: {std_deltas_SO3_abs}, "
+                f"std_deltas_boost_abs: {std_deltas_boost_abs}, "
+                f"std_deltas_SL4_abs: {std_deltas_SL4_abs}, "
+                f"std_deltas_shear_abs: {std_deltas_shear_abs}\n"
+            )
+
+        delta_pred_lines = [
+            Line(
+                y=y_deltas_SO2,
+                y_err=y_deltas_SO2_err,
+                label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
+                color=COLOR_SO2,
+            ),
+            Line(
+                y=y_deltas_SO3,
+                y_err=y_deltas_SO3_err,
+                label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
+                color=COLOR_SO3,
+            ),
+            Line(
+                y=y_deltas_boost,
+                y_err=y_deltas_boost_err,
+                label=rf"{self.name}$(x_{{\text{{boost}}}})$",
+                color=COLOR_BOOST,
+            ),
+            Line(
+                y=y_deltas_SL4,
+                y_err=y_deltas_SL4_err,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+            ),
+            Line(
+                y=y_deltas_shear,
+                y_err=y_deltas_shear_err,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+            ),
+        ]
+        delta_pred_abs_lines = [
+            Line(
+                y=y_deltas_SO2_abs,
+                y_err=y_deltas_SO2_abs_err,
+                label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
+                color=COLOR_SO2,
+            ),
+            Line(
+                y=y_deltas_SO3_abs,
+                y_err=y_deltas_SO3_abs_err,
+                label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
+                color=COLOR_SO3,
+            ),
+            Line(
+                y=y_deltas_boost_abs,
+                y_err=y_deltas_boost_abs_err,
+                label=rf"{self.name}$(x_{{\text{{boost}}}})$",
+                color=COLOR_BOOST,
+            ),
+            Line(
+                y=y_deltas_SL4_abs,
+                y_err=y_deltas_SL4_abs_err,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+            ),
+            Line(
+                y=y_deltas_shear_abs,
+                y_err=y_deltas_shear_abs_err,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+            ),
+        ]
+        
+        # Now I want to check the difference between the |delta| between 1 of the 2 Lorentz transformations and all of the other transformations
+
+        ABSDELTA_SL4_BOOST = np.abs((deltas_SL4 - deltas_boost) / deltas_boost)
+        y_absdelta_SL4_boost, y_absdelta_SL4_boost_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_BOOST, bayesian=False)
+
+        ABSDELTA_shear_BOOST = np.abs((deltas_shear - deltas_boost) / deltas_boost)
+        y_absdelta_shear_boost, y_absdelta_shear_boost_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_BOOST, bayesian=False)
+
+        ABSDELTA_SL4_SO3 = np.abs((deltas_SL4 - deltas_SO3) / deltas_SO3)
+        y_absdelta_SL4_SO3, y_absdelta_SL4_SO3_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_SO3, bayesian=False)
+
+        ABSDELTA_shear_SO3 = np.abs((deltas_shear - deltas_SO3) / deltas_SO3)
+        y_absdelta_shear_SO3, y_absdelta_shear_SO3_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_SO3, bayesian=False)
+
+        ABSDELTA_SL4_SO2 = np.abs((deltas_SL4 - deltas_SO2) / deltas_SO2)
+        y_absdelta_SL4_SO2, y_absdelta_SL4_SO2_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_SO2, bayesian=False)
+
+        ABSDELTA_shear_SO2 = np.abs((deltas_shear - deltas_SO2) / deltas_SO2)
+        y_absdelta_shear_SO2, y_absdelta_shear_SO2_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_SO2, bayesian=False)
+
+
+        
+        DELTAS_LORENTZ_lines = [
+            Line(
+                y=y_absdelta_SL4_SO2,
+                y_err=y_absdelta_SL4_SO2_err,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+                linestyle="dotted",
+            ),
+            Line(
+                y=y_absdelta_SL4_SO3,
+                y_err=y_absdelta_SL4_SO3_err,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+                linestyle="dashed",
+            ),
+            Line(
+                y=y_absdelta_SL4_boost,
+                y_err=y_absdelta_SL4_boost_err,
+                label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
+                color=COLOR_SL4,
+                linestyle="solid",
+            ),
+            Line(
+                y=y_absdelta_shear_SO2,
+                y_err=y_absdelta_shear_SO2_err,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+                linestyle="dotted",
+            ),
+            Line(
+                y=y_absdelta_shear_SO3,
+                y_err=y_absdelta_shear_SO3_err,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+                linestyle="dashed",
+            ),
+            Line(
+                y=y_absdelta_shear_boost,
+                y_err=y_absdelta_shear_boost_err,
+                label=rf"{self.name}$(x_{{\text{{shear}}}})$",
+                color=COLOR_SHEAR,
+                linestyle="solid",
+            ),
+        ]
+        
+        if random_uniform_number_between_0_and_1 < 0.25: # decreasing a bit the number of plots
+            self.logger.info(
+                f"Plotting predictions vs targets at iteration {iteration} with {len(preds)} predictions"
+            )
+            with PdfPages(
+                os.path.join(self.model_path, f"preds_vs_targets_{iteration}.pdf")
+            ) as pp:
+                hist_weights_plot(
+                    pp,
+                    DELTAS_LORENTZ_lines,
+                    abs_delta_bins,
+                    show_ratios=False,
+                    title=f"It. {iteration}",
+                    xlabel=rf"$\left | \left ( |\Delta^{{g}}_{{\tilde{{{regress_name}}}}}|  - |\Delta^{{\text{{SO}}^{{+}}(1,3)}}_{{\tilde{{{regress_name}}}}}| \right )  / |\Delta^{{\text{{SO}}^{{+}}(1,3)}}_{{\tilde{{{regress_name}}}}}| \right |$",
+                    xscale="log",
+                    no_scale=True,
+                    metrics=None,
+                    model_name=self.name,
                 )
-
-            delta_pred_lines = [
-                Line(
-                    y=y_deltas_SO2,
-                    y_err=y_deltas_SO2_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
-                    color=COLOR_SO2,
-                ),
-                Line(
-                    y=y_deltas_SO3,
-                    y_err=y_deltas_SO3_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
-                    color=COLOR_SO3,
-                ),
-                Line(
-                    y=y_deltas_boost,
-                    y_err=y_deltas_boost_err,
-                    label=rf"{self.name}$(x_{{\text{{boost}}}})$",
-                    color=COLOR_BOOST,
-                ),
-                Line(
-                    y=y_deltas_SL4,
-                    y_err=y_deltas_SL4_err,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                ),
-                Line(
-                    y=y_deltas_shear,
-                    y_err=y_deltas_shear_err,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                ),
-            ]
-            delta_pred_abs_lines = [
-                Line(
-                    y=y_deltas_SO2_abs,
-                    y_err=y_deltas_SO2_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
-                    color=COLOR_SO2,
-                ),
-                Line(
-                    y=y_deltas_SO3_abs,
-                    y_err=y_deltas_SO3_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
-                    color=COLOR_SO3,
-                ),
-                Line(
-                    y=y_deltas_boost_abs,
-                    y_err=y_deltas_boost_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{boost}}}})$",
-                    color=COLOR_BOOST,
-                ),
-                Line(
-                    y=y_deltas_SL4_abs,
-                    y_err=y_deltas_SL4_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                ),
-                Line(
-                    y=y_deltas_shear_abs,
-                    y_err=y_deltas_shear_abs_err,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                ),
-            ]
-            
-            # Now I want to check the difference between the |delta| between 1 of the 2 Lorentz transformations and all of the other transformations
-
-            ABSDELTA_SL4_BOOST = np.abs((deltas_SL4 - deltas_boost) / deltas_boost)
-            y_absdelta_SL4_boost, y_absdelta_SL4_boost_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_BOOST, bayesian=False)
-
-            ABSDELTA_shear_BOOST = np.abs((deltas_shear - deltas_boost) / deltas_boost)
-            y_absdelta_shear_boost, y_absdelta_shear_boost_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_BOOST, bayesian=False)
-
-            ABSDELTA_SL4_SO3 = np.abs((deltas_SL4 - deltas_SO3) / deltas_SO3)
-            y_absdelta_SL4_SO3, y_absdelta_SL4_SO3_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_SO3, bayesian=False)
-
-            ABSDELTA_shear_SO3 = np.abs((deltas_shear - deltas_SO3) / deltas_SO3)
-            y_absdelta_shear_SO3, y_absdelta_shear_SO3_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_SO3, bayesian=False)
-
-            ABSDELTA_SL4_SO2 = np.abs((deltas_SL4 - deltas_SO2) / deltas_SO2)
-            y_absdelta_SL4_SO2, y_absdelta_SL4_SO2_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_SO2, bayesian=False)
-
-            ABSDELTA_shear_SO2 = np.abs((deltas_shear - deltas_SO2) / deltas_SO2)
-            y_absdelta_shear_SO2, y_absdelta_shear_SO2_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_SO2, bayesian=False)
-
-
-            
-            DELTAS_LORENTZ_lines = [
-                Line(
-                    y=y_absdelta_SL4_SO2,
-                    y_err=y_absdelta_SL4_SO2_err,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                    linestyle="dotted",
-                ),
-                Line(
-                    y=y_absdelta_SL4_SO3,
-                    y_err=y_absdelta_SL4_SO3_err,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                    linestyle="dashed",
-                ),
-                Line(
-                    y=y_absdelta_SL4_boost,
-                    y_err=y_absdelta_SL4_boost_err,
-                    label=rf"{self.name}$(x_{{\text{{SL(4)}}}})$",
-                    color=COLOR_SL4,
-                    linestyle="solid",
-                ),
-                Line(
-                    y=y_absdelta_shear_SO2,
-                    y_err=y_absdelta_shear_SO2_err,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                    linestyle="dotted",
-                ),
-                Line(
-                    y=y_absdelta_shear_SO3,
-                    y_err=y_absdelta_shear_SO3_err,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                    linestyle="dashed",
-                ),
-                Line(
-                    y=y_absdelta_shear_boost,
-                    y_err=y_absdelta_shear_boost_err,
-                    label=rf"{self.name}$(x_{{\text{{shear}}}})$",
-                    color=COLOR_SHEAR,
-                    linestyle="solid",
-                ),
-            ]
-            hist_weights_plot(
-                pp,
-                DELTAS_LORENTZ_lines,
-                abs_delta_bins,
-                show_ratios=False,
-                title=f"It. {iteration}",
-                xlabel=rf"$\left | \left ( |\Delta^{{g}}_{{\tilde{{{regress_name}}}}}|  - |\Delta^{{\text{{SO}}^{{+}}(1,3)}}_{{\tilde{{{regress_name}}}}}| \right )  / |\Delta^{{\text{{SO}}^{{+}}(1,3)}}_{{\tilde{{{regress_name}}}}}| \right |$",
-                xscale="log",
-                no_scale=True,
-                metrics=None,
-                model_name=self.name,
-            )
-
-            hist_weights_plot(
-                pp,
-                delta_pred_lines,
-                delta_bins,
-                show_ratios=False,
-                title=f"It. {iteration}",
-                xlabel=rf"$\Delta^{{g}}_{{\tilde{{{regress_name}}}}} = \frac{{\tilde{{{regress_name}}}^{{\text{{pred}}}}(x_{{g}}) - \tilde{{{regress_name}}}^{{\text{{pred}}}}(x)}}{{\tilde{{{regress_name}}}^{{\text{{pred}}}}(x)}}$",
-                xscale="linear",
-                no_scale=True,
-                metrics=None,
-                # {
-                #     "mean": DataMetric(
-                #     name="mean",
-                #     value=np.mean(deltas_boost),
-                #     unit="",
-                #     format="{:.6f}",
-                #     tex_label=r"\mu_{\text{boost}}",
-                #     ),
-                #     "std": DataMetric(
-                #         name="std",
-                #         value=np.std(deltas_boost),
-                #         unit="",
-                #         format="{:.6f}",
-                #         tex_label=r"\sigma_{\text{boost}}",
-                #     ),
-                # },
-                model_name=self.name,
-            )
-            hist_weights_plot(
-                pp,
-                delta_pred_abs_lines,
-                abs_delta_bins,
-                show_ratios=False,
-                title=f"It. {iteration}",
-                xlabel=rf"$|\Delta^{{g}}_{{\tilde{{{regress_name}}}}}|$",
-                xscale="log",
-                no_scale=True,
-                metrics=None,
-                # {
-                #     "mean": DataMetric(
-                #     name="mean",
-                #     value=np.mean(np.abs(deltas_boost)),
-                #     unit="",
-                #     format="{:.2e}",
-                #     tex_label=r"\mu_{\text{boost}}",
-                #     ),
-                #     "std": DataMetric(
-                #         name="std",
-                #         value=np.std(np.abs(deltas_boost)),
-                #         unit="",
-                #         format="{:.2e}",
-                #         tex_label=r"\sigma_{\text{boost}}",
-                #     ),
-                # },
-                model_name=self.name,
-                legend_kwargs={
-                    "loc": "center left",
-                }
-            )
-
-
-
-            
-            hist_weights_plot(
-                pp,
-                target_lines,
-                bins,
-                show_ratios=True,
-                title=f"It. {iteration}",
-                xlabel=rf"$\tilde{{{regress_name}}}(x)$",
-                xscale="linear",
-                no_scale=True,
-                metrics=None,
-                model_name=self.name,
-            )
-            hist_weights_plot(
-                pp,
-                delta_true_lines,
-                delta_bins,
-                show_ratios=False,
-                title=f"It. {iteration}",
-                xlabel=rf"$\Delta_{{\tilde{{{regress_name}}}}} = \frac{{\tilde{{{regress_name}}}^{{\text{{pred}}}} - \tilde{{{regress_name}}}^{{\text{{true}}}}}}{{\tilde{{{regress_name}}}^{{\text{{true}}}}}}$",
-                xscale="linear",
-                no_scale=True,
-                metrics=None,
-                model_name=self.name,
-            )
-            hist_weights_plot(
-                pp,
-                delta_true_abs_lines,
-                abs_delta_bins,
-                show_ratios=False,
-                title=f"It. {iteration}",
-                xlabel=rf"$|\Delta_{{\tilde{{{regress_name}}}}}| = \left |\frac{{\tilde{{{regress_name}}}^{{\text{{pred}}}} - \tilde{{{regress_name}}}^{{\text{{true}}}}}}{{\tilde{{{regress_name}}}^{{\text{{true}}}}}}\right |$",
-                xscale="log",
-                no_scale=True,
-                metrics=None,
-                model_name=self.name,
-            )
+                hist_weights_plot(
+                    pp,
+                    delta_pred_lines,
+                    delta_bins,
+                    show_ratios=False,
+                    title=f"It. {iteration}",
+                    xlabel=rf"$\Delta^{{g}}_{{\tilde{{{regress_name}}}}} = \frac{{\tilde{{{regress_name}}}^{{\text{{pred}}}}(x_{{g}}) - \tilde{{{regress_name}}}^{{\text{{pred}}}}(x)}}{{\tilde{{{regress_name}}}^{{\text{{pred}}}}(x)}}$",
+                    xscale="linear",
+                    no_scale=True,
+                    metrics=None,
+                    # {
+                    #     "mean": DataMetric(
+                    #     name="mean",
+                    #     value=np.mean(deltas_boost),
+                    #     unit="",
+                    #     format="{:.6f}",
+                    #     tex_label=r"\mu_{\text{boost}}",
+                    #     ),
+                    #     "std": DataMetric(
+                    #         name="std",
+                    #         value=np.std(deltas_boost),
+                    #         unit="",
+                    #         format="{:.6f}",
+                    #         tex_label=r"\sigma_{\text{boost}}",
+                    #     ),
+                    # },
+                    model_name=self.name,
+                )
+                hist_weights_plot(
+                    pp,
+                    delta_pred_abs_lines,
+                    abs_delta_bins,
+                    show_ratios=False,
+                    title=f"It. {iteration}",
+                    xlabel=rf"$|\Delta^{{g}}_{{\tilde{{{regress_name}}}}}|$",
+                    xscale="log",
+                    no_scale=True,
+                    metrics=None,
+                    # {
+                    #     "mean": DataMetric(
+                    #     name="mean",
+                    #     value=np.mean(np.abs(deltas_boost)),
+                    #     unit="",
+                    #     format="{:.2e}",
+                    #     tex_label=r"\mu_{\text{boost}}",
+                    #     ),
+                    #     "std": DataMetric(
+                    #         name="std",
+                    #         value=np.std(np.abs(deltas_boost)),
+                    #         unit="",
+                    #         format="{:.2e}",
+                    #         tex_label=r"\sigma_{\text{boost}}",
+                    #     ),
+                    # },
+                    model_name=self.name,
+                    legend_kwargs={
+                        "loc": "center left",
+                    }
+                )
+                
+                hist_weights_plot(
+                    pp,
+                    target_lines,
+                    bins,
+                    show_ratios=True,
+                    title=f"It. {iteration}",
+                    xlabel=rf"$\tilde{{{regress_name}}}(x)$",
+                    xscale="linear",
+                    no_scale=True,
+                    metrics=None,
+                    model_name=self.name,
+                )
+                hist_weights_plot(
+                    pp,
+                    delta_true_lines,
+                    delta_bins,
+                    show_ratios=False,
+                    title=f"It. {iteration}",
+                    xlabel=rf"$\Delta_{{\tilde{{{regress_name}}}}} = \frac{{\tilde{{{regress_name}}}^{{\text{{pred}}}} - \tilde{{{regress_name}}}^{{\text{{true}}}}}}{{\tilde{{{regress_name}}}^{{\text{{true}}}}}}$",
+                    xscale="linear",
+                    no_scale=True,
+                    metrics=None,
+                    model_name=self.name,
+                )
+                hist_weights_plot(
+                    pp,
+                    delta_true_abs_lines,
+                    abs_delta_bins,
+                    show_ratios=False,
+                    title=f"It. {iteration}",
+                    xlabel=rf"$|\Delta_{{\tilde{{{regress_name}}}}}| = \left |\frac{{\tilde{{{regress_name}}}^{{\text{{pred}}}} - \tilde{{{regress_name}}}^{{\text{{true}}}}}}{{\tilde{{{regress_name}}}^{{\text{{true}}}}}}\right |$",
+                    xscale="log",
+                    no_scale=True,
+                    metrics=None,
+                    model_name=self.name,
+                )
