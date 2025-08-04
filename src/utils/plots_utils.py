@@ -104,6 +104,7 @@ class Line:
     fill: bool = False
     vline: bool = False
     alpha: float = 1.0
+    linewidth: float = 1.0
 
 
 def compute_and_log_metrics(
@@ -379,11 +380,10 @@ def hist_weights_plot(
         if title is not None:
             corner_text(axs[0], title, "left", "top")
         if legend_kwargs is None:
-            axs[0].legend(loc="best", frameon=False, handlelength=1., fontsize=12)
+            axs[0].legend(loc="best", frameon=False, handlelength=1.)
         else:
             legend_kwargs.pop('handlelength', 1.)
-            legend_kwargs.pop('fontsize', 12)
-            axs[0].legend(frameon=False, handlelength=1., fontsize=12, **legend_kwargs)
+            axs[0].legend(frameon=False, handlelength=1., **legend_kwargs)
         axs[0].set_ylabel("Normalized") if not no_scale and ylabel is None else axs[0].set_ylabel("Events") if ylabel is None else axs[0].set_ylabel(ylabel)
         axs[0].set_xscale("linear" if xscale is None else xscale)
         yscale = "log" if yscale is None else yscale
@@ -488,6 +488,7 @@ def hist_plot(
                 color=line.color,
                 fill=line.fill,
                 linestyle=line.linestyle,
+                linewidth=line.linewidth,
             )
 
             if line.y_ref is not None:
@@ -511,6 +512,7 @@ def hist_plot(
                     label=None,
                     color=line.color,
                     linestyle=line.linestyle,
+                    linewidth=line.linewidth,
                 )
 
         if title is not None:
@@ -574,6 +576,7 @@ def hist_line(
     linestyle: str = "solid",
     fill: bool = False,
     alpha: float = 1.0,
+    linewidth: float = 1.0,
 ):
     """
     Plot a stepped line for a histogram, optionally with error bars.
@@ -605,7 +608,7 @@ def hist_line(
             dup_last(y),
             label=label,
             color=color,
-            linewidth=1.0,
+            linewidth=linewidth,
             where="post",
             ls=linestyle,
             alpha=alpha,
@@ -623,7 +626,7 @@ def hist_line(
             dup_last(y_high),
             color=color,
             alpha=0.5 * alpha,
-            linewidth=0.5,
+            linewidth=0.5 * linewidth,
             where="post",
         )
         ax.step(
@@ -631,7 +634,7 @@ def hist_line(
             dup_last(y_low),
             color=color,
             alpha=0.5 * alpha,
-            linewidth=0.5,
+            linewidth=0.5 * linewidth,
             where="post",
         )
         ax.fill_between(
