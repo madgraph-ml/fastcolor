@@ -363,7 +363,16 @@ class Model(nn.Module):
                 pass
         self.losses = state_dicts["losses"]
 
-    def evaluate(self, split=None, during_training=False, boost=False, SO3=False, SL4=False, shear=False, SO2=False):
+    def evaluate(
+        self,
+        split=None,
+        during_training=False,
+        boost=False,
+        SO3=False,
+        SL4=False,
+        shear=False,
+        SO2=False,
+    ):
 
         if split is None or split == "tst":
             loader = self.tstloader
@@ -393,8 +402,12 @@ class Model(nn.Module):
                     # )
                     # x[:, :-1] = phys.apply_lorentz_boost_to_tensor(x[:, :-1], boost_matrix=boost_matrix, boost_inv_matrix=boost_matrix_inv)
                     batch_size = x.shape[0]
-                    boost_matrices = phys.batch_random_lorentz_boost(batch_size, device=x.device, dtype=torch.float64)
-                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(x[:, :-1], rotation_matrices=boost_matrices)
+                    boost_matrices = phys.batch_random_lorentz_boost(
+                        batch_size, device=x.device, dtype=torch.float64
+                    )
+                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
+                        x[:, :-1], rotation_matrices=boost_matrices
+                    )
 
                 elif SO3:
                     assert during_training
@@ -402,32 +415,48 @@ class Model(nn.Module):
                     #     device=x.device, dtype=torch.float64
                     # )
                     # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], rotation_matrix)
-                    SO3_matrices = phys.batch_random_SO3_matrix(batch_size, device=x.device, dtype=torch.float64)
-                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(x[:, :-1], rotation_matrices=SO3_matrices)
+                    SO3_matrices = phys.batch_random_SO3_matrix(
+                        batch_size, device=x.device, dtype=torch.float64
+                    )
+                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
+                        x[:, :-1], rotation_matrices=SO3_matrices
+                    )
                 elif SL4:
                     assert during_training
                     # rotation_matrix = phys.random_SL4_matrix(
                     #     device=x.device, dtype=torch.float64
                     # )
                     # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], rotation_matrix)
-                    SL4_matrices = phys.batch_random_SL4_matrix(batch_size, device=x.device, dtype=torch.float64)
-                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(x[:, :-1], rotation_matrices=SL4_matrices)
+                    SL4_matrices = phys.batch_random_SL4_matrix(
+                        batch_size, device=x.device, dtype=torch.float64
+                    )
+                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
+                        x[:, :-1], rotation_matrices=SL4_matrices
+                    )
                 elif shear:
                     assert during_training
                     # shear_matrix = phys.random_shear_matrix(
                     #     device=x.device, dtype=torch.float64
                     # )
                     # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], shear_matrix)
-                    shear_matrices = phys.batch_random_shear_matrix(batch_size, device=x.device, dtype=torch.float64)
-                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(x[:, :-1], rotation_matrices=shear_matrices)
+                    shear_matrices = phys.batch_random_shear_matrix(
+                        batch_size, device=x.device, dtype=torch.float64
+                    )
+                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
+                        x[:, :-1], rotation_matrices=shear_matrices
+                    )
                 elif SO2:
                     assert during_training
                     # rotation_matrix = phys.random_SO2_matrix(
                     #     device=x.device, dtype=torch.float64
                     # )
                     # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], rotation_matrix)
-                    rotation_matrices = phys.batch_random_SO2_matrix(batch_size, device=x.device, dtype=torch.float64)
-                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(x[:, :-1], rotation_matrices=rotation_matrices)
+                    rotation_matrices = phys.batch_random_SO2_matrix(
+                        batch_size, device=x.device, dtype=torch.float64
+                    )
+                    x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
+                        x[:, :-1], rotation_matrices=rotation_matrices
+                    )
                 pred = self.predict(x[:, :-1])
                 if during_training:
                     targets.append(target.squeeze().detach().cpu())
@@ -575,30 +604,29 @@ class Model(nn.Module):
         loss = het_loss + 0.5 * torch.log(torch.tensor(2.0) * torch.pi)
         return loss
 
-
-
-
-
-
-
-
-
-
-
-
     def plot_predictions_vs_targets_at_train(self, iteration):
         COLOR_BOOST = "firebrick"
-        COLOR_SO2 = "#1E90FF"  
+        COLOR_SO2 = "#1E90FF"
         COLOR_SO3 = "hotpink"
         COLOR_SL4 = "#9370DB"
         COLOR_SHEAR = "darkorange"
         preds, targets, loss = self.evaluate(split="val", during_training=True)
-        preds_SO2, _, loss_SO2 = self.evaluate(split="val", during_training=True, SO2=True)
-        preds_SO3, _, loss_SO3 = self.evaluate(split="val", during_training=True, SO3=True)
-        preds_boosted, _, loss_boosted = self.evaluate(split="val", during_training=True, boost=True)
-        preds_SL4, _, loss_SL4 = self.evaluate(split="val", during_training=True, SL4=True)
-        preds_shear, _, loss_shear = self.evaluate(split="val", during_training=True, shear=True)
-        
+        preds_SO2, _, loss_SO2 = self.evaluate(
+            split="val", during_training=True, SO2=True
+        )
+        preds_SO3, _, loss_SO3 = self.evaluate(
+            split="val", during_training=True, SO3=True
+        )
+        preds_boosted, _, loss_boosted = self.evaluate(
+            split="val", during_training=True, boost=True
+        )
+        preds_SL4, _, loss_SL4 = self.evaluate(
+            split="val", during_training=True, SL4=True
+        )
+        preds_shear, _, loss_shear = self.evaluate(
+            split="val", during_training=True, shear=True
+        )
+
         preds = preds.cpu().numpy()
         targets = targets.cpu().numpy()
         preds_SO2 = preds_SO2.cpu().numpy()
@@ -606,10 +634,11 @@ class Model(nn.Module):
         preds_boosted = preds_boosted.cpu().numpy()
         preds_SL4 = preds_SL4.cpu().numpy()
         preds_shear = preds_shear.cpu().numpy()
-        
 
         random_uniform_number_between_0_and_1 = np.random.uniform(0, 1)
-        if random_uniform_number_between_0_and_1 < 0.25: # decreasing a bit the frequency of saving and plots
+        if (
+            random_uniform_number_between_0_and_1 < 0.25
+        ):  # decreasing a bit the frequency of saving and plots
             tosave = {
                 "preds": preds,
                 "preds_boosted": preds_boosted,
@@ -624,11 +653,11 @@ class Model(nn.Module):
             )
 
         regress_name = {
-                "r": "r",
-                "difference": "\Delta_{\\text{FC} - \\text{LC}}",
-                "LC": "A_{\\text{LC}}",
-                "FC": "A_{\\text{FC}}",
-            }[self.cfg.dataset.get("regress", "r")]
+            "r": "r",
+            "difference": "\Delta_{\\text{FC} - \\text{LC}}",
+            "LC": "A_{\\text{LC}}",
+            "FC": "A_{\\text{FC}}",
+        }[self.cfg.dataset.get("regress", "r")]
         bins = np.linspace(
             *np.percentile(
                 np.concatenate([preds, targets, preds_boosted]),
@@ -638,16 +667,20 @@ class Model(nn.Module):
         )
         delta_bins = np.linspace(-5, 5, 64)
         abs_delta_bins = np.logspace(-14, 6, 64)
-        
+
         # targets
         y_targets, y_targets_err = compute_hist_data(bins, targets, bayesian=False)
         y_preds, y_preds_err = compute_hist_data(bins, preds, bayesian=False)
-        y_preds_boosted, y_preds_boosted_err = compute_hist_data(bins, preds_boosted, bayesian=False)
+        y_preds_boosted, y_preds_boosted_err = compute_hist_data(
+            bins, preds_boosted, bayesian=False
+        )
         y_preds_SO3, y_preds_SO3_err = compute_hist_data(bins, preds_SO3, bayesian=False)
         y_preds_SL4, y_preds_SL4_err = compute_hist_data(bins, preds_SL4, bayesian=False)
-        y_preds_shear, y_preds_shear_err = compute_hist_data(bins, preds_shear, bayesian=False)
+        y_preds_shear, y_preds_shear_err = compute_hist_data(
+            bins, preds_shear, bayesian=False
+        )
         y_preds_SO2, y_preds_SO2_err = compute_hist_data(bins, preds_SO2, bayesian=False)
-        
+
         target_lines = [
             Line(
                 y=y_targets,
@@ -701,28 +734,52 @@ class Model(nn.Module):
 
         # (rpred - rtrue) / rtrue
         delta_preds = (preds - targets) / targets
-        y_delta_preds, y_delta_preds_err = compute_hist_data(delta_bins, delta_preds, bayesian=False)
-        y_delta_preds_abs, y_delta_preds_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds), bayesian=False)
-        
+        y_delta_preds, y_delta_preds_err = compute_hist_data(
+            delta_bins, delta_preds, bayesian=False
+        )
+        y_delta_preds_abs, y_delta_preds_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(delta_preds), bayesian=False
+        )
+
         delta_preds_boosted = (preds_boosted - targets) / targets
-        y_delta_preds_boosted, y_delta_preds_boosted_err = compute_hist_data(delta_bins, delta_preds_boosted, bayesian=False)
-        y_abs_delta_boosted_abs, y_abs_delta_boosted_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_boosted), bayesian=False)
+        y_delta_preds_boosted, y_delta_preds_boosted_err = compute_hist_data(
+            delta_bins, delta_preds_boosted, bayesian=False
+        )
+        y_abs_delta_boosted_abs, y_abs_delta_boosted_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(delta_preds_boosted), bayesian=False
+        )
 
         delta_preds_SO3 = (preds_SO3 - targets) / targets
-        y_delta_preds_SO3, y_delta_preds_SO3_err = compute_hist_data(delta_bins, delta_preds_SO3, bayesian=False)
-        y_delta_preds_SO3_abs, y_delta_preds_SO3_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SO3), bayesian=False)
+        y_delta_preds_SO3, y_delta_preds_SO3_err = compute_hist_data(
+            delta_bins, delta_preds_SO3, bayesian=False
+        )
+        y_delta_preds_SO3_abs, y_delta_preds_SO3_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(delta_preds_SO3), bayesian=False
+        )
 
         delta_preds_SL4 = (preds_SL4 - targets) / targets
-        y_delta_preds_SL4, y_delta_preds_SL4_err = compute_hist_data(delta_bins, delta_preds_SL4, bayesian=False)
-        y_delta_preds_SL4_abs, y_delta_preds_SL4_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SL4), bayesian=False)
+        y_delta_preds_SL4, y_delta_preds_SL4_err = compute_hist_data(
+            delta_bins, delta_preds_SL4, bayesian=False
+        )
+        y_delta_preds_SL4_abs, y_delta_preds_SL4_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(delta_preds_SL4), bayesian=False
+        )
 
         delta_preds_shear = (preds_shear - targets) / targets
-        y_delta_preds_shear, y_delta_preds_shear_err = compute_hist_data(delta_bins, delta_preds_shear, bayesian=False)
-        y_delta_preds_shear_abs, y_delta_preds_shear_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_shear), bayesian=False)
+        y_delta_preds_shear, y_delta_preds_shear_err = compute_hist_data(
+            delta_bins, delta_preds_shear, bayesian=False
+        )
+        y_delta_preds_shear_abs, y_delta_preds_shear_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(delta_preds_shear), bayesian=False
+        )
 
         delta_preds_SO2 = (preds_SO2 - targets) / targets
-        y_delta_preds_SO2, y_delta_preds_SO2_err = compute_hist_data(delta_bins, delta_preds_SO2, bayesian=False)
-        y_delta_preds_SO2_abs, y_delta_preds_SO2_abs_err = compute_hist_data(abs_delta_bins, np.abs(delta_preds_SO2), bayesian=False)   
+        y_delta_preds_SO2, y_delta_preds_SO2_err = compute_hist_data(
+            delta_bins, delta_preds_SO2, bayesian=False
+        )
+        y_delta_preds_SO2_abs, y_delta_preds_SO2_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(delta_preds_SO2), bayesian=False
+        )
 
         delta_true_lines = [
             Line(
@@ -741,7 +798,7 @@ class Model(nn.Module):
                 y=y_delta_preds_SO3,
                 y_err=y_delta_preds_SO3_err,
                 label=rf"{self.name}$(x_{{\text{{SO(3)}}}})$",
-                color=COLOR_SO3
+                color=COLOR_SO3,
             ),
             Line(
                 y=y_delta_preds_boosted,
@@ -801,32 +858,51 @@ class Model(nn.Module):
             ),
         ]
 
-
         # (rpred(~x) - rpred(x)) / rpred(x)
         # # boosted
         deltas_boost = (preds_boosted - preds) / preds
-        y_deltas_boost, y_deltas_boost_err = compute_hist_data(delta_bins, deltas_boost, bayesian=False)
-        y_deltas_boost_abs, y_deltas_boost_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_boost), bayesian=False)
+        y_deltas_boost, y_deltas_boost_err = compute_hist_data(
+            delta_bins, deltas_boost, bayesian=False
+        )
+        y_deltas_boost_abs, y_deltas_boost_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(deltas_boost), bayesian=False
+        )
 
         # # SO3
         deltas_SO3 = (preds_SO3 - preds) / preds
-        y_deltas_SO3, y_deltas_SO3_err = compute_hist_data(delta_bins, deltas_SO3, bayesian=False)
-        y_deltas_SO3_abs, y_deltas_SO3_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SO3), bayesian=False)
-        
+        y_deltas_SO3, y_deltas_SO3_err = compute_hist_data(
+            delta_bins, deltas_SO3, bayesian=False
+        )
+        y_deltas_SO3_abs, y_deltas_SO3_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(deltas_SO3), bayesian=False
+        )
+
         # # SL4
         deltas_SL4 = (preds_SL4 - preds) / preds
-        y_deltas_SL4, y_deltas_SL4_err = compute_hist_data(delta_bins, deltas_SL4, bayesian=False)
-        y_deltas_SL4_abs, y_deltas_SL4_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SL4), bayesian=False)
+        y_deltas_SL4, y_deltas_SL4_err = compute_hist_data(
+            delta_bins, deltas_SL4, bayesian=False
+        )
+        y_deltas_SL4_abs, y_deltas_SL4_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(deltas_SL4), bayesian=False
+        )
 
-        # # shear 
+        # # shear
         deltas_shear = (preds_shear - preds) / preds
-        y_deltas_shear, y_deltas_shear_err = compute_hist_data(delta_bins, deltas_shear, bayesian=False)
-        y_deltas_shear_abs, y_deltas_shear_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_shear), bayesian=False)
+        y_deltas_shear, y_deltas_shear_err = compute_hist_data(
+            delta_bins, deltas_shear, bayesian=False
+        )
+        y_deltas_shear_abs, y_deltas_shear_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(deltas_shear), bayesian=False
+        )
 
         # # SO2
         deltas_SO2 = (preds_SO2 - preds) / preds
-        y_deltas_SO2, y_deltas_SO2_err = compute_hist_data(delta_bins, deltas_SO2, bayesian=False)
-        y_deltas_SO2_abs, y_deltas_SO2_abs_err = compute_hist_data(abs_delta_bins, np.abs(deltas_SO2), bayesian=False)
+        y_deltas_SO2, y_deltas_SO2_err = compute_hist_data(
+            delta_bins, deltas_SO2, bayesian=False
+        )
+        y_deltas_SO2_abs, y_deltas_SO2_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(deltas_SO2), bayesian=False
+        )
 
         mu_deltas_boost_abs = np.mean(np.abs(deltas_boost))
         mu_deltas_SO3_abs = np.mean(np.abs(deltas_SO3))
@@ -946,29 +1022,39 @@ class Model(nn.Module):
                 color=COLOR_SHEAR,
             ),
         ]
-        
+
         # Now I want to check the difference between the |delta| between 1 of the 2 Lorentz transformations and all of the other transformations
 
         ABSDELTA_SL4_BOOST = np.abs((deltas_SL4 - deltas_boost) / deltas_boost)
-        y_absdelta_SL4_boost, y_absdelta_SL4_boost_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_BOOST, bayesian=False)
+        y_absdelta_SL4_boost, y_absdelta_SL4_boost_err = compute_hist_data(
+            abs_delta_bins, ABSDELTA_SL4_BOOST, bayesian=False
+        )
 
         ABSDELTA_shear_BOOST = np.abs((deltas_shear - deltas_boost) / deltas_boost)
-        y_absdelta_shear_boost, y_absdelta_shear_boost_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_BOOST, bayesian=False)
+        y_absdelta_shear_boost, y_absdelta_shear_boost_err = compute_hist_data(
+            abs_delta_bins, ABSDELTA_shear_BOOST, bayesian=False
+        )
 
         ABSDELTA_SL4_SO3 = np.abs((deltas_SL4 - deltas_SO3) / deltas_SO3)
-        y_absdelta_SL4_SO3, y_absdelta_SL4_SO3_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_SO3, bayesian=False)
+        y_absdelta_SL4_SO3, y_absdelta_SL4_SO3_err = compute_hist_data(
+            abs_delta_bins, ABSDELTA_SL4_SO3, bayesian=False
+        )
 
         ABSDELTA_shear_SO3 = np.abs((deltas_shear - deltas_SO3) / deltas_SO3)
-        y_absdelta_shear_SO3, y_absdelta_shear_SO3_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_SO3, bayesian=False)
+        y_absdelta_shear_SO3, y_absdelta_shear_SO3_err = compute_hist_data(
+            abs_delta_bins, ABSDELTA_shear_SO3, bayesian=False
+        )
 
         ABSDELTA_SL4_SO2 = np.abs((deltas_SL4 - deltas_SO2) / deltas_SO2)
-        y_absdelta_SL4_SO2, y_absdelta_SL4_SO2_err = compute_hist_data(abs_delta_bins, ABSDELTA_SL4_SO2, bayesian=False)
+        y_absdelta_SL4_SO2, y_absdelta_SL4_SO2_err = compute_hist_data(
+            abs_delta_bins, ABSDELTA_SL4_SO2, bayesian=False
+        )
 
         ABSDELTA_shear_SO2 = np.abs((deltas_shear - deltas_SO2) / deltas_SO2)
-        y_absdelta_shear_SO2, y_absdelta_shear_SO2_err = compute_hist_data(abs_delta_bins, ABSDELTA_shear_SO2, bayesian=False)
+        y_absdelta_shear_SO2, y_absdelta_shear_SO2_err = compute_hist_data(
+            abs_delta_bins, ABSDELTA_shear_SO2, bayesian=False
+        )
 
-
-        
         DELTAS_LORENTZ_lines = [
             Line(
                 y=y_absdelta_SL4_SO2,
@@ -1013,8 +1099,10 @@ class Model(nn.Module):
                 linestyle="solid",
             ),
         ]
-        
-        if random_uniform_number_between_0_and_1 < 0.25: # decreasing a bit the number of plots
+
+        if (
+            random_uniform_number_between_0_and_1 < 0.25
+        ):  # decreasing a bit the number of plots
             self.logger.info(
                 f"Plotting predictions vs targets at iteration {iteration} with {len(preds)} predictions"
             )
@@ -1090,9 +1178,9 @@ class Model(nn.Module):
                     model_name=self.name,
                     legend_kwargs={
                         "loc": "center left",
-                    }
+                    },
                 )
-                
+
                 hist_weights_plot(
                     pp,
                     target_lines,
