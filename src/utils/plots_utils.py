@@ -296,6 +296,17 @@ def hist_weights_plot(
                     color=line.color,
                     linestyle=line.linestyle,
                 )
+                if line.y_err is not None:
+                    # plot a filling between -y_err and +y_err
+                    axs[0].axvspan(
+                        line.y - line.y_err,
+                        line.y + line.y_err,
+                        color=line.color,
+                        alpha=0.05,
+                        label=None,
+                        linestyle='solid',
+                        linewidth=0.5*line.linewidth,
+                    )
                 continue
             integral = np.sum((bins[1:] - bins[:-1]) * line.y)
             scale = 1 / integral if integral != 0.0 else 1.0
