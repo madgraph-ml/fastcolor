@@ -366,6 +366,62 @@ class Model(nn.Module):
     def evaluate(
         self,
         split=None,
+    ):
+        if split is None or split == "tst":
+            loader = self.tstloader
+            self.logger.info("Evaluating model on tst set")
+        elif split == "val":
+            loader = self.inf_valloader
+            self.logger.info("Evaluating model on val set")
+        else:
+            loader = self.inf_trnloader
+            self.logger.info("Evaluating model on trn set")
+        predictions = []
+        self.net.eval()
+        losses = []
+        with torch.no_grad():
+            t0 = time.time()
+            for i, batch in enumerate(loader):
+                self.logger.info(f"    Sampling batch {i+1}/{len(loader)}")
+                x, weight = batch
+                target = x[:, -1].unsqueeze(-1)
+                batch_size = x.shape[0]
+                pred = self(x[:, :-1])
+                losses.append(
+                    self.batch_loss(
+                        pred,
+                        target,
+                        weight,
+                    )[0]
+                    .detach()
+                    .cpu()
+                )
+                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get(
+                    "loss", "MSE"
+                ) != "heteroschedastic" else predictions.append(
+                    pred[..., 0].squeeze().detach().cpu()
+                )
+                t1 = time.time()
+                # if i == 0:
+                #     self.logger.info(
+                #         f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((t1-t0) * len(loader), 1)))}"
+                #     )
+                # log_every_percent = 0.25
+                # if (
+                #     i % max(1, int(len(loader) * log_every_percent)) == 0
+                #     and not during_training
+                # ):
+                #     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
+        self.logger.info(f"    Finished sampling in {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Saving predictions")
+        predictions = torch.cat(predictions)
+        dataset_loss = torch.cat(losses).mean().item()
+        # self.logger.info(f"Loss on {split} (ppd) set: {dataset_loss:.3e}")
+        self.dataset_loss["ppd"][split] = dataset_loss
+        return predictions
+
+    def evaluate_in_training(
+        self,
+        split=None,
         during_training=False,
         boost=False,
         SO3=False,
@@ -485,8 +541,8 @@ class Model(nn.Module):
                     and not during_training
                 ):
                     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
-            if not during_training:
-                self.logger.info(f"    Finished sampling. Saving predictions")
+        if not during_training:
+            self.logger.info(f"    Finished sampling. Saving predictions")
         predictions = torch.cat(predictions)
         if targets is not None:
             targets = torch.cat(targets)
@@ -610,20 +666,20 @@ class Model(nn.Module):
         COLOR_SO3 = "hotpink"
         COLOR_SL4 = "#9370DB"
         COLOR_SHEAR = "darkorange"
-        preds, targets, loss = self.evaluate(split="val", during_training=True)
-        preds_SO2, _, loss_SO2 = self.evaluate(
+        preds, targets, loss = self.evaluate_in_training(split="val", during_training=True)
+        preds_SO2, _, loss_SO2 = self.evaluate_in_training(
             split="val", during_training=True, SO2=True
         )
-        preds_SO3, _, loss_SO3 = self.evaluate(
+        preds_SO3, _, loss_SO3 = self.evaluate_in_training(
             split="val", during_training=True, SO3=True
         )
-        preds_boosted, _, loss_boosted = self.evaluate(
+        preds_boosted, _, loss_boosted = self.evaluate_in_training(
             split="val", during_training=True, boost=True
         )
-        preds_SL4, _, loss_SL4 = self.evaluate(
+        preds_SL4, _, loss_SL4 = self.evaluate_in_training(
             split="val", during_training=True, SL4=True
         )
-        preds_shear, _, loss_shear = self.evaluate(
+        preds_shear, _, loss_shear = self.evaluate_in_training(
             split="val", during_training=True, shear=True
         )
 
