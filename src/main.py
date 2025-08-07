@@ -13,7 +13,7 @@ from .datasets.gluons import gg_ng, gg_ddbarng
 from .datasets.dataset import compute_observables
 from collections import defaultdict
 from .models.train import Model
-from .models.models import MLP, Transformer, TransformerExtrapolator
+from .models.models import MLP, Transformer, TransformerExtrapolator, GNN
 from .models.lgatr import LGATr
 
 # from lgatr import LGATr as LGATr_legacy

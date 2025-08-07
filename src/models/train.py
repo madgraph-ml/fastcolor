@@ -302,9 +302,9 @@ class Model(nn.Module):
             iteration
             % max(
                 1,
-                iteration
-                # int(0.00001 * self.cfg.train.nits // len(self.trnloader))
-                # * self.cfg.train.get("val_freq", len(self.trnloader)),
+                # iteration
+                int(0.001 * self.cfg.train.nits // len(self.trnloader))
+                * self.cfg.train.get("val_freq", len(self.trnloader)),
             )
             == 0
         ):
@@ -382,10 +382,8 @@ class Model(nn.Module):
         with torch.no_grad():
             t0 = time.time()
             for i, batch in enumerate(loader):
-                self.logger.info(f"    Sampling batch {i+1}/{len(loader)}")
                 x, weight = batch
                 target = x[:, -1].unsqueeze(-1)
-                batch_size = x.shape[0]
                 pred = self(x[:, :-1])
                 losses.append(
                     self.batch_loss(
@@ -402,16 +400,15 @@ class Model(nn.Module):
                     pred[..., 0].squeeze().detach().cpu()
                 )
                 t1 = time.time()
-                # if i == 0:
-                #     self.logger.info(
-                #         f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((t1-t0) * len(loader), 1)))}"
-                #     )
-                # log_every_percent = 0.25
-                # if (
-                #     i % max(1, int(len(loader) * log_every_percent)) == 0
-                #     and not during_training
-                # ):
-                #     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
+                if i == 0:
+                    self.logger.info(
+                        f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((t1-t0) * len(loader), 1)))}"
+                    )
+                log_every_percent = 0.25
+                if (
+                    i % max(1, int(len(loader) * log_every_percent)) == 0
+                ):
+                    self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
         self.logger.info(f"    Finished sampling in {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Saving predictions")
         predictions = torch.cat(predictions)
         dataset_loss = torch.cat(losses).mean().item()
