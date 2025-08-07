@@ -81,6 +81,32 @@ bins_dict = {
             "gg_7g": np.logspace(-9, 4, 64),
         },
     },
+    "LC": {
+        "targets": {
+            "gg_4g": np.logspace(-11, 5, 64),
+            "gg_5g": np.logspace(-15, 3, 64),
+            "gg_6g": np.logspace(-18, 2, 64),
+            "gg_7g": np.logspace(-22, 1, 64),
+        },
+        "ratios": {
+            "gg_4g": np.logspace(-3, 3, 64),
+            "gg_5g": np.logspace(-3, 3, 64),
+            "gg_6g": np.logspace(-3, 3, 64),
+            "gg_7g": np.logspace(-3, 3, 64),
+        },
+        "deltas": {
+            "gg_4g": np.linspace(-5, 30, 64),
+            "gg_5g": np.linspace(-5, 30, 64),
+            "gg_6g": np.linspace(-5, 30, 64),
+            "gg_7g": np.linspace(-5, 30, 64),
+        },
+        "abs_deltas": {
+            "gg_4g": np.logspace(-9, 4, 64),
+            "gg_5g": np.logspace(-9, 4, 64),
+            "gg_6g": np.logspace(-9, 4, 64),
+            "gg_7g": np.logspace(-9, 4, 64),
+        },
+    },
 }
 
 
