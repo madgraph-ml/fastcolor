@@ -312,13 +312,13 @@ class Model(nn.Module):
                 f"    Epoch {iteration // len(self.trnloader)} (it. {iteration}) : tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
             )
 
-            if self.cfg.train.get("plot_preds_vs_targets", True):
-                # self.logger.info(
-                #     f"    Plotting predictions vs targets for it. {iteration}"
-                # )
-                self.plot_predictions_vs_targets_at_train(iteration=iteration)
-                if iteration > 5800 and iteration < 5900 or iteration > 10200 and iteration < 10300 or iteration > 20200 and iteration < 20300 or iteration > 30100 and iteration < 30300 or iteration > 40100 and iteration < 40300 or iteration > 49900:
-                    self.save(f"it_{iteration}")
+            # if self.cfg.train.get("plot_preds_vs_targets", True):
+            #     # self.logger.info(
+            #     #     f"    Plotting predictions vs targets for it. {iteration}"
+            #     # )
+            #     self.plot_predictions_vs_targets_at_train(iteration=iteration)
+            #     if iteration > 5800 and iteration < 5900 or iteration > 10200 and iteration < 10300 or iteration > 20200 and iteration < 20300 or iteration > 30100 and iteration < 30300 or iteration > 40100 and iteration < 40300 or iteration > 49900:
+            #         self.save(f"it_{iteration}")
                 
         if avg_val_loss < self.best_val_loss:
             self.best_val_loss = avg_val_loss
