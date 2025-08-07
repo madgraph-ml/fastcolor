@@ -1,0 +1,35 @@
+dataset:
+  parameterization:
+    naive:
+      use: true
+      channels: ${dataset.channels}
+    lorentz_products:
+      use: false
+      channels : []
+
+  preprocessing:
+    gaussianize: false
+    standardize: false
+    equivariant: true
+
+train:
+  warm_start: false
+  checkpoint: final
+
+  lr: 1e-3
+  clip_grad_norm: 10
+  optimizer: adam
+  scheduler: ReduceLROnPlateau
+  lr_factor: 0.5
+  lr_patience: 50
+  nits: 1_000_000
+  batch_size: 4096
+  batch_size_eval: 4096
+  loss: MSE
+  early_stopping:
+    use: true
+    patience: 60
+
+defaults:
+  - default
+  - _self_

@@ -1,0 +1,6 @@
+type: GNN
+edge_hidden_layers: 4
+node_hidden_layers: 8
+internal_size: 128
+dropout: 0.0
+activation: gelu
