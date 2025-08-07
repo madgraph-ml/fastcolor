@@ -4,30 +4,6 @@ from .train import Model
 
 import torch
 import torch.nn as nn
-from torch_geometric.nn import MessagePassing, global_mean_pool
-
-class EdgeLayer(MessagePassing):
-    def __init__(self, node_dim, edge_dim, hidden, activation):
-        super().__init__(aggr='add')
-        self.phi_e = nn.Sequential(
-            nn.Linear(2 * node_dim + edge_dim, hidden),
-            activation,
-            nn.Linear(hidden, hidden),
-            activation,
-        )
-        self.phi_v = nn.Sequential(
-            nn.Linear(node_dim + hidden, node_dim),
-            activation,
-        )
-
-    def forward(self, x, edge_index, edge_attr):
-        return self.propagate(edge_index, x=x, edge_attr=edge_attr)
-
-    def message(self, x_i, x_j, edge_attr):
-        return self.phi_e(torch.cat([x_i, x_j, edge_attr], dim=-1))
-
-    def update(self, aggr_out, x):
-        return self.phi_v(torch.cat([x, aggr_out], dim=-1))
 
 class GNN(Model):
     def __init__(
@@ -48,8 +24,10 @@ class GNN(Model):
         self.features_per_particle = 7 if not self.cfg.dataset.get("remove_color", False) else 6
         self.n_particles = self.dims_in // self.features_per_particle
         self.edge_dim = 1
-        self.hidden_dim = self.cfg.model.get("internal_size", 128)
-        self.depth = self.cfg.model.get("hidden_layers", 3)
+        self.node_dim = self.features_per_particle + self.n_particles  # +one-hot
+        self.hidden_dim = self.cfg.model["internal_size"]
+        self.node_depth = self.cfg.model.get("node_hidden_layers", 4)
+        self.edge_depth = self.cfg.model.get("edge_hidden_layers", 2)
         self.init_loss()
         self.init_net()
 
@@ -64,25 +42,22 @@ class GNN(Model):
             raise NotImplementedError(
                 f"Activation function {self.cfg.model.get('activation', 'relu')} not implemented"
             )
+        return activation
 
     def init_net(self):
         activation = self._get_activation()
-        node_dim = self.features_per_particle + self.n_particles  # +one-hot
-        edge_dim = self.edge_dim
-        hidden = self.hidden_dim
-        depth = self.depth
 
         class EdgeLayer(nn.Module):
             def __init__(self, node_dim, edge_dim, hidden, activation):
                 super().__init__()
-                self.phi_e = nn.Sequential(
-                    nn.Linear(2 * node_dim + edge_dim, hidden),
+                self.phi_edge = nn.Sequential(
+                    nn.Linear(2 * node_dim + edge_dim, hidden), # small MLP to process node features from the two nodes + the edge L-invariant feature
                     activation,
                     nn.Linear(hidden, hidden),
                     activation,
                 )
-                self.phi_v = nn.Sequential(
-                    nn.Linear(node_dim + hidden, node_dim),
+                self.phi_node = nn.Sequential(
+                    nn.Linear(node_dim + hidden, node_dim), # small MLP to process node features + node-neighbor features (coming from phi_edge)
                     activation,
                 )
 
@@ -93,22 +68,26 @@ class GNN(Model):
                 src, dst = edge_index  # [E], [E]
                 x_i = x[:, src, :]     # (B, E, node_dim)
                 x_j = x[:, dst, :]     # (B, E, node_dim)
-                m = self.phi_e(torch.cat([x_i, x_j, edge_attr], dim=-1))
+                m = self.phi_edge(torch.cat([x_i, x_j, edge_attr], dim=-1))
                 # Aggregate: sum over messages to each dst node
                 N = x.shape[1]
                 agg = torch.zeros(x.shape[0], N, m.shape[-1], device=x.device)
                 agg.index_add_(1, dst, m)  # sum for each node in batch
-                return self.phi_v(torch.cat([x, agg], dim=-1))
+                return self.phi_node(torch.cat([x, agg], dim=-1))
 
         self.edge_layers = nn.ModuleList([
-            EdgeLayer(node_dim, edge_dim, hidden, activation) for _ in range(depth)
+            EdgeLayer(self.node_dim, self.edge_dim, self.hidden_dim, activation) for _ in range(self.edge_depth)
         ])
 
-        out_layers = [nn.Linear(node_dim, hidden), activation]
-        for _ in range(self.cfg.model.get("hidden_layers", 2)):
-            out_layers += [nn.Linear(hidden, hidden), activation]
-        out_layers.append(nn.Linear(hidden, self.dims_out))
+        out_layers = [nn.Linear(2 * self.node_dim, self.hidden_dim), activation]
+        for _ in range(self.node_depth - 1):
+            out_layers += [nn.Linear(self.hidden_dim, self.hidden_dim), activation]
+        out_layers.append(nn.Linear(self.hidden_dim, self.dims_out))
         self.regressor = nn.Sequential(*out_layers)
+        self.net = nn.ModuleDict({
+            "edge_layers": self.edge_layers,
+            "regressor": self.regressor,
+        })
 
     def forward(self, x):
         # x: (B, N*F)
@@ -125,7 +104,7 @@ class GNN(Model):
         row, col = torch.meshgrid(idx, idx, indexing='ij')
         mask = row != col
         edge_index = torch.stack([row[mask], col[mask]], dim=0)  # (2, E)
-
+        
         # Calculate Lorentz scalar product (E, Px, Py, Pz are indices 3-6)
         p = x[:, :, 3:7]  # (B, N, 4)
         # Edge features: 2 * p_i·p_j for all i ≠ j
@@ -136,14 +115,17 @@ class GNN(Model):
 
         # Pass through GNN
         h = x
-        for layer in self.edge_layers:
+        for layer in self.net["edge_layers"]:
             h = layer(h, edge_index, edge_attr)
 
-        # Permutation-invariant pooling (mean)
-        h = h.mean(dim=1)  # (B, node_dim)
+        initials = h[:, :2, :]     # always initial-state nodes
+        finals   = h[:, 2:, :]     # always final-state nodes
 
-        # Regression head
-        out = self.regressor(h)  # (B, 1)
+        finals_embed = finals.sum(dim=1) / (self.n_particles - 2)
+        initials_embed = initials.sum(dim=1) / 2
+
+        pooled = torch.cat([initials_embed, finals_embed], dim=-1)  # final feature for regressor
+        out = self.net['regressor'](pooled)  # (B, dims_out)
         return out
 
     def predict(self, x):

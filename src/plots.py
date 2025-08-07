@@ -6,10 +6,12 @@ NEUTRAL_COLOR = "black"
 NN_COLOR_red = "#8A0707"
 NN_COLOR_green = "#06793F"
 NN_COLOR_purple = "#790679"
+NN_COLOR_orange = "darkorange"
 NN_COLORS = {
     "MLP": NN_COLOR_red,
     "Transformer": NN_COLOR_green,
     "L-GATr": NN_COLOR_purple,
+    "GNN": NN_COLOR_orange,
 }
 
 
@@ -79,7 +81,7 @@ class Plots:
             "FC": "A_{\\text{FC}}",
         }[regress]
         self.debug = debug
-        self.model_name = {'MLP': 'MLP', 'Transformer': 'Transformer', 'LGATr': 'L-GATr'}[model_name] if model_name is not None else "NN"
+        self.model_name = {'MLP': 'MLP', 'Transformer': 'Transformer', 'LGATr': 'L-GATr', 'GNN': 'GNN'}[model_name] if model_name is not None else "NN"
 
     plt.rc("font", family="serif", size=16)
     plt.rc("font", serif="Charter")
