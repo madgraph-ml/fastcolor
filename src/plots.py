@@ -64,11 +64,7 @@ class Plots:
             loss_name = {"heteroschedastic": r"\text{het}", "MSE": r"\text{MSE}"}[
                 loss_name
             ]
-            process_name = (
-                rf"{process_name}"
-                if process_name is not None
-                else loss_name
-            )
+            process_name = rf"{process_name}" if process_name is not None else loss_name
         self.losses = losses
         self.metrics = metrics if metrics is not None else {}
         self.process = process
@@ -81,7 +77,13 @@ class Plots:
             "FC": "A_{\\text{FC}}",
         }[regress]
         self.debug = debug
-        self.model_name = {'MLP': 'MLP', 'Transformer': 'Transformer', 'LGATr': 'L-GATr', 'GNN': 'GNN'}[model_name] if model_name is not None else "NN"
+        self.model_name = (
+            {"MLP": "MLP", "Transformer": "Transformer", "LGATr": "L-GATr", "GNN": "GNN"}[
+                model_name
+            ]
+            if model_name is not None
+            else "NN"
+        )
 
     plt.rc("font", family="serif", size=16)
     plt.rc("font", serif="Charter")
@@ -249,7 +251,14 @@ class Plots:
                 pickle_file=pickle_file,
                 metrics={
                     k: split_mode_metrics[k]
-                    for k in ["eff_2nd_surr", "eff_2nd_surr_pm9999", "eff_2nd_surr_pm9995", "eff_2nd_surr_pm999", "eff_2nd_surr_pm995", "eff_2nd_surr_pm99"]
+                    for k in [
+                        "eff_2nd_surr",
+                        "eff_2nd_surr_pm9999",
+                        "eff_2nd_surr_pm9995",
+                        "eff_2nd_surr_pm999",
+                        "eff_2nd_surr_pm995",
+                        "eff_2nd_surr_pm99",
+                    ]
                     if k in split_mode_metrics
                 },
                 bins=bins_ratios,

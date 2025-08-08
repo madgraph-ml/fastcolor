@@ -103,7 +103,10 @@ def main(cfg: DictConfig):
         # Load already existing run directory
         run_dir = cfg.run.path
         if not os.path.exists(run_dir):
-            run_dir = run_dir.replace("/remote/gpu02/marino/MadRecolor/madrecolor/", "/Users/jamarino/Documents/Heidelberg/Work/MadRecolor/madrecolor/")
+            run_dir = run_dir.replace(
+                "/remote/gpu02/marino/MadRecolor/madrecolor/",
+                "/Users/jamarino/Documents/Heidelberg/Work/MadRecolor/madrecolor/",
+            )
         old_dir = os.path.join(run_dir, "old")
         os.makedirs(old_dir, exist_ok=True)
         for item in os.listdir(run_dir):

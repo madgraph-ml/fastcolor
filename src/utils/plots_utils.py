@@ -256,13 +256,13 @@ def compute_and_log_metrics(
         ),
         "ratio_pm99": Metric(
             name="ratio_pm99",
-            value=np.percentile(ratio, 99.),
+            value=np.percentile(ratio, 99.0),
             unit="",
             tex_label=r"x^{\text{p.m.}}_{99.0}",
         ),
         "eff_2nd_surr_pm99": Metric(
             name="eff_2nd_surr_pm99",
-            value=np.mean(ratio) / np.percentile(ratio, 99.),
+            value=np.mean(ratio) / np.percentile(ratio, 99.0),
             unit="",
             format="{:.2f}",
             tex_label=r"\epsilon_{99.0}",
@@ -395,8 +395,8 @@ def hist_weights_plot(
                         color=line.color,
                         alpha=0.15,
                         label=None,
-                        linestyle='solid',
-                        linewidth=0.5*line.linewidth,
+                        linestyle="solid",
+                        linewidth=0.5 * line.linewidth,
                     )
                 continue
             integral = np.sum((bins[1:] - bins[:-1]) * line.y)

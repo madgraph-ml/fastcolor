@@ -319,7 +319,7 @@ class Model(nn.Module):
                 self.plot_predictions_vs_targets_at_train(iteration=iteration)
                 # if iteration > 5800 and iteration < 5900 or iteration > 10200 and iteration < 10300 or iteration > 20200 and iteration < 20300 or iteration > 30100 and iteration < 30300 or iteration > 40100 and iteration < 40300 or iteration > 49900:
                 #     self.save(f"it_{iteration}")
-                
+
         if avg_val_loss < self.best_val_loss:
             self.best_val_loss = avg_val_loss
             if iteration > 10 * len(self.trnloader):  # Avoid saving too early
@@ -405,11 +405,11 @@ class Model(nn.Module):
                         f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((t1-t0) * len(loader), 1)))}"
                     )
                 log_every_percent = 0.25
-                if (
-                    i % max(1, int(len(loader) * log_every_percent)) == 0
-                ):
+                if i % max(1, int(len(loader) * log_every_percent)) == 0:
                     self.logger.info(f"    Sampled batch {i+1}/{len(loader)}")
-        self.logger.info(f"    Finished sampling in {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Saving predictions")
+        self.logger.info(
+            f"    Finished sampling in {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Saving predictions"
+        )
         predictions = torch.cat(predictions)
         dataset_loss = torch.cat(losses).mean().item()
         # self.logger.info(f"Loss on {split} (ppd) set: {dataset_loss:.3e}")
@@ -641,7 +641,9 @@ class Model(nn.Module):
         COLOR_SO3 = "hotpink"
         COLOR_SL4 = "#9370DB"
         COLOR_SHEAR = "darkorange"
-        preds, targets, loss = self.evaluate_in_training(split="val", during_training=True)
+        preds, targets, loss = self.evaluate_in_training(
+            split="val", during_training=True
+        )
         preds_SO2, _, loss_SO2 = self.evaluate_in_training(
             split="val", during_training=True, SO2=True
         )

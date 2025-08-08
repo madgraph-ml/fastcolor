@@ -5,6 +5,7 @@ from .train import Model
 import torch
 import torch.nn as nn
 
+
 class GNN(Model):
     def __init__(
         self,
@@ -21,7 +22,9 @@ class GNN(Model):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
         self.logger = logger
         self.cfg = cfg
-        self.features_per_particle = 7 if not self.cfg.dataset.get("remove_color", False) else 6
+        self.features_per_particle = (
+            7 if not self.cfg.dataset.get("remove_color", False) else 6
+        )
         self.n_particles = self.dims_in // self.features_per_particle
         self.edge_dim = 1
         self.node_dim = self.features_per_particle + self.n_particles  # +one-hot
@@ -51,13 +54,17 @@ class GNN(Model):
             def __init__(self, node_dim, edge_dim, hidden, activation):
                 super().__init__()
                 self.phi_edge = nn.Sequential(
-                    nn.Linear(2 * node_dim + edge_dim, hidden), # small MLP to process node features from the two nodes + the edge L-invariant feature
+                    nn.Linear(
+                        2 * node_dim + edge_dim, hidden
+                    ),  # small MLP to process node features from the two nodes + the edge L-invariant feature
                     activation,
                     nn.Linear(hidden, hidden),
                     activation,
                 )
                 self.phi_node = nn.Sequential(
-                    nn.Linear(node_dim + hidden, node_dim), # small MLP to process node features + node-neighbor features (coming from phi_edge)
+                    nn.Linear(
+                        node_dim + hidden, node_dim
+                    ),  # small MLP to process node features + node-neighbor features (coming from phi_edge)
                     activation,
                 )
 
@@ -66,8 +73,8 @@ class GNN(Model):
                 # edge_index: (2, E)
                 # edge_attr: (B, E, edge_dim)
                 src, dst = edge_index  # [E], [E]
-                x_i = x[:, src, :]     # (B, E, node_dim)
-                x_j = x[:, dst, :]     # (B, E, node_dim)
+                x_i = x[:, src, :]  # (B, E, node_dim)
+                x_j = x[:, dst, :]  # (B, E, node_dim)
                 m = self.phi_edge(torch.cat([x_i, x_j, edge_attr], dim=-1))
                 # Aggregate: sum over messages to each dst node
                 N = x.shape[1]
@@ -75,19 +82,24 @@ class GNN(Model):
                 agg.index_add_(1, dst, m)  # sum for each node in batch
                 return self.phi_node(torch.cat([x, agg], dim=-1))
 
-        self.edge_layers = nn.ModuleList([
-            EdgeLayer(self.node_dim, self.edge_dim, self.hidden_dim, activation) for _ in range(self.edge_depth)
-        ])
+        self.edge_layers = nn.ModuleList(
+            [
+                EdgeLayer(self.node_dim, self.edge_dim, self.hidden_dim, activation)
+                for _ in range(self.edge_depth)
+            ]
+        )
 
         out_layers = [nn.Linear(2 * self.node_dim, self.hidden_dim), activation]
         for _ in range(self.node_depth - 1):
             out_layers += [nn.Linear(self.hidden_dim, self.hidden_dim), activation]
         out_layers.append(nn.Linear(self.hidden_dim, self.dims_out))
         self.regressor = nn.Sequential(*out_layers)
-        self.net = nn.ModuleDict({
-            "edge_layers": self.edge_layers,
-            "regressor": self.regressor,
-        })
+        self.net = nn.ModuleDict(
+            {
+                "edge_layers": self.edge_layers,
+                "regressor": self.regressor,
+            }
+        )
 
     def forward(self, x):
         # x: (B, N*F)
@@ -96,21 +108,25 @@ class GNN(Model):
         F = self.features_per_particle
         x = x.view(batch_size, N, F)
         # One-hot encoding for particle index
-        one_hot = torch.eye(N, device=x.device).unsqueeze(0).expand(batch_size, -1, -1)  # (B, N, N)
+        one_hot = (
+            torch.eye(N, device=x.device).unsqueeze(0).expand(batch_size, -1, -1)
+        )  # (B, N, N)
         x = torch.cat([x, one_hot], dim=-1)  # (B, N, F+N)
 
         # Build complete graph (no self loops)
         idx = torch.arange(N, device=x.device)
-        row, col = torch.meshgrid(idx, idx, indexing='ij')
+        row, col = torch.meshgrid(idx, idx, indexing="ij")
         mask = row != col
         edge_index = torch.stack([row[mask], col[mask]], dim=0)  # (2, E)
-        
+
         # Calculate Lorentz scalar product (E, Px, Py, Pz are indices 3-6)
         p = x[:, :, 3:7]  # (B, N, 4)
         # Edge features: 2 * p_i·p_j for all i ≠ j
         p_i = p[:, edge_index[0], :]  # (B, E, 4)
         p_j = p[:, edge_index[1], :]  # (B, E, 4)
-        s_ij = 2 * (p_i[..., 0]*p_j[..., 0] - (p_i[..., 1:] * p_j[..., 1:]).sum(-1))  # (B, E)
+        s_ij = 2 * (
+            p_i[..., 0] * p_j[..., 0] - (p_i[..., 1:] * p_j[..., 1:]).sum(-1)
+        )  # (B, E)
         edge_attr = s_ij.unsqueeze(-1)  # (B, E, 1)
 
         # Pass through GNN
@@ -118,14 +134,16 @@ class GNN(Model):
         for layer in self.net["edge_layers"]:
             h = layer(h, edge_index, edge_attr)
 
-        initials = h[:, :2, :]     # always initial-state nodes
-        finals   = h[:, 2:, :]     # always final-state nodes
+        initials = h[:, :2, :]  # always initial-state nodes
+        finals = h[:, 2:, :]  # always final-state nodes
 
-        finals_embed = finals.sum(dim=1) / (self.n_particles) # - 2
+        finals_embed = finals.sum(dim=1) / (self.n_particles)  # - 2
         initials_embed = initials.sum(dim=1) / 2
 
-        pooled = torch.cat([initials_embed, finals_embed], dim=-1)  # final feature for regressor
-        out = self.net['regressor'](pooled)  # (B, dims_out)
+        pooled = torch.cat(
+            [initials_embed, finals_embed], dim=-1
+        )  # final feature for regressor
+        out = self.net["regressor"](pooled)  # (B, dims_out)
         return out
 
     def predict(self, x):
