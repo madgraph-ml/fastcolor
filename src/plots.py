@@ -249,7 +249,7 @@ class Plots:
                 pickle_file=pickle_file,
                 metrics={
                     k: split_mode_metrics[k]
-                    for k in ["ratio_mean", "ratio_max", "eff_2nd_surr"]
+                    for k in ["eff_2nd_surr", "eff_2nd_surr_pm9999", "eff_2nd_surr_pm9995", "eff_2nd_surr_pm999", "eff_2nd_surr_pm995", "eff_2nd_surr_pm99"]
                     if k in split_mode_metrics
                 },
                 bins=bins_ratios,
