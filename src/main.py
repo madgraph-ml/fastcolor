@@ -419,6 +419,6 @@ def run(logger, run_dir, cfg: DictConfig):
         free, total = torch.cuda.mem_get_info()
         currently_used = total - free
         logger.info(
-            f"GPU RAM info: currently_used = {currently_used/1e9:.2f} GB, peak_used = {max_used/1e9:.2f} GB, total available= {total/1e9:.2f} GB"
+            f"GPU RAM info: currently_used = {currently_used/1e9:.2f} GB, peak_used = {max_used/1e9:.2f} GB, total available= {total/1e9:.2f} GB. Peak usage percentage = {max_used/total*100:.2f} %."
         )
     logger.info("Run finished")

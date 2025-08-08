@@ -302,14 +302,14 @@ class Model(nn.Module):
             iteration
             % max(
                 1,
-                # iteration
-                int(0.001 * self.cfg.train.nits // len(self.trnloader))
-                * self.cfg.train.get("val_freq", len(self.trnloader)),
+                iteration
+                # int(0.001 * self.cfg.train.nits // len(self.trnloader))
+                # * self.cfg.train.get("val_freq", len(self.trnloader)),
             )
             == 0
         ):
             self.logger.info(
-                f"    Epoch {iteration // len(self.trnloader)} (it. {iteration}) : tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
+                f"    Epoch {iteration // len(self.trnloader)} (it. {iteration}): tr_loss={avg_trn_loss:.8f}, val_loss={avg_val_loss:.8f}"
             )
 
             if self.cfg.train.get("plot_preds_vs_targets", True):
@@ -449,11 +449,6 @@ class Model(nn.Module):
                 batch_size = x.shape[0]
                 if boost:
                     assert during_training
-                    # boost_matrix, boost_matrix_inv = phys.random_lorentz_boost(
-                    #     beta=torch.tensor(0.5), # beta kept between 0 and 0.8 to avoid numerical instabilities close to 1
-                    #     device=x.device,
-                    # )
-                    # x[:, :-1] = phys.apply_lorentz_boost_to_tensor(x[:, :-1], boost_matrix=boost_matrix, boost_inv_matrix=boost_matrix_inv)
                     batch_size = x.shape[0]
                     boost_matrices = phys.batch_random_lorentz_boost(
                         batch_size, device=x.device, dtype=torch.float64
@@ -461,13 +456,8 @@ class Model(nn.Module):
                     x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
                         x[:, :-1], rotation_matrices=boost_matrices
                     )
-
                 elif SO3:
                     assert during_training
-                    # rotation_matrix = phys.random_SO3_matrix(
-                    #     device=x.device, dtype=torch.float64
-                    # )
-                    # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], rotation_matrix)
                     SO3_matrices = phys.batch_random_SO3_matrix(
                         batch_size, device=x.device, dtype=torch.float64
                     )
@@ -476,10 +466,6 @@ class Model(nn.Module):
                     )
                 elif SL4:
                     assert during_training
-                    # rotation_matrix = phys.random_SL4_matrix(
-                    #     device=x.device, dtype=torch.float64
-                    # )
-                    # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], rotation_matrix)
                     SL4_matrices = phys.batch_random_SL4_matrix(
                         batch_size, device=x.device, dtype=torch.float64
                     )
@@ -488,10 +474,6 @@ class Model(nn.Module):
                     )
                 elif shear:
                     assert during_training
-                    # shear_matrix = phys.random_shear_matrix(
-                    #     device=x.device, dtype=torch.float64
-                    # )
-                    # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], shear_matrix)
                     shear_matrices = phys.batch_random_shear_matrix(
                         batch_size, device=x.device, dtype=torch.float64
                     )
@@ -500,10 +482,6 @@ class Model(nn.Module):
                     )
                 elif SO2:
                     assert during_training
-                    # rotation_matrix = phys.random_SO2_matrix(
-                    #     device=x.device, dtype=torch.float64
-                    # )
-                    # x[:, :-1] = phys.apply_rotation_to_tensor(x[:, :-1], rotation_matrix)
                     rotation_matrices = phys.batch_random_SO2_matrix(
                         batch_size, device=x.device, dtype=torch.float64
                     )

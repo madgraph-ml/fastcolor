@@ -121,7 +121,7 @@ class GNN(Model):
         initials = h[:, :2, :]     # always initial-state nodes
         finals   = h[:, 2:, :]     # always final-state nodes
 
-        finals_embed = finals.sum(dim=1) / (self.n_particles - 2)
+        finals_embed = finals.sum(dim=1) / (self.n_particles) # - 2
         initials_embed = initials.sum(dim=1) / 2
 
         pooled = torch.cat([initials_embed, finals_embed], dim=-1)  # final feature for regressor

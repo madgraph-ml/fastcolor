@@ -65,7 +65,7 @@ class Plots:
                 loss_name
             ]
             process_name = (
-                rf"{process_name} $({loss_name})$"
+                rf"{process_name}"
                 if process_name is not None
                 else loss_name
             )
