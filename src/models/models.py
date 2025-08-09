@@ -270,6 +270,30 @@ class Transformer(Model):
         self.remove_color = cfg.dataset.get("remove_color", False)
         self.init_loss()
         self.init_net()
+        self.apply(self._weight_multiplier_init)
+        self.print_weight_stats()
+
+
+    def _weight_multiplier_init(self, m):
+        weight_multiplier = self.cfg.model.get("weight_multiplier", 1.0)
+        if isinstance(m, nn.Linear) and hasattr(m, 'weight') and isinstance(m.weight, torch.nn.Parameter):
+            with torch.no_grad():
+                self.logger.info(
+                    f"Applying weight multiplier {weight_multiplier} to layer {m.__class__.__name__}"
+                )
+                m.weight.mul_(weight_multiplier)
+
+    def print_weight_stats(self):
+        weights = []
+        for name, param in self.named_parameters():
+            if "weight" in name:
+                weights.append(param.data.flatten())
+        if weights:
+            all_weights = torch.cat(weights)
+            self.logger.info(f"Mean of weights: {all_weights.mean().item()}")
+            self.logger.info(f"Std  of weights: {all_weights.std().item()}")
+        else:
+            self.logger.info("No weights found!")
 
     def init_net(self):
         self.dim_embedding = self.cfg.model["dim_embedding"]

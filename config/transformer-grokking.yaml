@@ -1,11 +1,14 @@
 model:
   type: Transformer
-  dim_embedding: 96
+  dim_embedding: 48
   n_head: 4
   n_layers: 6
   dim_feedforward: 192
   dropout: 0.1
   activation: gelu
+  
+  weight_multiplier: 1.0
+
 mlflow:
   tracking_uri: sqlite:///mlruns/mlflow.db
   experiment_name: null
@@ -58,7 +61,7 @@ train:
   scheduler: ReduceLROnPlateau
   lr_factor: 0.1
   lr_patience: 50
-  nits: 50_000
+  nits: 50000
   batch_size: 2048
   batch_size_eval: 4096
   loss: MSE
