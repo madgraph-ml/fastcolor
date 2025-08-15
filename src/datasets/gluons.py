@@ -188,7 +188,7 @@ class gg_ng:
         }
         return events_split
 
-    def apply_preprocessing(self, reverse=False, eps=1e-15, split=None):
+    def apply_preprocessing(self, reverse=False, eps=1e-15, ppd = None):
         pp_cfg = self.cfg.preprocessing
         if not hasattr(self, "events_ppd") and reverse:
             raise ValueError(
@@ -297,10 +297,12 @@ class gg_ng:
                 f"    [Train, Test, Val] events: [{len(self.events_ppd['trn'])}, {len(self.events_ppd['tst'])}, {len(self.events_ppd['val'])}]"
             )
         else:
-            if split is None:
-                raise ValueError("Split must be specified for reverse preprocessing")
+            if ppd is None:
+                raise ValueError(
+                    "Cannot reverse preprocess without having preprocessed the data first"
+                )
             predicted_factors_raw = (
-                self.predicted_factors_ppd[split].clone().to(self.device)
+                ppd.clone().to(self.device)
             )
 
             if pp_cfg.amplitude.standardize:
@@ -324,7 +326,7 @@ class gg_ng:
             if pp_cfg.amplitude.log:
                 predicted_factors_raw = torch.exp(predicted_factors_raw) - eps
 
-            self.predicted_factors_raw[split] = predicted_factors_raw
+            return predicted_factors_raw
 
     def init_observables(self, n_bins: int = 50) -> list[Observable]:
         self.observables = []
