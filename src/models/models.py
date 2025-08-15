@@ -276,10 +276,13 @@ class Transformer(Model):
         self.apply(self._weight_multiplier_init)
         self.print_weight_stats()
 
-
     def _weight_multiplier_init(self, m):
         weight_multiplier = self.cfg.model.get("weight_multiplier", 1.0)
-        if isinstance(m, nn.Linear) and hasattr(m, 'weight') and isinstance(m.weight, torch.nn.Parameter):
+        if (
+            isinstance(m, nn.Linear)
+            and hasattr(m, "weight")
+            and isinstance(m.weight, torch.nn.Parameter)
+        ):
             with torch.no_grad():
                 self.logger.info(
                     f"Applying weight multiplier {weight_multiplier} to layer {m.__class__.__name__}"

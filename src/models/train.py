@@ -316,9 +316,10 @@ class Model(nn.Module):
                 # self.logger.info(
                 #     f"    Plotting predictions vs targets for it. {iteration}"
                 # )
-                self.plot_predictions_vs_targets_at_train(iteration=iteration)
-                if iteration > 5800 and iteration < 5900 or iteration > 10200 and iteration < 10300 or iteration > 20200 and iteration < 20300 or iteration > 30100 and iteration < 30300 or iteration > 40100 and iteration < 40300 or iteration > 49900:
-                    self.save(f"it_{iteration}")
+                # self.plot_predictions_vs_targets_at_train(iteration=iteration)
+                # if iteration > 5800 and iteration < 5900 or iteration > 10200 and iteration < 10300 or iteration > 20200 and iteration < 20300 or iteration > 30100 and iteration < 30300 or iteration > 40100 and iteration < 40300 or iteration > 49900:
+                #     self.save(f"it_{iteration}")
+                pass
 
         if avg_val_loss < self.best_val_loss:
             self.best_val_loss = avg_val_loss
@@ -381,10 +382,10 @@ class Model(nn.Module):
             # Non-MLP models use per-particle helicity indices
             # expected shape is [B, N*F] where the helicity is at HELICITY_COL
             B = truth.shape[0]
-            n_particles   = self.n_particles
+            n_particles = self.n_particles
             features_per_particle = self.features_per_particle
             feats = truth[:, :-1].view(B, n_particles, features_per_particle)
-            hel_all   = feats[..., HELICITY_COL]
+            hel_all = feats[..., HELICITY_COL]
             helicity_configs, hel_index_per_event, n_events_per_helicity = torch.unique(
                 hel_all, dim=0, sorted=True, return_inverse=True, return_counts=True
             )
@@ -396,7 +397,10 @@ class Model(nn.Module):
                 hel_idx, sorted=True, return_inverse=True, return_counts=True
             )
         # Get unique helicity configurations
-        event_groups_by_helicity = [(hel_index_per_event == i).nonzero(as_tuple=False).squeeze(1) for i in range(helicity_configs.shape[0])]
+        event_groups_by_helicity = [
+            (hel_index_per_event == i).nonzero(as_tuple=False).squeeze(1)
+            for i in range(helicity_configs.shape[0])
+        ]
         return {
             "hel_index_per_event": hel_index_per_event,
             "event_groups_by_helicity": event_groups_by_helicity,
@@ -405,7 +409,9 @@ class Model(nn.Module):
         }
 
     @torch.no_grad()
-    def evaluate_all_helicities(self, truth: torch.Tensor, split: str = "tst", HELICITY_COL: int = 2):
+    def evaluate_all_helicities(
+        self, truth: torch.Tensor, split: str = "tst", HELICITY_COL: int = 2
+    ):
         """
         Evaluate all events in truth for all helicity configurations.
         Returns a dictionary with:
@@ -437,34 +443,38 @@ class Model(nn.Module):
             # Iterate over all helicity configs
             # re-evaluate batch for all helicity configurations
             for h in range(H):
-                x_in = x[:, :-1].clone() # drop target to do reshaping easily
+                x_in = x[:, :-1].clone()  # drop target to do reshaping easily
                 if self.name != "MLP":
                     # per-particle helicity indices so we extract them as a hel_row
-                    N  = self.n_particles
-                    F  = self.features_per_particle
+                    N = self.n_particles
+                    F = self.features_per_particle
                     X = x_in.view(B, N, F)
                     hel_row = helicity_configs[h].to(self.device)
-                    X[..., HELICITY_COL] = hel_row.unsqueeze(0).expand(B, -1) # assign all possible helicities to an event
+                    X[..., HELICITY_COL] = hel_row.unsqueeze(0).expand(
+                        B, -1
+                    )  # assign all possible helicities to an event
                     x_in = X.view(B, N * F)
                 else:
                     # MLP: global helicity index is the last feature (before target)
                     x_in[:, -1] = helicity_configs[h].to(self.device)
-                preds_all[row0:row0+B, h] = self.predict(x_in).squeeze()
+                preds_all[row0 : row0 + B, h] = self.predict(x_in).squeeze()
             if i == 0:
                 self.logger.info(
                     f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((time.time()-t0) * len(loader), 1)))}"
                 )
             elif i % max(1, int(len(loader) * 0.1)) == 0:
-                self.logger.info(f"    Sampled batch {i+1}/{len(loader)} for all possible helicities")
+                self.logger.info(
+                    f"    Sampled batch {i+1}/{len(loader)} for all possible helicities"
+                )
             row0 += B
         return {
-            "preds_all": preds_all, # [B, H]
+            "preds_all": preds_all,  # [B, H]
             "helicity_configs": helicity_configs,
             "hel_index_per_event": grp["hel_index_per_event"],
             "n_events_per_helicity": grp["n_events_per_helicity"],
             "event_groups_by_helicity": grp["event_groups_by_helicity"],
         }
-    
+
     @torch.no_grad()
     def evaluate_on_cpu(
         self,
@@ -485,7 +495,7 @@ class Model(nn.Module):
         for i, batch in enumerate(loader):
             x, _ = batch
             pred = self(x[:, :-1])
-            predictions.append(pred.squeeze().detach().cpu()) #if self.cfg.train.get(
+            predictions.append(pred.squeeze().detach().cpu())  # if self.cfg.train.get(
             #     "loss", "MSE"
             # ) != "heteroschedastic" else predictions.append(
             #     pred[..., 0].squeeze().detach().cpu()
@@ -495,7 +505,7 @@ class Model(nn.Module):
         )
         predictions = torch.cat(predictions)
         return predictions, t0
-    
+
     def evaluate(
         self,
         split=None,

@@ -188,7 +188,7 @@ class gg_ng:
         }
         return events_split
 
-    def apply_preprocessing(self, reverse=False, eps=1e-15, ppd = None):
+    def apply_preprocessing(self, reverse=False, eps=1e-15, ppd=None):
         pp_cfg = self.cfg.preprocessing
         if not hasattr(self, "events_ppd") and reverse:
             raise ValueError(
@@ -301,9 +301,7 @@ class gg_ng:
                 raise ValueError(
                     "Cannot reverse preprocess without having preprocessed the data first"
                 )
-            predicted_factors_raw = (
-                ppd.clone().to(self.device)
-            )
+            predicted_factors_raw = ppd.clone().to(self.device)
 
             if pp_cfg.amplitude.standardize:
                 predicted_factors_raw = (

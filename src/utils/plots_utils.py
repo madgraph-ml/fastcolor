@@ -35,19 +35,20 @@ class Line:
     alpha: float = 1.0
     linewidth: float = 1.0
 
+
 def optimize_gain_factor_2(
-        process,
-        model_name,
-        pred,
-        truth,
-        t_LC,
-        eff_LC,
-        t_FC,
-        t_surr,
-        n_hel=None,
-        alpha_min=0.8,
-        frac_ow_max=0.01,
-        grid_elements=201
+    process,
+    model_name,
+    pred,
+    truth,
+    t_LC,
+    eff_LC,
+    t_FC,
+    t_surr,
+    n_hel=None,
+    alpha_min=0.8,
+    frac_ow_max=0.01,
+    grid_elements=201,
 ):
     """
     Optimize gain factor for a given process and model.
@@ -70,51 +71,54 @@ def optimize_gain_factor_2(
     t_surr = t_surr * n_hel if n_hel is not None else t_surr
     pcts = np.linspace(0.0, 100.0, grid_elements)
     # print(pcts)
-    pred  = np.asarray(pred,  float)
+    pred = np.asarray(pred, float)
     ratio = np.asarray(truth, float) / pred
     eff_r = np.mean(truth) / np.max(truth)
     N = pred.size
 
-    perc_pred  = {p: np.percentile(pred,  p) for p in pcts}
+    perc_pred = {p: np.percentile(pred, p) for p in pcts}
     perc_ratio = {p: np.percentile(ratio, p) for p in pcts}
 
     best_gain, best = -np.inf, None
-    num = (1/eff_r) * (t_LC*(1/eff_LC) + t_FC)
+    num = (1 / eff_r) * (t_LC * (1 / eff_LC) + t_FC)
 
     for p1 in pcts:
-        e1  = np.mean(pred) / perc_pred[p1]
+        e1 = np.mean(pred) / perc_pred[p1]
         if e1 > 1.0:
             continue
         ow1 = pred / perc_pred[p1]
         for p2 in pcts:
-            e2  = np.mean(ratio) / perc_ratio[p2]
+            e2 = np.mean(ratio) / perc_ratio[p2]
             if e2 > 1.0:
                 continue
             ow2 = ratio / perc_ratio[p2]
 
-            w = np.maximum(1.0, ow1*ow2)
-            frac_ow = float((w>1).sum())/N
+            w = np.maximum(1.0, ow1 * ow2)
+            frac_ow = float((w > 1).sum()) / N
             if frac_ow_max is not None and frac_ow > frac_ow_max:
                 continue
-            
-            N_eff = (np.sum(w)) ** 2 / np.sum(w ** 2)
+
+            N_eff = (np.sum(w)) ** 2 / np.sum(w**2)
             alpha = N_eff / N
 
             if alpha < alpha_min:
                 continue
 
-            den_inner = (1 / e2) * (
-                (1 / eff_LC) * (t_surr / e1 + t_LC) + t_FC
-                )
+            den_inner = (1 / e2) * ((1 / eff_LC) * (t_surr / e1 + t_LC) + t_FC)
             gain = alpha * num / den_inner  # == gain_factor2(...)
             if gain > best_gain:
-                
+
                 best_gain = gain
                 best = dict(
-                    gain=gain, p1=p1, p2=p2, eff1=e1, eff2=e2, alpha=alpha,
-                    n_ow=float((w>1).sum()),
+                    gain=gain,
+                    p1=p1,
+                    p2=p2,
+                    eff1=e1,
+                    eff2=e2,
+                    alpha=alpha,
+                    n_ow=float((w > 1).sum()),
                     frac_ow=frac_ow,
-                    mean_ow=np.nanmean(w[w>1]),
+                    mean_ow=np.nanmean(w[w > 1]),
                     mean_w=np.nanmean(w),
                     e1=e1,
                     e2=e2,
@@ -123,7 +127,7 @@ def optimize_gain_factor_2(
                     t_FC=t_FC,
                     t_surr=t_surr,
                     n_hel=n_hel,
-                    eff_r= eff_r,
+                    eff_r=eff_r,
                 )
     return best
 
@@ -148,37 +152,36 @@ def compute_and_log_metrics(
     delta = (reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth
     abs_delta = np.abs(delta)
 
-
     opt_dict_r_method = optimize_gain_factor_2(
         process=process,
         model_name=model_name,
         pred=reweight_factors_pred,
         n_hel=None,
         truth=reweight_factors_truth,
-        t_LC=eval_time[process]['LC'],
-        eff_LC=unw_eff1[process]['LC'],
-        t_FC=eval_time[process]['FC'],
-        t_surr=eval_time[process][model_name]['t_eval'],
+        t_LC=eval_time[process]["LC"],
+        eff_LC=unw_eff1[process]["LC"],
+        t_FC=eval_time[process]["FC"],
+        t_surr=eval_time[process][model_name]["t_eval"],
         alpha_min=0.8,
         frac_ow_max=0.01,
-        grid_elements = 201 if split =="tst" and not ppd else 21
+        grid_elements=201 if split == "tst" and not ppd else 21,
     )
     opt_dict_r_method_p1max = opt_dict_r_method["p1"]
     opt_dict_r_method_p2max = opt_dict_r_method["p2"]
-    
+
     opt_dict_R_method = optimize_gain_factor_2(
         process=process,
         model_name=model_name,
         pred=R,
         n_hel=n_helicities,
         truth=reweight_factors_truth,
-        t_LC=eval_time[process]['LC'],
-        eff_LC=unw_eff1[process]['LC'],
-        t_FC=eval_time[process]['FC'],
-        t_surr=eval_time[process][model_name]['t_eval'],
+        t_LC=eval_time[process]["LC"],
+        eff_LC=unw_eff1[process]["LC"],
+        t_FC=eval_time[process]["FC"],
+        t_surr=eval_time[process][model_name]["t_eval"],
         alpha_min=0.8,
         frac_ow_max=0.01,
-        grid_elements = 201 if split =="tst" and not ppd else 21
+        grid_elements=201 if split == "tst" and not ppd else 21,
     )
     opt_dict_R_method_p1max = opt_dict_R_method["p1"]
     opt_dict_R_method_p2max = opt_dict_R_method["p2"]
@@ -197,28 +200,31 @@ def compute_and_log_metrics(
         ),
         "eff_1st_surr_pm9999": Metric(
             name="eff_1st_surr_pm9999",
-            value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.99),
+            value=np.mean(reweight_factors_pred)
+            / np.percentile(reweight_factors_pred, 99.99),
             unit="",
             format="{:.3f}",
             tex_label=r"\epsilon_{\text{1st, surr, 99.99}}",
         ),
         "eff_1st_surr_pm99": Metric(
             name="eff_1st_surr_pm99",
-            value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.0),
+            value=np.mean(reweight_factors_pred)
+            / np.percentile(reweight_factors_pred, 99.0),
             unit="",
             format="{:.3f}",
             tex_label=r"\epsilon_{\text{1st, surr, 99.0}}",
         ),
         "eff_1st_surr_opt": Metric(
             name="eff_1st_surr_opt",
-            value= np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, opt_dict_r_method_p1max),
+            value=np.mean(reweight_factors_pred)
+            / np.percentile(reweight_factors_pred, opt_dict_r_method_p1max),
             unit="",
             format="{:.5f}",
             tex_label=rf"\epsilon_{{\text{{1st}}}}^{{{opt_dict_r_method_p1max}}}",
         ),
         "eff_1st_surr_opt_R": Metric(
             name="eff_1st_surr_opt_R",
-            value= np.mean(R) / np.percentile(R, opt_dict_R_method_p1max),
+            value=np.mean(R) / np.percentile(R, opt_dict_R_method_p1max),
             unit="",
             format="{:.5f}",
             tex_label=rf"\epsilon_{{\text{{1st}}}}^{{{opt_dict_R_method_p1max}}}",
@@ -271,14 +277,14 @@ def compute_and_log_metrics(
         ),
         "eff_2nd_surr_opt": Metric(
             name="eff_2nd_surr_opt",
-            value= np.mean(ratio) / np.percentile(ratio, opt_dict_r_method_p2max),
+            value=np.mean(ratio) / np.percentile(ratio, opt_dict_r_method_p2max),
             unit="",
             format="{:.5f}",
             tex_label=rf"\epsilon_{{\text{{2nd}}}}^{{{opt_dict_r_method_p2max}}}",
         ),
         "eff_2nd_surr_opt_R": Metric(
             name="eff_2nd_surr_opt_R",
-            value= np.mean(ratio_R) / np.percentile(ratio_R, opt_dict_R_method_p2max),
+            value=np.mean(ratio_R) / np.percentile(ratio_R, opt_dict_R_method_p2max),
             unit="",
             format="{:.5f}",
             tex_label=rf"\epsilon_{{\text{{2nd}}}}^{{{opt_dict_R_method_p2max}}}",
@@ -374,7 +380,6 @@ def compute_and_log_metrics(
             format="{:.0f}",
             tex_label=r"N_{h}",
         ),
-
         "delta_mean": Metric(
             name="delta_mean",
             value=np.mean(delta),
@@ -482,8 +487,6 @@ def compute_and_log_metrics(
                 f.write(", ")
         f.write("\n")
         f.close()
-
-
 
 
 def hist_weights_plot(
@@ -918,8 +921,6 @@ def corner_text(ax: mpl.axes.Axes, text: str, horizontal_pos: str, vertical_pos:
         transform=ax.transAxes,
         color="none",
     )
-
-
 
 
 bins_dict = {

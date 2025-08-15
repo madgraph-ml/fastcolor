@@ -196,7 +196,11 @@ class Plots:
                 self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
             )
             reweight_factors_pred_hel = (
-                self.dataset.predicted_factors_raw_hels[split].squeeze().detach().cpu().numpy()
+                self.dataset.predicted_factors_raw_hels[split]
+                .squeeze()
+                .detach()
+                .cpu()
+                .numpy()
             )
         else:
             reweight_factors_truth = (
@@ -206,14 +210,20 @@ class Plots:
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
             reweight_factors_pred_hel = (
-                self.dataset.predicted_factors_ppd_hels[split].squeeze().detach().cpu().numpy()
+                self.dataset.predicted_factors_ppd_hels[split]
+                .squeeze()
+                .detach()
+                .cpu()
+                .numpy()
             )
 
-        split_mode_metrics = self.metrics[split][
-            {True: "ppd", False: "raw"}[ppd]
-        ]
-        
-        n_hel = reweight_factors_pred_hel.shape[1] if reweight_factors_pred_hel.ndim > 1 else None
+        split_mode_metrics = self.metrics[split][{True: "ppd", False: "raw"}[ppd]]
+
+        n_hel = (
+            reweight_factors_pred_hel.shape[1]
+            if reweight_factors_pred_hel.ndim > 1
+            else None
+        )
         if n_hel is None:
             raise ValueError(
                 "The predicted factors for helicity weights should be a 2D array with shape (n_samples, n_helicities)."
@@ -232,8 +242,6 @@ class Plots:
             file=file,
             metrics=split_mode_metrics,
         )
-
-
 
         if fix_bins and not ppd:
             self.logger.info(f"         Fixing bins for factors plots, ppd={ppd}")
@@ -379,21 +387,21 @@ class Plots:
         """
         if truth is None:
             assert R_method, "If truth is None, R_method must be True"
-            regress_name = 'R'
+            regress_name = "R"
         else:
             assert not R_method, "If truth is not None, R_method must be False"
             regress_name = self.regress_name
 
         label = (
-            f"${{{regress_name}}}(x)$"
-            if not ppd
-            else f"$\\tilde{{{regress_name}}}(x)$"
+            f"${{{regress_name}}}(x)$" if not ppd else f"$\\tilde{{{regress_name}}}(x)$"
         )
         if bins is None:
-            xlim_bins = np.array(
-                [0.9 * min(min(truth), min(pred)), 1.1 * max(max(truth), max(pred))]
-            ) if truth is not None else np.array(
-                [0.9 * min(pred), 1.1 * max(pred)]
+            xlim_bins = (
+                np.array(
+                    [0.9 * min(min(truth), min(pred)), 1.1 * max(max(truth), max(pred))]
+                )
+                if truth is not None
+                else np.array([0.9 * min(pred), 1.1 * max(pred)])
             )
             xlim_bins[0] = 1.1 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
             bins = (
@@ -408,29 +416,35 @@ class Plots:
                 )
             )
             if self.regress == "r" and ppd:
-                bins = np.linspace(
-                    *np.percentile(
-                        np.concatenate([pred, truth]),
-                        [0.005, 99.995],
-                    ),
-                    64,
-                ) if truth is not None else np.linspace(
-                    *np.percentile(pred, [0.005, 99.995]), 64
+                bins = (
+                    np.linspace(
+                        *np.percentile(
+                            np.concatenate([pred, truth]),
+                            [0.005, 99.995],
+                        ),
+                        64,
+                    )
+                    if truth is not None
+                    else np.linspace(*np.percentile(pred, [0.005, 99.995]), 64)
                 )
                 label = f"$\\tilde{{{regress_name}}}(x)(99.99\\%)$"
-        
-        y_truth, y_truth_err = compute_hist_data(bins, truth, bayesian=False) if truth is not None else (None, None)
+
+        y_truth, y_truth_err = (
+            compute_hist_data(bins, truth, bayesian=False)
+            if truth is not None
+            else (None, None)
+        )
         y_pred, y_pred_err = compute_hist_data(bins, pred, bayesian=False)
 
         if truth is not None:
             lines = [
                 Line(
-                y=y_truth,
-                y_err=y_truth_err,
-                label="Truth",
-                color=TRUTH_COLOR,
-            ),
-        ]
+                    y=y_truth,
+                    y_err=y_truth_err,
+                    label="Truth",
+                    color=TRUTH_COLOR,
+                ),
+            ]
         else:
             lines = []
         lines.append(
@@ -489,7 +503,7 @@ class Plots:
             ppd: If True, use preprocessed data
             pickle_file: Path to the output pickle file (optional)
         """
-        regress_name = 'R' if R_method else self.regress_name
+        regress_name = "R" if R_method else self.regress_name
 
         ratios = truth / pred if not self.regress == "difference" else truth - pred
 

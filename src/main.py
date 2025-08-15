@@ -217,9 +217,7 @@ def run(logger, run_dir, cfg: DictConfig):
         dims_out=dims_out,
         model_path=model_path,
         device=device,
-    ).to(
-        device
-    )
+    ).to(device)
     model.name = (
         cfg.model.type if cfg.model.type != "TransformerExtrapolator" else "Transformer"
     )
@@ -286,17 +284,18 @@ def run(logger, run_dir, cfg: DictConfig):
     dataset.predicted_factors_raw_hels = {}
     model.dataset_loss = defaultdict(dict)
     model.evaluation_time = defaultdict(dict)
-    splits_to_evaluate_on = ["tst"]#, "trn", "val"]
-    
+    splits_to_evaluate_on = ["tst"]  # , "trn", "val"]
+
     ### EVALUATE MODEL ###
     if device == "cpu":
         splits_to_evaluate_on = ["tst"]  # only evaluate on test set on CPU
         torch.set_num_threads(8)
         torch.set_num_interop_threads(8)
-        
+
         # Get evaluation time for a single helicity on a single CPU core
         # For this, we will evaluate the model on the test set multiple times (10 by default)
         import numpy as np
+
         for k in ["tst"]:
             times = []
             if model.name == "LGATr":
@@ -310,33 +309,39 @@ def run(logger, run_dir, cfg: DictConfig):
                 model.evaluation_time[k] = time.time() - t0
 
                 with open(os.path.join(run_dir, "timings.log"), "a") as f:
-                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time: {model.evaluation_time[k]:.6f}\n")
+                    f.write(
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time: {model.evaluation_time[k]:.6f}\n"
+                    )
                 times.append(model.evaluation_time[k])
             with open(os.path.join(run_dir, "timings.log"), "a") as f:
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time_mean: {np.mean(times):.6f}, eval_time_std: {np.std(times)}\n")
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time_mean: {np.mean(times):.6f}, eval_time_std: {np.std(times)}\n"
+                )
     else:
         for k in splits_to_evaluate_on:
             t0 = time.time()
             dataset.predicted_factors_ppd[k] = model.evaluate(split=k)
-            
-            dataset.predicted_factors_raw[k] = dataset.apply_preprocessing(reverse=True, ppd = dataset.predicted_factors_ppd[k])
+
+            dataset.predicted_factors_raw[k] = dataset.apply_preprocessing(
+                reverse=True, ppd=dataset.predicted_factors_ppd[k]
+            )
             model.evaluation_time[k] = time.time() - t0
             logger.info(
                 f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
             )
             # Evaluate all helicities for each event
-            logger.info(
-                f"    Evaluating all helicities per event for {k} set"
-            )
+            logger.info(f"    Evaluating all helicities per event for {k} set")
             t1 = time.time()
-            dataset.predicted_factors_ppd_hels[k] = model.evaluate_all_helicities(dataset.events[k])['preds_all']
+            dataset.predicted_factors_ppd_hels[k] = model.evaluate_all_helicities(
+                dataset.events[k]
+            )["preds_all"]
             dataset.predicted_factors_raw_hels[k] = dataset.apply_preprocessing(
                 reverse=True, ppd=dataset.predicted_factors_ppd_hels[k]
             )
             logger.info(
                 f"    Evaluation time for all helicities for {k} set: {time.time() - t1:.5f} seconds"
             )
-            
+
             if cfg.evaluate.save_samples:
                 os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
                 torch.save(
@@ -357,14 +362,14 @@ def run(logger, run_dir, cfg: DictConfig):
             dataset.events[k][:, -1],
             split=k,
         )
-    
+
     ### COMPUTE OBSERVABLES ###
     logger.info("Computing observables")
     compute_observables(dataset, split="tst", include_ppd=True)
-    
+
     ### ADD LOSSES AND EVALUATION TIMES TO METRICS ###
     metrics_dict = defaultdict(lambda: defaultdict(dict))
-    for k in  splits_to_evaluate_on:
+    for k in splits_to_evaluate_on:
         for m in model.dataset_loss.keys():
             metrics_dict[k][m]["loss"] = Metric(
                 name=f"{k} ({m}) loss",
