@@ -363,6 +363,139 @@ class Model(nn.Module):
                 pass
         self.losses = state_dicts["losses"]
 
+    @torch.no_grad()
+    def group_by_helicities(
+        self,
+        truth,
+        HELICITY_COL,
+    ):
+        """
+        Groups the truth data by helicity configurations.
+        Returns a dictionary with:
+        - hel_index_per_event: unique helicity indices for each event
+        - event_groups_by_helicity: list of indices for each helicity configuration
+        - helicity_configs: unique helicity configurations
+        - n_events_per_helicity: number of events for each helicity configuration
+        """
+        if self.name != "MLP":
+            # Non-MLP models use per-particle helicity indices
+            # expected shape is [B, N*F] where the helicity is at HELICITY_COL
+            B = truth.shape[0]
+            n_particles   = self.n_particles
+            features_per_particle = self.features_per_particle
+            feats = truth[:, :-1].view(B, n_particles, features_per_particle)
+            hel_all   = feats[..., HELICITY_COL]
+            helicity_configs, hel_index_per_event, n_events_per_helicity = torch.unique(
+                hel_all, dim=0, sorted=True, return_inverse=True, return_counts=True
+            )
+        else:
+            # MLP models use a global helicity index
+            # expected shape is [B, F] where the helicity is at the second-to-last feature (last is target)
+            hel_idx = truth[:, -2].long()
+            helicity_configs, hel_index_per_event, n_events_per_helicity = torch.unique(
+                hel_idx, sorted=True, return_inverse=True, return_counts=True
+            )
+        # Get unique helicity configurations
+        event_groups_by_helicity = [(hel_index_per_event == i).nonzero(as_tuple=False).squeeze(1) for i in range(helicity_configs.shape[0])]
+        return {
+            "hel_index_per_event": hel_index_per_event,
+            "event_groups_by_helicity": event_groups_by_helicity,
+            "helicity_configs": helicity_configs,
+            "n_events_per_helicity": n_events_per_helicity,
+        }
+
+    @torch.no_grad()
+    def evaluate_all_helicities(self, truth: torch.Tensor, split: str = "tst", HELICITY_COL: int = 2):
+        """
+        Evaluate all events in truth for all helicity configurations.
+        Returns a dictionary with:
+        preds_all: (N, H) tensor with predictions for all helicities present in truth for all N events
+        helicity_configs: (H,) tensor with unique helicity configurations
+        inv: (N,) tensor with indices of each event's helicity configuration
+        counts: (H,) tensor of counts for each helicity configuration
+        groups: (H,) H tensors of indices for each helicity configuration
+        """
+        # 0) Which loader to iterate (must be shuffle=False for stable order)
+        if split == "tst":
+            loader = self.tstloader
+        elif split == "val":
+            loader = self.inf_valloader
+        else:
+            loader = self.inf_trnloader
+
+        grp = self.group_by_helicities(truth, HELICITY_COL=HELICITY_COL)
+        helicity_configs = grp["helicity_configs"]  # (H,N) or (H,)
+        H = helicity_configs.size(0)
+        Ne = truth.size(0)
+        preds_all = torch.empty(Ne, H, dtype=torch.float64, device=self.device)
+
+        self.net.eval()
+        row0 = 0
+        t0 = time.time()
+        for i, (x, _w) in enumerate(loader):
+            B = x.size(0)
+            # Iterate over all helicity configs
+            # re-evaluate batch for all helicity configurations
+            for h in range(H):
+                x_in = x[:, :-1].clone() # drop target to do reshaping easily
+                if self.name != "MLP":
+                    # per-particle helicity indices so we extract them as a hel_row
+                    N  = self.n_particles
+                    F  = self.features_per_particle
+                    X = x_in.view(B, N, F)
+                    hel_row = helicity_configs[h].to(self.device)
+                    X[..., HELICITY_COL] = hel_row.unsqueeze(0).expand(B, -1) # assign all possible helicities to an event
+                    x_in = X.view(B, N * F)
+                else:
+                    # MLP: global helicity index is the last feature (before target)
+                    x_in[:, -1] = helicity_configs[h].to(self.device)
+                preds_all[row0:row0+B, h] = self.predict(x_in).squeeze()
+            if i == 0:
+                self.logger.info(
+                    f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((time.time()-t0) * len(loader), 1)))}"
+                )
+            elif i % max(1, int(len(loader) * 0.1)) == 0:
+                self.logger.info(f"    Sampled batch {i+1}/{len(loader)} for all possible helicities")
+            row0 += B
+        return {
+            "preds_all": preds_all, # [B, H]
+            "helicity_configs": helicity_configs,
+            "hel_index_per_event": grp["hel_index_per_event"],
+            "n_events_per_helicity": grp["n_events_per_helicity"],
+            "event_groups_by_helicity": grp["event_groups_by_helicity"],
+        }
+    
+    @torch.no_grad()
+    def evaluate_on_cpu(
+        self,
+        split=None,
+    ):
+        if split is None or split == "tst":
+            loader = self.tstloader
+            self.logger.info("Evaluating model on tst set")
+        elif split == "val":
+            loader = self.inf_valloader
+            self.logger.info("Evaluating model on val set")
+        else:
+            loader = self.inf_trnloader
+            self.logger.info("Evaluating model on trn set")
+        predictions = []
+        self.net.eval()
+        t0 = time.time()
+        for i, batch in enumerate(loader):
+            x, _ = batch
+            pred = self(x[:, :-1])
+            predictions.append(pred.squeeze().detach().cpu()) #if self.cfg.train.get(
+            #     "loss", "MSE"
+            # ) != "heteroschedastic" else predictions.append(
+            #     pred[..., 0].squeeze().detach().cpu()
+            # )
+        self.logger.info(
+            f"    Finished sampling in {time.strftime('%H:%M:%S', time.gmtime(time.time() - t0))}. Saving predictions"
+        )
+        predictions = torch.cat(predictions)
+        return predictions, t0
+    
     def evaluate(
         self,
         split=None,
@@ -384,7 +517,7 @@ class Model(nn.Module):
             for i, batch in enumerate(loader):
                 x, weight = batch
                 target = x[:, -1].unsqueeze(-1)
-                pred = self(x[:, :-1])
+                pred = self.predict(x[:, :-1])
                 losses.append(
                     self.batch_loss(
                         pred,
