@@ -99,7 +99,10 @@ class LGATr(Model):
         self.type_token = TYPE_TOKEN_DICT[process]
         token_size = max(self.type_token) + 1
         self.remove_color = self.cfg.dataset.get("remove_color", False)
-        self.features_per_particle = 6 if self.remove_color else 7
+        self.features_per_particle = (
+            7 if not self.cfg.dataset.get("remove_color", False) else 6
+        )
+        self.n_particles = self.dims_in // self.features_per_particle
         in_s_channels = token_size + 3 - int(self.remove_color)
         self.global_token = global_token
 

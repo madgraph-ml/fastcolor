@@ -178,7 +178,10 @@ class MLP(Model):
             raise NotImplementedError(
                 f"Activation function {self.cfg.model.get('activation', 'relu')} not implemented"
             )
-
+        self.features_per_particle = (
+            7 if not self.cfg.dataset.get("remove_color", False) else 6
+        )
+        self.n_particles = self.dims_in // self.features_per_particle
         if self.cfg.dataset.embed_helicities.get("use", False):
             feature_layers = []
             feature_layers.append(
