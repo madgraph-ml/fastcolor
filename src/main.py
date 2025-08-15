@@ -189,9 +189,6 @@ def run(logger, run_dir, cfg: DictConfig):
 
     # INITIALIZE DATASET AND PREPROCESSING ###
     logger.info(f"Dataset: {cfg.dataset.process}")
-    # if cfg.model.type == "LGATr":
-    #     cfg.dataset.parameterization.naive.use = True
-    #     cfg.dataset.parameterization.lorentz_products.use = False
     param_names = [
         p for p in cfg.dataset.parameterization if cfg.dataset.parameterization[p].use
     ]
@@ -222,22 +219,7 @@ def run(logger, run_dir, cfg: DictConfig):
         device=device,
     ).to(
         device
-    )  # if cfg.model.type != "LGATr_legacy" else LGATr_legacy(
-    #     in_mv_channels = cfg.model["in_mv_channels"],
-    #     out_mv_channels = cfg.model["out_mv_channels"],
-    #     hidden_mv_channels = cfg.model["hidden_mv_channels"],
-    #     in_s_channels = cfg.model.get("in_s_channels", None),
-    #     out_s_channels = cfg.model.get("out_s_channels", None),
-    #     hidden_s_channels = cfg.model.get("hidden_s_channels", None),
-    #     attention = cfg.model["attention"],
-    #     mlp = cfg.model["mlp"],
-    #     num_blocks = cfg.model.get("num_blocks", 10),
-    #     reinsert_mv_channels = cfg.model.get("reinsert_mv_channels", None),
-    #     reinsert_s_channels = cfg.model.get("reinsert_s_channels", None),
-    #     checkpoint_blocks = False,
-    #     dropout_prob = cfg.model.get("dropout_prob", None),
-    #     double_layernorm = cfg.model.get("double_layernorm", False),
-    # ).to(device)
+    )
     model.name = (
         cfg.model.type if cfg.model.type != "TransformerExtrapolator" else "Transformer"
     )
@@ -297,47 +279,92 @@ def run(logger, run_dir, cfg: DictConfig):
             else:
                 model.load("final")
 
-    ### EVALUATE MODEL ###
+    ### INITIALIZE DICTS ###
     dataset.predicted_factors_ppd = {}
     dataset.predicted_factors_raw = {}
-    if device == "cpu":
-        torch.set_num_threads(8)
-        torch.set_num_interop_threads(8)
+    dataset.predicted_factors_ppd_hels = {}
+    dataset.predicted_factors_raw_hels = {}
     model.dataset_loss = defaultdict(dict)
     model.evaluation_time = defaultdict(dict)
-    for k in ["trn", "tst", "val"]:
-        t0 = time.time()
-        dataset.predicted_factors_ppd[k] = model.evaluate(split=k)
-        dataset.apply_preprocessing(reverse=True, split=k)
-        model.evaluation_time[k] = time.time() - t0
-        logger.info(
-            f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
-        )
-        if cfg.evaluate.save_samples:
-            os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
-            torch.save(
-                dataset.predicted_factors_ppd[k],
-                os.path.join(run_dir, f"samples/predicted_factors_{k}.pt"),
-            )
-        if cfg.evaluate.save_data:
-            os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
-            torch.save(
-                dataset.events[k],
-                os.path.join(run_dir, f"samples/events_{k}.pt"),
-            )
+    splits_to_evaluate_on = ["tst"]#, "trn", "val"]
+    
+    ### EVALUATE MODEL ###
+    if device == "cpu":
+        splits_to_evaluate_on = ["tst"]  # only evaluate on test set on CPU
+        torch.set_num_threads(8)
+        torch.set_num_interop_threads(8)
+        
+        # Get evaluation time for a single helicity on a single CPU core
+        # For this, we will evaluate the model on the test set multiple times (10 by default)
+        import numpy as np
+        for k in ["tst"]:
+            times = []
+            if model.name == "LGATr":
+                n = 1
+            else:
+                n = 10
+            logger.info(f"Evaluating {k} set {n} times")
+            for _ in range(n):
+                dataset.predicted_factors_ppd[k], t0 = model.evaluate_on_cpu(split=k)
+                dataset.apply_preprocessing(reverse=True, split=k)
+                model.evaluation_time[k] = time.time() - t0
 
-    # Compute dataset loss for each split
-    for k in ["trn", "tst", "val"]:
+                with open(os.path.join(run_dir, "timings.log"), "a") as f:
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time: {model.evaluation_time[k]:.6f}\n")
+                times.append(model.evaluation_time[k])
+            with open(os.path.join(run_dir, "timings.log"), "a") as f:
+                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time_mean: {np.mean(times):.6f}, eval_time_std: {np.std(times)}\n")
+    else:
+        for k in splits_to_evaluate_on:
+            t0 = time.time()
+            dataset.predicted_factors_ppd[k] = model.evaluate(split=k)
+            
+            dataset.predicted_factors_raw[k] = dataset.apply_preprocessing(reverse=True, ppd = dataset.predicted_factors_ppd[k])
+            model.evaluation_time[k] = time.time() - t0
+            logger.info(
+                f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
+            )
+            # Evaluate all helicities for each event
+            logger.info(
+                f"    Evaluating all helicities per event for {k} set"
+            )
+            t1 = time.time()
+            dataset.predicted_factors_ppd_hels[k] = model.evaluate_all_helicities(dataset.events[k])['preds_all']
+            dataset.predicted_factors_raw_hels[k] = dataset.apply_preprocessing(
+                reverse=True, ppd=dataset.predicted_factors_ppd_hels[k]
+            )
+            logger.info(
+                f"    Evaluation time for all helicities for {k} set: {time.time() - t1:.5f} seconds"
+            )
+            
+            if cfg.evaluate.save_samples:
+                os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+                torch.save(
+                    dataset.predicted_factors_ppd[k],
+                    os.path.join(run_dir, f"samples/predicted_factors_{k}.pt"),
+                )
+            if cfg.evaluate.save_data:
+                os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+                torch.save(
+                    dataset.events[k],
+                    os.path.join(run_dir, f"samples/events_{k}.pt"),
+                )
+
+    # Compute dataset loss for splits
+    for k in splits_to_evaluate_on:
         model.compute_dataset_loss(
             dataset.predicted_factors_raw[k],
             dataset.events[k][:, -1],
             split=k,
         )
-    # ### COMPUTE OBSERVABLES ###
+    
+    ### COMPUTE OBSERVABLES ###
     logger.info("Computing observables")
     compute_observables(dataset, split="tst", include_ppd=True)
+    
+    ### ADD LOSSES AND EVALUATION TIMES TO METRICS ###
     metrics_dict = defaultdict(lambda: defaultdict(dict))
-    for k in ["trn", "tst", "val"]:
+    for k in  splits_to_evaluate_on:
         for m in model.dataset_loss.keys():
             metrics_dict[k][m]["loss"] = Metric(
                 name=f"{k} ({m}) loss",
@@ -348,7 +375,7 @@ def run(logger, run_dir, cfg: DictConfig):
             metrics_dict[k][m]["eval_time"] = Metric(
                 name=f"{k} eval_time",
                 value=model.evaluation_time[k],
-                tex_label=rf"t_{{\text{{eval}}}}",  # rf"\text{{{k}}}\ (\text{{{m}}})\ t_{{\text{{eval}}}}",
+                tex_label=rf"t_{{\text{{eval}}}}",
                 format="{:.3f}",
                 unit="s",
             )
@@ -381,7 +408,7 @@ def run(logger, run_dir, cfg: DictConfig):
     # logger.info(f"    Plotting ppd observables")
     # plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
     logger.info(f"    Plotting regressed factors and ratio correlations")
-    for k in ["tst", "val", "trn"]:
+    for k in splits_to_evaluate_on:
         for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
             logger.info(
                 f"        Plotting {k} set and { {True : 'ppd', False : 'raw'}[ppd_flag] }..."
@@ -406,16 +433,6 @@ def run(logger, run_dir, cfg: DictConfig):
                 else None,
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
-        # plots.plot_amplitudes_closure_test(
-        #     cfg,
-        #     os.path.join(run_dir, f"FCvsrLC_{k}.pdf"),
-        #     split=k,
-        #     ppd=False,
-        #     pickle_file=os.path.join(run_dir, "pkl", f"FCvsrLC_{k}.pkl")
-        #     if cfg.evaluate.get("save_lines", False)
-        #     else None,
-        #     metrics=None,
-        # )
 
     if device == "cuda":
         max_used = torch.cuda.max_memory_allocated()
