@@ -195,6 +195,9 @@ class Plots:
             reweight_factors_pred = (
                 self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
             )
+            reweight_factors_pred_hel = (
+                self.dataset.predicted_factors_raw_hels[split].squeeze().detach().cpu().numpy()
+            )
         else:
             reweight_factors_truth = (
                 self.dataset.events_ppd[split][:, -1].squeeze().detach().cpu().numpy()
@@ -202,18 +205,35 @@ class Plots:
             reweight_factors_pred = (
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
+            reweight_factors_pred_hel = (
+                self.dataset.predicted_factors_ppd_hels[split].squeeze().detach().cpu().numpy()
+            )
 
         split_mode_metrics = self.metrics[split][
             {True: "ppd", False: "raw"}[ppd]
-        ]  # select
+        ]
+        
+        n_hel = reweight_factors_pred_hel.shape[1] if reweight_factors_pred_hel.ndim > 1 else None
+        if n_hel is None:
+            raise ValueError(
+                "The predicted factors for helicity weights should be a 2D array with shape (n_samples, n_helicities)."
+            )
+        R = reweight_factors_pred_hel.mean(axis=1)
+
         compute_and_log_metrics(
+            process=self.process,
+            model_name=self.model_name,
             reweight_factors_pred=reweight_factors_pred,
             reweight_factors_truth=reweight_factors_truth,
+            R=R,
+            n_helicities=n_hel,
             split=split,
             ppd=ppd,
             file=file,
             metrics=split_mode_metrics,
         )
+
+
 
         if fix_bins and not ppd:
             self.logger.info(f"         Fixing bins for factors plots, ppd={ppd}")
@@ -231,13 +251,52 @@ class Plots:
         with PdfPages(file) as pp:
             self._plot_targets(
                 pp,
+                pred=R,
+                R_method=True,
+                ppd=ppd,
+                pickle_file=pickle_file,
+                metrics={
+                    k: split_mode_metrics[k]
+                    for k in [
+                        "eff_1st_surr_opt_R",
+                    ]
+                    if k in split_mode_metrics
+                },
+                bins=bins_targets,
+            )
+            self._plot_ratios(
+                pp,
+                pred=R,
+                truth=reweight_factors_truth,
+                R_method=True,
+                ppd=ppd,
+                percentage_of_ratio_data=percentage_of_ratio_data,
+                pickle_file=pickle_file,
+                metrics={
+                    k: split_mode_metrics[k]
+                    for k in [
+                        "eff_2nd_surr_opt_R",
+                        "gain2",
+                        "alpha2",
+                    ]
+                    if k in split_mode_metrics
+                },
+                bins=bins_ratios,
+            )
+            self._plot_targets(
+                pp,
                 reweight_factors_pred,
                 reweight_factors_truth,
                 ppd=ppd,
                 pickle_file=pickle_file,
                 metrics={
                     k: split_mode_metrics[k]
-                    for k in ["loss", "eval_time", "eff_2nd_std", "eff_1st_surr"]
+                    for k in [
+                        "loss",
+                        "eval_time",
+                        "eff_1st_surr",
+                        "eff_1st_surr_opt",
+                    ]
                     if k in split_mode_metrics
                 },
                 bins=bins_targets,
@@ -253,11 +312,10 @@ class Plots:
                     k: split_mode_metrics[k]
                     for k in [
                         "eff_2nd_surr",
-                        "eff_2nd_surr_pm9999",
-                        "eff_2nd_surr_pm9995",
                         "eff_2nd_surr_pm999",
-                        "eff_2nd_surr_pm995",
                         "eff_2nd_surr_pm99",
+                        "eff_2nd_surr_opt",
+                        "gain",
                     ]
                     if k in split_mode_metrics
                 },
@@ -303,7 +361,8 @@ class Plots:
         self,
         pp: PdfPages,
         pred: np.ndarray,
-        truth: np.ndarray,
+        truth: Optional[np.ndarray] = None,
+        R_method: bool = False,
         ppd: bool = False,
         pickle_file: str = None,
         metrics: Optional[Metric] = None,
@@ -318,14 +377,23 @@ class Plots:
             ppd: If True, use preprocessed data
             pickle_file: Path to the output pickle file (optional)
         """
+        if truth is None:
+            assert R_method, "If truth is None, R_method must be True"
+            regress_name = 'R'
+        else:
+            assert not R_method, "If truth is not None, R_method must be False"
+            regress_name = self.regress_name
+
         label = (
-            f"${{{self.regress_name}}}(x)$"
+            f"${{{regress_name}}}(x)$"
             if not ppd
-            else f"$\\tilde{{{self.regress_name}}}(x)$"
+            else f"$\\tilde{{{regress_name}}}(x)$"
         )
         if bins is None:
             xlim_bins = np.array(
                 [0.9 * min(min(truth), min(pred)), 1.1 * max(max(truth), max(pred))]
+            ) if truth is not None else np.array(
+                [0.9 * min(pred), 1.1 * max(pred)]
             )
             xlim_bins[0] = 1.1 * xlim_bins[0] if xlim_bins[0] < 0 else xlim_bins[0]
             bins = (
@@ -346,33 +414,40 @@ class Plots:
                         [0.005, 99.995],
                     ),
                     64,
+                ) if truth is not None else np.linspace(
+                    *np.percentile(pred, [0.005, 99.995]), 64
                 )
-                label = f"$\\tilde{{{self.regress_name}}}(x)(99.99\\%)$"
-
-        y_truth, y_truth_err = compute_hist_data(bins, truth, bayesian=False)
+                label = f"$\\tilde{{{regress_name}}}(x)(99.99\\%)$"
+        
+        y_truth, y_truth_err = compute_hist_data(bins, truth, bayesian=False) if truth is not None else (None, None)
         y_pred, y_pred_err = compute_hist_data(bins, pred, bayesian=False)
 
-        lines = [
-            Line(
+        if truth is not None:
+            lines = [
+                Line(
                 y=y_truth,
                 y_err=y_truth_err,
                 label="Truth",
                 color=TRUTH_COLOR,
             ),
+        ]
+        else:
+            lines = []
+        lines.append(
             Line(
                 y=y_pred,
                 y_err=y_pred_err,
-                y_ref=y_truth,
+                y_ref=y_truth if y_truth is not None else None,
                 label=f"{self.model_name}",
                 color=NN_COLORS[self.model_name],
             ),
-        ]
+        )
 
         hist_weights_plot(
             pp,
             lines,
             bins,
-            show_ratios=True,
+            show_ratios=True if truth is not None else False,
             title=self.process_name if self.process_name is not None else None,
             xlabel=label,
             xscale="linear"
@@ -385,7 +460,11 @@ class Plots:
             model_name=self.model_name,
         )
         if pickle_file is not None:
-            pickle_data = {"targets-lines": lines, "targets-bins": bins}
+            if truth is not None:
+                pickle_data = {"targets-lines": lines, "targets-bins": bins}
+            else:
+                assert R_method, "If truth is None, R_method must be True"
+                pickle_data = {"R-lines": lines, "R-bins": bins}
             append_to_pickle(pickle_file, pickle_data)
 
     def _plot_ratios(
@@ -393,6 +472,7 @@ class Plots:
         pp: PdfPages,
         pred: np.ndarray,
         truth: np.ndarray,
+        R_method: bool = False,
         ppd: bool = False,
         percentage_of_ratio_data: float = 100.0,
         pickle_file: str = None,
@@ -409,6 +489,7 @@ class Plots:
             ppd: If True, use preprocessed data
             pickle_file: Path to the output pickle file (optional)
         """
+        regress_name = 'R' if R_method else self.regress_name
 
         ratios = truth / pred if not self.regress == "difference" else truth - pred
 
@@ -445,9 +526,9 @@ class Plots:
             perc_str = ""
 
         if ppd:
-            label = rf"$\tilde{{{self.regress_name}}}^{{\text{{truth}}}} / \tilde{{{self.regress_name}}}^{{\text{{pred}}}}{perc_str}$"
+            label = rf"$\tilde{{{self.regress_name}}}^{{\text{{truth}}}} / \tilde{{{regress_name}}}^{{\text{{pred}}}}{perc_str}$"
         else:
-            label = rf"${self.regress_name}^{{\text{{truth}}}} / {self.regress_name}^{{\text{{pred}}}}{perc_str}$"
+            label = rf"${self.regress_name}^{{\text{{truth}}}} / {regress_name}^{{\text{{pred}}}}{perc_str}$"
 
         hist_weights_plot(
             pp,
@@ -464,7 +545,10 @@ class Plots:
             model_name=self.model_name,
         )
         if pickle_file is not None:
-            pickle_data = {"ratios-lines": lines, "ratios-bins": bins}
+            if R_method:
+                pickle_data = {"R-ratios-lines": lines, "R-ratios-bins": bins}
+            else:
+                pickle_data = {"ratios-lines": lines, "ratios-bins": bins}
             append_to_pickle(pickle_file, pickle_data)
 
     def _plot_deltas(
