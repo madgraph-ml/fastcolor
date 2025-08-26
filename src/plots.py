@@ -60,6 +60,52 @@ class Plots:
                 "gg_ddbar5g",
             ]:
                 process_name = f"${process[:2]} \\to d\\bar{{d}} + {process[-2:]}$"
+            elif process in [
+                "dbard_4g",
+                "dbard_5g",
+                "dbard_6g",
+                "dbard_7g",
+            ]:
+                process_name = f"$d\\bar{{d}}\\to {process[-2:]}$"
+
+            elif process in [
+                "gg_ddbaruubar0g_co1",
+                "gg_ddbaruubar1g_co1",
+                "gg_ddbaruubar2g_co1",
+                "gg_ddbaruubar3g_co1",
+          
+            ]:
+                process_name = (
+                    f"${process[:2]}\\to d\\bar{{d}} + u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO1}})$"
+                )
+            elif process in [
+                "gg_ddbaruubar0g_co2",
+                "gg_ddbaruubar1g_co2",
+                "gg_ddbaruubar2g_co2",
+                "gg_ddbaruubar3g_co2",
+            ]:
+                process_name = (
+                    f"${process[:2]}\\to d\\bar{{d}} + u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO2}})$"
+                )
+            elif process in [
+                "ddbar_uubar2g_co1",
+                "ddbar_uubar3g_co1",
+                "ddbar_uubar4g_co1",
+                "ddbar_uubar5g_co1",
+            ]:
+                process_name = (
+                    f"$d\\bar{{d}}\\to u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO1}})$"
+                )
+            elif process in [
+                "ddbar_uubar2g_co2",
+                "ddbar_uubar3g_co2",
+                "ddbar_uubar4g_co2",
+                "ddbar_uubar5g_co2",
+            ]:
+                process_name = (
+                    f"$d\\bar{{d}}\\to u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO2}})$"
+                )
+
         if loss_name is not None:
             loss_name = {"heteroschedastic": r"\text{het}", "MSE": r"\text{MSE}"}[
                 loss_name
@@ -195,13 +241,16 @@ class Plots:
             reweight_factors_pred = (
                 self.dataset.predicted_factors_raw[split].squeeze().detach().cpu().numpy()
             )
-            reweight_factors_pred_hel = (
-                self.dataset.predicted_factors_raw_hels[split]
-                .squeeze()
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            if hasattr(self.dataset, "predicted_factors_raw_hels"):
+                reweight_factors_pred_hel = (
+                    self.dataset.predicted_factors_raw_hels[split]
+                    .squeeze()
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+            else:
+                reweight_factors_pred_hel = None
         else:
             reweight_factors_truth = (
                 self.dataset.events_ppd[split][:, -1].squeeze().detach().cpu().numpy()
@@ -209,26 +258,25 @@ class Plots:
             reweight_factors_pred = (
                 self.dataset.predicted_factors_ppd[split].squeeze().detach().cpu().numpy()
             )
-            reweight_factors_pred_hel = (
-                self.dataset.predicted_factors_ppd_hels[split]
-                .squeeze()
-                .detach()
-                .cpu()
-                .numpy()
-            )
+            if hasattr(self.dataset, "predicted_factors_ppd_hels"):
+                reweight_factors_pred_hel = (
+                    self.dataset.predicted_factors_ppd_hels[split]
+                    .squeeze()
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+            else:
+                reweight_factors_pred_hel = None
 
         split_mode_metrics = self.metrics[split][{True: "ppd", False: "raw"}[ppd]]
 
         n_hel = (
             reweight_factors_pred_hel.shape[1]
-            if reweight_factors_pred_hel.ndim > 1
+            if reweight_factors_pred_hel is not None and reweight_factors_pred_hel.ndim > 1
             else None
         )
-        if n_hel is None:
-            raise ValueError(
-                "The predicted factors for helicity weights should be a 2D array with shape (n_samples, n_helicities)."
-            )
-        R = reweight_factors_pred_hel.mean(axis=1)
+        R = reweight_factors_pred_hel.mean(axis=1) if n_hel is not None else None
 
         compute_and_log_metrics(
             process=self.process,
@@ -257,40 +305,44 @@ class Plots:
             bins_abs_deltas = None
 
         with PdfPages(file) as pp:
-            self._plot_targets(
-                pp,
-                pred=R,
-                R_method=True,
-                ppd=ppd,
-                pickle_file=pickle_file,
-                metrics={
-                    k: split_mode_metrics[k]
-                    for k in [
-                        "eff_1st_surr_opt_R",
-                    ]
-                    if k in split_mode_metrics
-                },
-                bins=bins_targets,
-            )
-            self._plot_ratios(
-                pp,
-                pred=R,
-                truth=reweight_factors_truth,
-                R_method=True,
-                ppd=ppd,
-                percentage_of_ratio_data=percentage_of_ratio_data,
-                pickle_file=pickle_file,
-                metrics={
-                    k: split_mode_metrics[k]
-                    for k in [
-                        "eff_2nd_surr_opt_R",
-                        "gain2",
-                        "alpha2",
-                    ]
-                    if k in split_mode_metrics
-                },
-                bins=bins_ratios,
-            )
+            if R is not None:
+                self._plot_targets(
+                    pp,
+                    pred=R,
+                    R_method=True,
+                    ppd=ppd,
+                    pickle_file=pickle_file,
+                    metrics={
+                        k: split_mode_metrics[k]
+                        for k in [
+                            "eff_1st_surr_opt_algo2",
+                            "n_helicities",
+                            "eff_LC",
+                        ]
+                        if k in split_mode_metrics
+                    },
+                    bins=bins_targets,
+                )
+                self._plot_ratios(
+                    pp,
+                    pred=R,
+                    truth=reweight_factors_truth,
+                    R_method=True,
+                    ppd=ppd,
+                    percentage_of_ratio_data=percentage_of_ratio_data,
+                    pickle_file=pickle_file,
+                    metrics={
+                        k: split_mode_metrics[k]
+                        for k in [
+                            "eff_2nd_surr_opt_algo2",
+                            "alpha_algo2",
+                            "gain_algo2",
+                            "frac_ow_algo2",
+                        ]
+                        if k in split_mode_metrics
+                    },
+                    bins=bins_ratios,
+                )
             self._plot_targets(
                 pp,
                 reweight_factors_pred,
@@ -302,8 +354,9 @@ class Plots:
                     for k in [
                         "loss",
                         "eval_time",
-                        "eff_1st_surr",
-                        "eff_1st_surr_opt",
+                        "eff_1st_surr_opt_algo1",
+                        "eff_2nd_std",
+                        "eff_LC"
                     ]
                     if k in split_mode_metrics
                 },
@@ -319,11 +372,10 @@ class Plots:
                 metrics={
                     k: split_mode_metrics[k]
                     for k in [
-                        "eff_2nd_surr",
-                        "eff_2nd_surr_pm999",
-                        "eff_2nd_surr_pm99",
-                        "eff_2nd_surr_opt",
-                        "gain",
+                        "eff_2nd_surr_opt_algo1",
+                        "alpha_algo1",
+                        "gain_algo1",
+                        "frac_ow_algo1",
                     ]
                     if k in split_mode_metrics
                 },
