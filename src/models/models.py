@@ -22,9 +22,7 @@ class GNN(Model):
         super().__init__(logger, cfg, dims_in, dims_out, model_path, device)
         self.logger = logger
         self.cfg = cfg
-        self.features_per_particle = (
-            7 if not self.cfg.dataset.get("remove_color", False) else 6
-        )
+        self.features_per_particle = 5
         self.n_particles = self.dims_in // self.features_per_particle
         self.edge_dim = 1
         self.node_dim = self.features_per_particle + self.n_particles  # +one-hot
@@ -120,7 +118,7 @@ class GNN(Model):
         edge_index = torch.stack([row[mask], col[mask]], dim=0)  # (2, E)
 
         # Calculate Lorentz scalar product (E, Px, Py, Pz are indices 3-6)
-        p = x[:, :, 3:7]  # (B, N, 4)
+        p = x[:, :, 1:5]  # (B, N, 4)
         # Edge features: 2 * p_i·p_j for all i ≠ j
         p_i = p[:, edge_index[0], :]  # (B, E, 4)
         p_j = p[:, edge_index[1], :]  # (B, E, 4)
@@ -137,7 +135,7 @@ class GNN(Model):
         initials = h[:, :2, :]  # always initial-state nodes
         finals = h[:, 2:, :]  # always final-state nodes
 
-        finals_embed = finals.sum(dim=1) / (self.n_particles)  # - 2
+        finals_embed = finals.sum(dim=1) / (self.n_particles - 2)
         initials_embed = initials.sum(dim=1) / 2
 
         pooled = torch.cat(
@@ -178,9 +176,7 @@ class MLP(Model):
             raise NotImplementedError(
                 f"Activation function {self.cfg.model.get('activation', 'relu')} not implemented"
             )
-        self.features_per_particle = (
-            7 if not self.cfg.dataset.get("remove_color", False) else 6
-        )
+        self.features_per_particle = 5
         self.n_particles = self.dims_in // self.features_per_particle
         if self.cfg.dataset.embed_helicities.get("use", False):
             feature_layers = []
@@ -270,7 +266,7 @@ class Transformer(Model):
         assert (
             cfg.dataset.parameterization.naive.use
         ), "Only naive parameterization is supported for the Transformer model"
-        self.remove_color = cfg.dataset.get("remove_color", False)
+
         self.init_loss()
         self.init_net()
         self.apply(self._weight_multiplier_init)
@@ -316,7 +312,7 @@ class Transformer(Model):
         self.logger.info(
             f"    Using {self.activation} activation function for Transformer model"
         )
-        self.features_per_particle = 7 if not self.remove_color else 6
+        self.features_per_particle = 5
         self.n_particles = self.dims_in // self.features_per_particle
         input_dim = self.n_particles + self.features_per_particle
         self.input_proj = nn.Linear(input_dim, self.dim_embedding)
@@ -373,7 +369,6 @@ class TransformerExtrapolator(Model):
         assert (
             cfg.dataset.parameterization.naive.use
         ), "Only naive parameterization is supported for the Transformer model"
-        self.remove_color = cfg.dataset.get("remove_color", False)
         self.init_loss()
         self.init_net()
 
@@ -392,8 +387,9 @@ class TransformerExtrapolator(Model):
         self.logger.info(
             f"    Using {self.activation} activation function for Transformer model"
         )
+        self.features_per_particle = 5
+        self.n_particles = self.dims_in // self.features_per_particle
         self.max_n_particles = 9  # Set this globally
-        self.features_per_particle = 7 if not self.remove_color else 6
         input_dim = self.features_per_particle + self.max_n_particles
         self.input_proj = nn.Linear(input_dim, self.dim_embedding)
         encoder_layer = nn.TransformerEncoderLayer(

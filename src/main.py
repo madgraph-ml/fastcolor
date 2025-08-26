@@ -59,29 +59,32 @@ def main(cfg: DictConfig):
             run_dir = os.path.join(results_dir, run_name)
             os.makedirs(run_dir, exist_ok=True)
         else:
-            # Load already existing run directory
+            # Warm start: archive existing contents into old/<timestamp>/ safely
             run_dir = cfg.run.path
             old_dir = os.path.join(run_dir, "old")
             os.makedirs(old_dir, exist_ok=True)
+
+            ts = datetime.now().strftime("%m%d_%H%M%S")
+            dst_root = os.path.join(old_dir, ts)
+            os.makedirs(dst_root, exist_ok=False)
+
+            def keep(item: str, item_path: str) -> bool:
+                if item == "old":
+                    return True
+                if item == "model":  # keep current checkpoint directory for warm start
+                    return True
+                if os.path.isfile(item_path) and item.startswith("out_") and item.endswith(".log"):
+                    return True
+                if os.path.isfile(item_path) and item.startswith("config") and item.endswith(".yaml"):
+                    return True
+                return False
+
             for item in os.listdir(run_dir):
-                item_path = os.path.join(run_dir, item)
-                if (
-                    (
-                        os.path.isfile(item_path)
-                        and item.startswith("out_")
-                        and item.endswith(".log")
-                    )
-                    or item == "model"
-                    or (
-                        os.path.isfile(item_path)
-                        and item.startswith("config")
-                        and item.endswith(".yaml")
-                    )
-                ):
+                src = os.path.join(run_dir, item)
+                if keep(item, src):
                     continue
-                if "old" in item:
-                    continue
-                os.rename(item_path, os.path.join(old_dir, item))
+                # move into timestamped archive folder
+                shutil.move(src, os.path.join(dst_root, item))
 
         # This is to keep plot as predefined run type
         cfg_to_save = OmegaConf.to_container(cfg, resolve=True)
@@ -284,8 +287,6 @@ def run(logger, run_dir, cfg: DictConfig):
     ### INITIALIZE DICTS ###
     dataset.predicted_factors_ppd = {}
     dataset.predicted_factors_raw = {}
-    dataset.predicted_factors_ppd_hels = {}
-    dataset.predicted_factors_raw_hels = {}
     model.dataset_loss = defaultdict(dict)
     model.evaluation_time = defaultdict(dict)
     splits_to_evaluate_on = ["tst"]  # , "trn", "val"]
@@ -322,10 +323,11 @@ def run(logger, run_dir, cfg: DictConfig):
                     f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time_mean: {np.mean(times):.6f}, eval_time_std: {np.std(times)}\n"
                 )
     else:
+        dataset.predicted_factors_ppd_hels = {}
+        dataset.predicted_factors_raw_hels = {}
         for k in splits_to_evaluate_on:
             t0 = time.time()
             dataset.predicted_factors_ppd[k] = model.evaluate(split=k)
-
             dataset.predicted_factors_raw[k] = dataset.apply_preprocessing(
                 reverse=True, ppd=dataset.predicted_factors_ppd[k]
             )
@@ -333,31 +335,21 @@ def run(logger, run_dir, cfg: DictConfig):
             logger.info(
                 f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
             )
-            # Evaluate all helicities for each event
-            logger.info(f"    Evaluating all helicities per event for {k} set")
-            t1 = time.time()
-            dataset.predicted_factors_ppd_hels[k] = model.evaluate_all_helicities(
-                dataset.events[k]
-            )["preds_all"]
-            dataset.predicted_factors_raw_hels[k] = dataset.apply_preprocessing(
-                reverse=True, ppd=dataset.predicted_factors_ppd_hels[k]
-            )
-            logger.info(
-                f"    Evaluation time for all helicities for {k} set: {time.time() - t1:.5f} seconds"
-            )
+            model.evaluate_for_all_helicities(dataset, splits_to_evaluate_on)
 
-            if cfg.evaluate.save_samples:
-                os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
-                torch.save(
-                    dataset.predicted_factors_ppd[k],
-                    os.path.join(run_dir, f"samples/predicted_factors_{k}.pt"),
-                )
-            if cfg.evaluate.save_data:
-                os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
-                torch.save(
-                    dataset.events[k],
-                    os.path.join(run_dir, f"samples/events_{k}.pt"),
-                )
+
+    if cfg.evaluate.save_samples:
+        os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+        torch.save(
+            dataset.predicted_factors_ppd[k],
+            os.path.join(run_dir, f"samples/predicted_factors_{k}.pt"),
+        )
+    if cfg.evaluate.save_data:
+        os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+        torch.save(
+            dataset.events[k],
+            os.path.join(run_dir, f"samples/events_{k}.pt"),
+        )
 
     # Compute dataset loss for splits
     for k in splits_to_evaluate_on:
@@ -412,10 +404,10 @@ def run(logger, run_dir, cfg: DictConfig):
     if hasattr(model, "losses"):
         logger.info(f"    Plotting train metrics")
         plots.plot_train_metrics(os.path.join(run_dir, f"train_metrics.pdf"), logy=True)
-    # logger.info(f"    Plotting observables")
-    # plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
-    # logger.info(f"    Plotting ppd observables")
-    # plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
+    logger.info(f"    Plotting observables")
+    plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
+    logger.info(f"    Plotting ppd observables")
+    plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
     logger.info(f"    Plotting regressed factors and ratio correlations")
     for k in splits_to_evaluate_on:
         for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):

@@ -150,16 +150,19 @@ class Model(nn.Module):
         val_freq = self.cfg.train.get(
             "val_freq", len(self.trnloader)
         )  # How often to validate/save, default: per epoch
-        self.init_optimizer()
-        self.init_scheduler()
         if self.cfg.train.get("warm_start", False):
             self.logger.info(
                 "Warm-starting model from "
                 + os.path.join(
-                    self.model_path, f"{self.cfg.get('checkpoint', 'final')}.pth"
+                    self.model_path, f"{self.cfg.train.get('checkpoint', 'final')}.pth"
                 )
             )
             self.load(self.cfg.train.get("checkpoint", "final"))
+        self.init_optimizer()
+        self.init_scheduler()
+        # sanity log: confirm effective LR(s)
+        for i, g in enumerate(self.optimizer.param_groups):
+            self.logger.info(f"    Param_group[{i}]: lr={g['lr']}, wd={g.get('weight_decay', 0.0)}")
         self.best_val_loss = 1e20
         if self.cfg.train.early_stopping.get("use", False):
             patience = self.cfg.train.early_stopping.get("patience", 10)
@@ -303,7 +306,7 @@ class Model(nn.Module):
             % max(
                 1,
                 iteration
-                # int(0.001 * self.cfg.train.nits // len(self.trnloader))
+                # int(0.0001 * self.cfg.train.nits // len(self.trnloader))
                 # * self.cfg.train.get("val_freq", len(self.trnloader)),
             )
             == 0
@@ -365,7 +368,7 @@ class Model(nn.Module):
         self.losses = state_dicts["losses"]
 
     @torch.no_grad()
-    def group_by_helicities(
+    def _group_by_helicities(
         self,
         truth,
         HELICITY_COL,
@@ -409,8 +412,8 @@ class Model(nn.Module):
         }
 
     @torch.no_grad()
-    def evaluate_all_helicities(
-        self, truth: torch.Tensor, split: str = "tst", HELICITY_COL: int = 2
+    def _predict_hels(
+        self, truth: torch.Tensor, split: str = "tst", HELICITY_COL: int = 0, helicity_batch_size: int = 8,
     ):
         """
         Evaluate all events in truth for all helicity configurations.
@@ -424,12 +427,13 @@ class Model(nn.Module):
         # 0) Which loader to iterate (must be shuffle=False for stable order)
         if split == "tst":
             loader = self.tstloader
+
         elif split == "val":
             loader = self.inf_valloader
         else:
             loader = self.inf_trnloader
 
-        grp = self.group_by_helicities(truth, HELICITY_COL=HELICITY_COL)
+        grp = self._group_by_helicities(truth, HELICITY_COL=HELICITY_COL)
         helicity_configs = grp["helicity_configs"]  # (H,N) or (H,)
         H = helicity_configs.size(0)
         Ne = truth.size(0)
@@ -440,24 +444,28 @@ class Model(nn.Module):
         t0 = time.time()
         for i, (x, _w) in enumerate(loader):
             B = x.size(0)
+            x_in = x[:, :-1].clone()
             # Iterate over all helicity configs
             # re-evaluate batch for all helicity configurations
-            for h in range(H):
-                x_in = x[:, :-1].clone()  # drop target to do reshaping easily
+            for h0 in range(0, H, helicity_batch_size):
+                hb = min(helicity_batch_size, H - h0)
                 if self.name != "MLP":
                     # per-particle helicity indices so we extract them as a hel_row
                     N = self.n_particles
                     F = self.features_per_particle
                     X = x_in.view(B, N, F)
-                    hel_row = helicity_configs[h].to(self.device)
-                    X[..., HELICITY_COL] = hel_row.unsqueeze(0).expand(
-                        B, -1
-                    )  # assign all possible helicities to an event
-                    x_in = X.view(B, N * F)
+                    hel_chunk = helicity_configs[h0:h0 + hb].to(self.device)     # (hb, N)
+                    X_rep = X.repeat_interleave(hb, dim=0)                     # (B*hb, N, F)
+                    hel_rep = hel_chunk.repeat(B, 1)                            # (B*hb, N)
+                    X_rep[..., HELICITY_COL] = hel_rep
+                    x_batch = X_rep.view(B * hb, N * F)
                 else:
                     # MLP: global helicity index is the last feature (before target)
-                    x_in[:, -1] = helicity_configs[h].to(self.device)
-                preds_all[row0 : row0 + B, h] = self.predict(x_in).squeeze()
+                    hel_chunk = helicity_configs[h0:h0 + hb].to(x.device)      # (hb,)
+                    x_rep = x_in.repeat_interleave(hb, dim=0)                  # (B*hb, D)
+                    x_rep[:, -1] = hel_chunk.repeat(B)                         # (B*hb,)
+                    x_batch = x_rep
+                preds_all[row0:row0 + B, h0:h0 + hb] = self.predict(x_batch).view(B, hb)
             if i == 0:
                 self.logger.info(
                     f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((time.time()-t0) * len(loader), 1)))}"
@@ -474,6 +482,31 @@ class Model(nn.Module):
             "n_events_per_helicity": grp["n_events_per_helicity"],
             "event_groups_by_helicity": grp["event_groups_by_helicity"],
         }
+
+    def evaluate_for_all_helicities(self, dataset, splits_to_evaluate_on):
+        for k in splits_to_evaluate_on:
+            t0 = time.time()
+            dataset.predicted_factors_ppd[k] = self.evaluate(split=k)
+
+            dataset.predicted_factors_raw[k] = dataset.apply_preprocessing(
+                reverse=True, ppd=dataset.predicted_factors_ppd[k]
+            )
+            self.evaluation_time[k] = time.time() - t0
+            self.logger.info(
+                f"    Evaluation time for {k} set: {self.evaluation_time[k]:.5f} seconds"
+            )
+            # Evaluate all helicities for each event
+            self.logger.info(f"    Evaluating all helicities per event for {k} set")
+            t1 = time.time()
+            dataset.predicted_factors_ppd_hels[k] = self._predict_hels(
+                dataset.events[k]
+            )["preds_all"]
+            dataset.predicted_factors_raw_hels[k] = dataset.apply_preprocessing(
+                reverse=True, ppd=dataset.predicted_factors_ppd_hels[k]
+            )
+            self.logger.info(
+                f"    Evaluation time for all helicities for {k} set: {time.time() - t1:.5f} seconds"
+            )
 
     @torch.no_grad()
     def evaluate_on_cpu(
@@ -568,6 +601,7 @@ class Model(nn.Module):
         SL4=False,
         shear=False,
         SO2=False,
+        Z2=False,
     ):
 
         if split is None or split == "tst":
@@ -594,7 +628,7 @@ class Model(nn.Module):
                     assert during_training
                     batch_size = x.shape[0]
                     boost_matrices = phys.batch_random_lorentz_boost(
-                        batch_size, device=x.device, dtype=torch.float64
+                        batch_size, device=x.device, dtype=torch.float64, z_boost=True,
                     )
                     x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
                         x[:, :-1], rotation_matrices=boost_matrices
@@ -630,6 +664,12 @@ class Model(nn.Module):
                     )
                     x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
                         x[:, :-1], rotation_matrices=rotation_matrices
+                    )
+                elif Z2:
+                    assert during_training
+                    x[:, :-1] = phys.apply_Z2_permutation_vectorized(
+                        x[:, :-1],
+                        block_size=self.features_per_particle,
                     )
                 pred = self.predict(x[:, :-1])
                 if during_training:
@@ -784,6 +824,7 @@ class Model(nn.Module):
         COLOR_SO3 = "hotpink"
         COLOR_SL4 = "#9370DB"
         COLOR_SHEAR = "darkorange"
+        COLOR_Z2 = "#17BECF"
         preds, targets, loss = self.evaluate_in_training(
             split="val", during_training=True
         )
@@ -802,6 +843,9 @@ class Model(nn.Module):
         preds_shear, _, loss_shear = self.evaluate_in_training(
             split="val", during_training=True, shear=True
         )
+        preds_Z2, _, loss_Z2 = self.evaluate_in_training(
+            split="val", during_training=True, Z2=True
+        )
 
         preds = preds.cpu().numpy()
         targets = targets.cpu().numpy()
@@ -810,6 +854,7 @@ class Model(nn.Module):
         preds_boosted = preds_boosted.cpu().numpy()
         preds_SL4 = preds_SL4.cpu().numpy()
         preds_shear = preds_shear.cpu().numpy()
+        preds_Z2 = preds_Z2.cpu().numpy()
 
         random_uniform_number_between_0_and_1 = np.random.uniform(0, 1)
         if (
@@ -822,6 +867,7 @@ class Model(nn.Module):
                 "preds_SL4": preds_SL4,
                 "preds_shear": preds_shear,
                 "preds_SO2": preds_SO2,
+                "preds_Z2": preds_Z2,
                 "targets": targets,
             }
             np.save(
@@ -856,6 +902,7 @@ class Model(nn.Module):
             bins, preds_shear, bayesian=False
         )
         y_preds_SO2, y_preds_SO2_err = compute_hist_data(bins, preds_SO2, bayesian=False)
+        y_preds_Z2, y_preds_Z2_err = compute_hist_data(bins, preds_Z2, bayesian=False)
 
         target_lines = [
             Line(
@@ -877,6 +924,13 @@ class Model(nn.Module):
                 y_ref=y_targets,
                 label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
                 color=COLOR_SO2,
+            ),
+            Line(
+                y=y_preds_Z2,
+                y_err=y_preds_Z2_err,
+                y_ref=y_targets,
+                label=rf"{self.name}$(x_{{\text{{Z}}_2}})$",
+                color=COLOR_Z2,
             ),
             Line(
                 y=y_preds_SO3,
@@ -957,6 +1011,15 @@ class Model(nn.Module):
             abs_delta_bins, np.abs(delta_preds_SO2), bayesian=False
         )
 
+        delta_preds_Z2 = (preds_Z2 - targets) / targets
+        y_delta_preds_Z2, y_delta_preds_Z2_err = compute_hist_data(
+            delta_bins, delta_preds_Z2, bayesian=False
+        )
+        y_delta_preds_Z2_abs, y_delta_preds_Z2_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(delta_preds_Z2), bayesian=False
+        )
+
+
         delta_true_lines = [
             Line(
                 y=y_delta_preds,
@@ -969,6 +1032,12 @@ class Model(nn.Module):
                 y_err=y_delta_preds_SO2_err,
                 label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
                 color=COLOR_SO2,
+            ),
+            Line(
+                y=y_delta_preds_Z2,
+                y_err=y_delta_preds_Z2_err,
+                label=rf"{self.name}$(x_{{\text{{Z}}_2}})$",
+                color=COLOR_Z2,
             ),
             Line(
                 y=y_delta_preds_SO3,
@@ -1007,6 +1076,12 @@ class Model(nn.Module):
                 y_err=y_delta_preds_SO2_abs_err,
                 label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
                 color=COLOR_SO2,
+            ),
+            Line(
+                y=y_delta_preds_Z2_abs,
+                y_err=y_delta_preds_Z2_abs_err,
+                label=rf"{self.name}$(x_{{\text{{Z}}_2}})$",
+                color=COLOR_Z2,
             ),
             Line(
                 y=y_delta_preds_SO3_abs,
@@ -1080,11 +1155,21 @@ class Model(nn.Module):
             abs_delta_bins, np.abs(deltas_SO2), bayesian=False
         )
 
+        # # Z2
+        deltas_Z2 = (preds_Z2 - preds) / preds
+        y_deltas_Z2, y_deltas_Z2_err = compute_hist_data(
+            delta_bins, deltas_Z2, bayesian=False
+        )
+        y_deltas_Z2_abs, y_deltas_Z2_abs_err = compute_hist_data(
+            abs_delta_bins, np.abs(deltas_Z2), bayesian=False
+        )
+
         mu_deltas_boost_abs = np.mean(np.abs(deltas_boost))
         mu_deltas_SO3_abs = np.mean(np.abs(deltas_SO3))
         mu_deltas_SL4_abs = np.mean(np.abs(deltas_SL4))
         mu_deltas_shear_abs = np.mean(np.abs(deltas_shear))
         mu_deltas_SO2_abs = np.mean(np.abs(deltas_SO2))
+        mu_deltas_Z2_abs = np.mean(np.abs(deltas_Z2))
 
         # median
         median_deltas_boost_abs = np.median(np.abs(deltas_boost))
@@ -1092,12 +1177,14 @@ class Model(nn.Module):
         median_deltas_SL4_abs = np.median(np.abs(deltas_SL4))
         median_deltas_shear_abs = np.median(np.abs(deltas_shear))
         median_deltas_SO2_abs = np.median(np.abs(deltas_SO2))
+        median_deltas_Z2_abs = np.median(np.abs(deltas_Z2))
 
         std_deltas_boost_abs = np.std(np.abs(deltas_boost))
         std_deltas_SO3_abs = np.std(np.abs(deltas_SO3))
         std_deltas_SL4_abs = np.std(np.abs(deltas_SL4))
         std_deltas_shear_abs = np.std(np.abs(deltas_shear))
         std_deltas_SO2_abs = np.std(np.abs(deltas_SO2))
+        std_deltas_Z2_abs = np.std(np.abs(deltas_Z2))
 
         run_dir = os.path.dirname(self.model_path)
         log_path = os.path.join(run_dir, "grokking.log")
@@ -1107,27 +1194,31 @@ class Model(nn.Module):
                 f"loss_median: {loss[1]}, "
                 f"loss_mean: {loss[0]}, "
                 f"loss_SO2_median: {loss_SO2[1]}, "
+                f"loss_Z2_median: {loss_Z2[1]}, "
                 f"loss_SO3_median: {loss_SO3[1]}, "
                 f"loss_boosted_median: {loss_boosted[1]}, "
                 f"loss_SL4_median: {loss_SL4[1]}, "
                 f"loss_shear_median: {loss_shear[1]}, "
                 f"loss_SO2_mean: {loss_SO2[0]}, "
+                f"loss_Z2_mean: {loss_Z2[0]}, "
                 f"loss_SO3_mean: {loss_SO3[0]}, "
                 f"loss_boosted_mean: {loss_boosted[0]}, "
                 f"loss_SL4_mean: {loss_SL4[0]}, "
                 f"loss_shear_mean: {loss_shear[0]}, "
-                f"loss_shear_median: {loss_shear[1]}, "
                 f"mu_deltas_SO2_abs: {mu_deltas_SO2_abs}, "
+                f"mu_deltas_Z2_abs: {mu_deltas_Z2_abs}, "
                 f"mu_deltas_SO3_abs: {mu_deltas_SO3_abs}, "
                 f"mu_deltas_SL4_abs: {mu_deltas_SL4_abs}, "
                 f"mu_deltas_boost_abs: {mu_deltas_boost_abs}, "
                 f"mu_deltas_shear_abs: {mu_deltas_shear_abs}, "
                 f"median_deltas_SO2_abs: {median_deltas_SO2_abs}, "
+                f"median_deltas_Z2_abs: {median_deltas_Z2_abs}, "
                 f"median_deltas_SO3_abs: {median_deltas_SO3_abs}, "
                 f"median_deltas_boost_abs: {median_deltas_boost_abs}, "
                 f"median_deltas_SL4_abs: {median_deltas_SL4_abs}, "
                 f"median_deltas_shear_abs: {median_deltas_shear_abs}, "
                 f"std_deltas_SO2_abs: {std_deltas_SO2_abs}, "
+                f"std_deltas_Z2_abs: {std_deltas_Z2_abs}, "
                 f"std_deltas_SO3_abs: {std_deltas_SO3_abs}, "
                 f"std_deltas_boost_abs: {std_deltas_boost_abs}, "
                 f"std_deltas_SL4_abs: {std_deltas_SL4_abs}, "
@@ -1140,6 +1231,12 @@ class Model(nn.Module):
                 y_err=y_deltas_SO2_err,
                 label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
                 color=COLOR_SO2,
+            ),
+            Line(
+                y=y_deltas_Z2,
+                y_err=y_deltas_Z2_err,
+                label=rf"{self.name}$(x_{{\text{{Z}}_2}})$",
+                color=COLOR_Z2,
             ),
             Line(
                 y=y_deltas_SO3,
@@ -1172,6 +1269,12 @@ class Model(nn.Module):
                 y_err=y_deltas_SO2_abs_err,
                 label=rf"{self.name}$(x_{{\text{{SO(2)}}}})$",
                 color=COLOR_SO2,
+            ),
+            Line(
+                y=y_deltas_Z2_abs,
+                y_err=y_deltas_Z2_abs_err,
+                label=rf"{self.name}$(x_{{\text{{Z}}_2}})$",
+                color=COLOR_Z2,
             ),
             Line(
                 y=y_deltas_SO3_abs,
