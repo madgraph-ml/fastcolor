@@ -23,10 +23,37 @@ TYPE_TOKEN_DICT = {
     "gg_5g": [0, 1, 2, 3, 4, 5, 6],
     "gg_6g": [0, 1, 2, 3, 4, 5, 6, 7],
     "gg_7g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-    "gg_ddbar2g": [0, 0, 1, 2, 3, 3],
-    "gg_ddbar3g": [0, 0, 1, 2, 3, 3, 3],
-    "gg_ddbar4g": [0, 0, 1, 2, 3, 3, 3, 3],
-    "gg_ddbar5g": [0, 0, 1, 2, 3, 3, 3, 3, 3],
+
+    "gg_ddbar2g": [0, 1, 2, 3, 4, 5],
+    "gg_ddbar3g": [0, 1, 2, 3, 4, 5, 6],
+    "gg_ddbar4g": [0, 1, 2, 3, 4, 5, 6, 7],
+    "gg_ddbar5g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+
+    "dbard_4g": [0, 1, 2, 3, 4, 5],
+    "dbard_5g": [0, 1, 2, 3, 4, 5, 6],
+    "dbard_6g": [0, 1, 2, 3, 4, 5, 6, 7],
+    "dbard_7g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+
+    "gg_ddbaruubar0g_co1": [0, 1, 2, 3, 4, 5],
+    "gg_ddbaruubar1g_co1": [0, 1, 2, 3, 4, 5, 6],
+    "gg_ddbaruubar2g_co1": [0, 1, 2, 3, 4, 5, 6, 7],
+    "gg_ddbaruubar3g_co1": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    
+    "gg_ddbaruubar0g_co2": [0, 1, 2, 3, 4, 5],
+    "gg_ddbaruubar1g_co2": [0, 1, 2, 3, 4, 5, 6],
+    "gg_ddbaruubar2g_co2": [0, 1, 2, 3, 4, 5, 6, 7],
+    "gg_ddbaruubar3g_co2": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+
+
+    "ddbar_uubar2g_co1": [0, 1, 2, 3, 4, 5],
+    "ddbar_uubar3g_co1": [0, 1, 2, 3, 4, 5, 6],
+    "ddbar_uubar4g_co1": [0, 1, 2, 3, 4, 5, 6, 7],
+    "ddbar_uubar5g_co1": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    
+    "ddbar_uubar2g_co2": [0, 1, 2, 3, 4, 5],    
+    "ddbar_uubar3g_co2": [0, 1, 2, 3, 4, 5, 6],
+    "ddbar_uubar4g_co2": [0, 1, 2, 3, 4, 5, 6, 7],
+    "ddbar_uubar5g_co2": [0, 1, 2, 3, 4, 5, 6, 7, 8],
 }
 
 
@@ -98,12 +125,9 @@ class LGATr(Model):
 
         self.type_token = TYPE_TOKEN_DICT[process]
         token_size = max(self.type_token) + 1
-        self.remove_color = self.cfg.dataset.get("remove_color", False)
-        self.features_per_particle = (
-            7 if not self.cfg.dataset.get("remove_color", False) else 6
-        )
+        self.features_per_particle = 5
         self.n_particles = self.dims_in // self.features_per_particle
-        in_s_channels = token_size + 3 - int(self.remove_color)
+        in_s_channels = token_size + 1
         self.global_token = global_token
 
         self.net = LGATr_net(
@@ -121,7 +145,7 @@ class LGATr(Model):
             double_layernorm=double_layernorm,
         )
         self.amplitude_wrapper = AmplitudeWrapper(
-            self.net, token_size, self.remove_color, self.features_per_particle
+            self.net, token_size, self.features_per_particle
         )
         self.init_loss()
 
@@ -323,14 +347,12 @@ class AmplitudeWrapper(nn.Module):
         self,
         net,
         token_size,
-        remove_color,
         features_per_particle,
         reinsert_type_token=False,
     ):
         super().__init__()
         self.net = net
         self.token_size = token_size
-        self.remove_color = remove_color
         self.features_per_particle = features_per_particle
 
     def forward(self, inputs: torch.Tensor, type_token, global_token, attn_mask=None):
@@ -347,9 +369,9 @@ class AmplitudeWrapper(nn.Module):
         inputs = inputs.unsqueeze(0)
         inputs = inputs.view(1, batchsize, num_objects, self.features_per_particle)
         nprocesses, batchsize, num_objects, _ = inputs.shape
-        inputs_s = inputs[..., 0 : 3 - int(self.remove_color)]  # extract scalar inputs
+        inputs_s = inputs[..., 0 : 1]
         inputs_mv = inputs[
-            ..., 3 - int(self.remove_color) :
+            ..., 1 :
         ]  # extract multivector inputs
 
         # encode momenta in multivectors
@@ -377,7 +399,7 @@ class AmplitudeWrapper(nn.Module):
         )
         pad = torch.zeros(
             *global_token.shape[:-1],
-            3 - int(self.remove_color),  # pad to 3 for Lorentz scalars
+            1,
             device=global_token.device,
             dtype=global_token.dtype,
         )  # [B, 1, 3]

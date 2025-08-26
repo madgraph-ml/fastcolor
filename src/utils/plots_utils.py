@@ -120,8 +120,6 @@ def optimize_gain_factor_2(
                     frac_ow=frac_ow,
                     mean_ow=np.nanmean(w[w > 1]),
                     mean_w=np.nanmean(w),
-                    e1=e1,
-                    e2=e2,
                     eff_LC=eff_LC,
                     t_LC=t_LC,
                     t_FC=t_FC,
@@ -131,13 +129,104 @@ def optimize_gain_factor_2(
                 )
     return best
 
+def optimize_gain_factor_1(
+    process,
+    model_name,
+    pred,
+    truth,
+    t_LC,
+    eff_LC,
+    t_FC,
+    t_surr,
+    alpha_min=0.8,
+    frac_ow_max=0.01,
+    grid_elements=201,
+):
+    """
+    Optimize gain factor for a given process and model.
+    Args:
+        process (str): Process name.
+        model_name (str): Model name.
+        pred (np.ndarray): Predicted reweight factors (or R in case of the R method).
+        truth (np.ndarray): True reweight factors (ALSO for the R method; this does not change).
+        t_LC (float): Time for LC.
+        eff_LC (float): Efficiency for LC.
+        t_FC (float): Time for FC.
+        t_surr (float): Time for surrogate model evaluation. Automatically multiplied by n_hel if n_hel is not None (in R method)
+        n_hel (int, optional): Number of helicities. Defaults to None.
+        alpha_min (float, optional): Minimum alpha value. Defaults to 0.8.
+        grid_elements (int, optional): Number of grid elements. Defaults to 201.
+    Returns:
+        dict: Dictionary containing the optimized gain factor and other metrics.
+    """
+
+    pcts = np.linspace(0.0, 100.0, grid_elements)
+    # print(pcts)
+    pred = np.asarray(pred, float)
+    ratio = np.asarray(truth, float) / pred
+    eff_r = np.mean(truth) / np.max(truth)
+    N = pred.size
+
+    perc_pred = {p: np.percentile(pred, p) for p in pcts}
+    perc_ratio = {p: np.percentile(ratio, p) for p in pcts}
+
+    best_gain, best = -np.inf, None
+    num = (1 / eff_r) * (t_LC * (1 / eff_LC) + t_FC)
+
+    for p1 in pcts:
+        e1 = np.mean(pred) / perc_pred[p1]
+        if e1 > 1.0:
+            continue
+        ow1 = pred / perc_pred[p1]
+        for p2 in pcts:
+            e2 = np.mean(ratio) / perc_ratio[p2]
+            if e2 > 1.0:
+                continue
+            ow2 = ratio / perc_ratio[p2]
+
+            w = np.maximum(1.0, ow1 * ow2)
+            frac_ow = float((w > 1).sum()) / N
+            if frac_ow_max is not None and frac_ow > frac_ow_max:
+                continue
+
+            N_eff = (np.sum(w)) ** 2 / np.sum(w**2)
+            alpha = N_eff / N
+
+            if alpha < alpha_min:
+                continue
+
+            den_inner = (1 / e2) * ((1 / e1) * (t_LC / eff_LC + t_surr) + t_FC)
+            gain = alpha * num / den_inner  # == gain_factor2(...)
+            if gain > best_gain:
+
+                best_gain = gain
+                best = dict(
+                    gain=gain,
+                    p1=p1,
+                    p2=p2,
+                    eff1=e1,
+                    eff2=e2,
+                    alpha=alpha,
+                    n_ow=float((w > 1).sum()),
+                    frac_ow=frac_ow,
+                    mean_ow=np.nanmean(w[w > 1]),
+                    mean_w=np.nanmean(w),
+                    eff_LC=eff_LC,
+                    t_LC=t_LC,
+                    t_FC=t_FC,
+                    t_surr=t_surr,
+                    eff_r=eff_r,
+                )
+    return best
+
+
 
 def compute_and_log_metrics(
     process: str,
     model_name: str,
     reweight_factors_pred: np.ndarray,
     reweight_factors_truth: np.ndarray,
-    R: np.ndarray,
+    R: Optional[np.ndarray],
     n_helicities: int,
     split: str,
     ppd: bool,
@@ -148,345 +237,353 @@ def compute_and_log_metrics(
     """Compute metrics, update dictionary in-place, and append to log file."""
 
     ratio = reweight_factors_truth / reweight_factors_pred
-    ratio_R = reweight_factors_truth / R
+    ratio_R = reweight_factors_truth / R if R is not None else None
     delta = (reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth
     abs_delta = np.abs(delta)
+    
+    if process in eval_time and process in unw_eff1:
+        opt_dict_algo1 = optimize_gain_factor_1(
+            process=process,
+            model_name=model_name,
+            pred=reweight_factors_pred,
+            truth=reweight_factors_truth,
+            t_LC=eval_time[process]["LC"],
+            eff_LC=unw_eff1[process]["LC"],
+            t_FC=eval_time[process]["FC"],
+            t_surr=eval_time[process][model_name]["t_eval"],
+            alpha_min=0.8,
+            frac_ow_max=0.05,
+            grid_elements=201 if split == "tst" and not ppd else 21,
+        )
+        opt_dict_algo1_p1max = opt_dict_algo1["p1"]
+        opt_dict_algo1_p2max = opt_dict_algo1["p2"]
+        
+        print("\n")
+        print("Result from optimizing algo1:", opt_dict_algo1)
+        if R is not None:
+            opt_dict_algo2 = optimize_gain_factor_2(
+                process=process,
+                model_name=model_name,
+                pred=R,
+                n_hel=n_helicities,
+                truth=reweight_factors_truth,
+                t_LC=eval_time[process]["LC"],
+                eff_LC=unw_eff1[process]["LC"],
+                t_FC=eval_time[process]["FC"],
+                t_surr=eval_time[process][model_name]["t_eval"],
+                alpha_min=0.8,
+                frac_ow_max=0.05,
+                grid_elements=201 if split == "tst" and not ppd else 21,
+            )
+            opt_dict_algo2_p1max = opt_dict_algo2["p1"]
+            opt_dict_algo2_p2max = opt_dict_algo2["p2"]
 
-    opt_dict_r_method = optimize_gain_factor_2(
-        process=process,
-        model_name=model_name,
-        pred=reweight_factors_pred,
-        n_hel=None,
-        truth=reweight_factors_truth,
-        t_LC=eval_time[process]["LC"],
-        eff_LC=unw_eff1[process]["LC"],
-        t_FC=eval_time[process]["FC"],
-        t_surr=eval_time[process][model_name]["t_eval"],
-        alpha_min=0.8,
-        frac_ow_max=0.01,
-        grid_elements=201 if split == "tst" and not ppd else 21,
-    )
-    opt_dict_r_method_p1max = opt_dict_r_method["p1"]
-    opt_dict_r_method_p2max = opt_dict_r_method["p2"]
+            print("\n")
+            print("Result from optimizing algo2:", opt_dict_algo2)
 
-    opt_dict_R_method = optimize_gain_factor_2(
-        process=process,
-        model_name=model_name,
-        pred=R,
-        n_hel=n_helicities,
-        truth=reweight_factors_truth,
-        t_LC=eval_time[process]["LC"],
-        eff_LC=unw_eff1[process]["LC"],
-        t_FC=eval_time[process]["FC"],
-        t_surr=eval_time[process][model_name]["t_eval"],
-        alpha_min=0.8,
-        frac_ow_max=0.01,
-        grid_elements=201 if split == "tst" and not ppd else 21,
-    )
-    opt_dict_R_method_p1max = opt_dict_R_method["p1"]
-    opt_dict_R_method_p2max = opt_dict_R_method["p2"]
+        metrics_update_algo1 = {
+            "eff_1st_surr": Metric(
+                name="eff_1st_surr",
+                value=np.mean(reweight_factors_pred) / np.max(reweight_factors_pred),
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\epsilon_{\text{1st, surr}}",
+            ),
+            "eff_1st_surr_opt_algo1": Metric(
+                name="eff_1st_surr_opt_algo1",
+                value=np.mean(reweight_factors_pred)
+                / np.percentile(reweight_factors_pred, opt_dict_algo1_p1max),
+                unit="",
+                format="{:.5f}",
+                tex_label=rf"\epsilon_{{\text{{1st, algo1}}}}^{{{opt_dict_algo1_p1max}}}",
+            ),
+            "eff_2nd_std": Metric(
+                name="eff_2nd_std",
+                value=np.mean(reweight_factors_truth) / np.max(reweight_factors_truth),
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\epsilon_{\text{2nd, std}}",
+            ),
+            "eff_2nd_surr": Metric(
+                name="eff_2nd_surr",
+                value=np.mean(ratio) / np.max(ratio),
+                unit="",
+                format="{:.2f}",
+                tex_label=r"\epsilon_{100}",
+            ),
+            "eff_2nd_surr_opt_algo1": Metric(
+                name="eff_2nd_surr_opt_algo1",
+                value=np.mean(ratio)
+                / np.percentile(ratio, opt_dict_algo1_p2max),
+                unit="",
+                format="{:.5f}",
+                tex_label=rf"\epsilon_{{\text{{2nd, algo1}}}}^{{{opt_dict_algo1_p2max}}}",
+            ),
+            "gain_algo1": Metric(
+                name="gain_algo1",
+                value=opt_dict_algo1["gain"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"f^{\text{eff}}_{\text{algo1}}",
+            ),
+            "alpha_algo1": Metric(
+                name="alpha_algo1",
+                value=opt_dict_algo1["alpha"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\alpha^{\text{eff}}_{\text{algo1}}",
+            ),
+            "n_ow_algo1": Metric(
+                name="n_ow_algo1",
+                value=opt_dict_algo1["n_ow"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"n_{\text{ow, algo1}}",
+            ),
+            "frac_ow_algo1": Metric(
+                name="frac_ow_algo1",
+                value=opt_dict_algo1["frac_ow"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"f_{\text{ow, algo1}}",
+            ),
+            "mean_ow_algo1": Metric(
+                name="mean_ow_algo1",
+                value=opt_dict_algo1["mean_ow"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\langle w \rangle_{\text{algo1}}",
+            ),
+            "mean_w_algo1": Metric(
+                name="mean_w_algo1",
+                value=opt_dict_algo1["mean_w"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\langle w \rangle_{\text{algo1}}",
+            ),
+            "t_LC": Metric(
+                name="t_LC",
+                value=eval_time[process]["LC"],
+                unit="s",
+                format="{:.2f}",
+                tex_label=r"t_{\text{LC}}",
+            ),
+            "eff_LC": Metric(
+                name="eff_LC",
+                value=unw_eff1[process]["LC"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\epsilon_{\text{LC}}",
+            ),
+            "t_FC": Metric(
+                name="t_FC",
+                value=eval_time[process]["FC"],
+                unit="s",
+                format="{:.2f}",
+                tex_label=r"t_{\text{FC}}",
+            ),
+            "t_surr": Metric(
+                name="t_surr",
+                value=eval_time[process][model_name]["t_eval"],
+                unit="s",
+                format="{:.2f}",
+                tex_label=r"t_{\text{surr}}",
+            ),
+            "ratio_mean": Metric(
+                name="ratio_mean",
+                value=np.mean(ratio),
+                unit="",
+                tex_label=r"\mu",
+            ),
+            "ratio_std": Metric(
+                name="ratio_std",
+                value=np.std(ratio),
+                unit="",
+                tex_label=r"\sigma",
+            ),
+            "ratio_max": Metric(
+                name="ratio_max",
+                value=np.max(ratio),
+                unit="",
+                tex_label=r"x_{\max}",
+            ),
+            "delta_mean": Metric(
+                name="delta_mean",
+                value=np.mean(delta),
+                unit="",
+                tex_label=r"\mu",
+            ),
+            "delta_std": Metric(
+                name="delta_std",
+                value=np.std(delta),
+                unit="",
+                tex_label=r"\sigma",
+            ),
+            "abs_delta_mean": Metric(
+                name="abs_delta_mean",
+                value=np.mean(abs_delta),
+                unit="",
+                tex_label=r"\mu",
+            ),
+            "abs_delta_std": Metric(
+                name="abs_delta_std",
+                value=np.std(abs_delta),
+                unit="",
+                tex_label=r"\sigma",
+            ),
+            "abs_delta_qmin": Metric(
+                name="abs_delta_qmin",
+                value=np.percentile(abs_delta, 0.05),
+                unit="",
+                tex_label=r"q_{0.05}",
+            ),
+            "abs_delta_qmax": Metric(
+                name="abs_delta_qmax",
+                value=np.percentile(abs_delta, 99.95),
+                unit="",
+                tex_label=r"q_{99.95}",
+            ),
+            "abs_delta_min": Metric(
+                name="abs_delta_min",
+                value=np.min(abs_delta),
+                unit="",
+                tex_label=r"\min",
+            ),
+            "abs_delta_max": Metric(
+                name="abs_delta_max",
+                value=np.max(abs_delta),
+                unit="",
+                tex_label=r"\max",
+            ),
+            # "eff_1st_surr_pm9995": Metric(
+            #     name="eff_1st_surr_pm9995",
+            #     value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.95),
+            #     unit="",
+            #     format="{:.3f}",
+            #     tex_label=r"\epsilon_{\text{1st, surr, 99.95}}",
+            # ),
+            # "eff_1st_surr_pm999": Metric(
+            #     name="eff_1st_surr_pm999",
+            #     value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.9),
+            #     unit="",
+            #     format="{:.3f}",
+            #     tex_label=r"\epsilon_{\text{1st, surr, 99.9}}",
+            # ),
+            # "eff_1st_surr_pm995": Metric(
+            #     name="eff_1st_surr_pm995",
+            #     value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.5),
+            #     unit="",
+            #     format="{:.3f}",
+            #     tex_label=r"\epsilon_{\text{1st, surr, 99.5}}",
+            # ),
+            # "eff_2nd_surr_pm9999": Metric(
+            #     name="eff_2nd_surr_pm9999",
+            #     value=np.mean(ratio) / np.percentile(ratio, 99.99),
+            #     unit="",
+            #     format="{:.2f}",
+            #     tex_label=r"\epsilon_{99.99}",
+            # ),
+            # "eff_2nd_surr_pm9995": Metric(
+            #     name="eff_2nd_surr_pm9995",
+            #     value=np.mean(ratio) / np.percentile(ratio, 99.95),
+            #     unit="",
+            #     format="{:.2f}",
+            #     tex_label=r"\epsilon_{99.95}",
+            # ),
+            # "eff_2nd_surr_pm995": Metric(
+            #     name="eff_2nd_surr_pm995",
+            #     value=np.mean(ratio) / np.percentile(ratio, 99.5),
+            #     unit="",
+            #     format="{:.2f}",
+            #     tex_label=r"\epsilon_{99.5}",
+            # ),
+        }
+        metrics.update(metrics_update_algo1)
+        if R is not None:
+            metrics_update_algo2 = {
+                "eff_1st_surr_opt_algo2": Metric(
+                    name="eff_1st_surr_opt_algo2",
+                    value=np.mean(R) / np.percentile(R, opt_dict_algo2_p1max),
+                    unit="",
+                    format="{:.5f}",
+                    tex_label=rf"\epsilon_{{\text{{1st, algo2}}}}^{{{opt_dict_algo2_p1max}}}",
+                ),
+                "eff_2nd_surr_opt_algo2": Metric(
+                    name="eff_2nd_surr_opt_algo2",
+                    value=np.mean(ratio_R) / np.percentile(ratio_R, opt_dict_algo2_p2max),
+                    unit="",
+                    format="{:.5f}",
+                    tex_label=rf"\epsilon_{{\text{{2nd, algo2}}}}^{{{opt_dict_algo2_p2max}}}",
+                ),
+                "gain_algo2": Metric(
+                    name="gain_algo2",
+                    value=opt_dict_algo2["gain"],
+                    unit="",
+                    format="{:.3f}",
+                    tex_label=r"f^{\text{eff}}_{\text{algo2}}",
+                ),
+                "alpha_algo2": Metric(
+                    name="alpha_algo2",
+                    value=opt_dict_algo2["alpha"],
+                    unit="",
+                    format="{:.3f}",
+                    tex_label=r"\alpha^{\text{eff}}_{\text{algo2}}",
+                ),
+                "n_ow_algo2": Metric(
+                    name="n_ow_algo2",
+                    value=opt_dict_algo2["n_ow"],
+                    unit="",
+                    format="{:.3f}",
+                    tex_label=r"n_{\text{ow, algo2}}",
+                ),
+                "frac_ow_algo2": Metric(
+                    name="frac_ow_algo2",
+                    value=opt_dict_algo2["frac_ow"],
+                    unit="",
+                    format="{:.3f}",
+                    tex_label=r"f_{\text{ow, algo2}}",
+                ),
+                "mean_ow_algo2": Metric(
+                    name="mean_ow_algo2",
+                    value=opt_dict_algo2["mean_ow"],
+                    unit="",
+                    format="{:.3f}",
+                    tex_label=r"\langle w \rangle_{\text{algo2}}",
+                ),
+                "mean_w_algo2": Metric(
+                    name="mean_w_algo2",
+                    value=opt_dict_algo2["mean_w"],
+                    unit="",
+                    format="{:.3f}",
+                    tex_label=r"\langle w \rangle_{\text{algo2}}",
+                ),
+                "n_helicities": Metric(
+                    name="n_helicities",
+                    value=n_helicities,
+                    unit="",
+                    format="{:.0f}",
+                    tex_label=r"n_{\text{hel}}",
+                ),
+            }
+            metrics.update(metrics_update_algo2)
+        # Append to log file
+        if log_file is None:
+            if file is None:
+                raise ValueError("Need either log_file or pdf_file for metrics storage.")
+            log_file = os.path.join(os.path.dirname(file) or ".", "metrics.log")
+        with open(log_file, "a") as f:
+            f.write(f"split_{split}-ppd_{ppd}: ")
+            for i, (k, m) in enumerate(metrics.items()):
+                value = f"{m.value:.10f}" if np.abs(m.value) > 1e-7 else f"{m.value:.2e}"
+                f.write(f"{k}: {value}")
+                if i < len(metrics) - 1:
+                    f.write(", ")
+            f.write("\n")
+            f.close()
+    else:
+        pass
 
-    print("\n")
-    print("Result from optimizing r:", opt_dict_r_method)
-    print("Result from optimizing R:", opt_dict_R_method)
-
-    metrics_update = {
-        "eff_1st_surr": Metric(
-            name="eff_1st_surr",
-            value=np.mean(reweight_factors_pred) / np.max(reweight_factors_pred),
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\epsilon_{\text{1st, surr}}",
-        ),
-        "eff_1st_surr_pm9999": Metric(
-            name="eff_1st_surr_pm9999",
-            value=np.mean(reweight_factors_pred)
-            / np.percentile(reweight_factors_pred, 99.99),
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\epsilon_{\text{1st, surr, 99.99}}",
-        ),
-        "eff_1st_surr_pm99": Metric(
-            name="eff_1st_surr_pm99",
-            value=np.mean(reweight_factors_pred)
-            / np.percentile(reweight_factors_pred, 99.0),
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\epsilon_{\text{1st, surr, 99.0}}",
-        ),
-        "eff_1st_surr_opt": Metric(
-            name="eff_1st_surr_opt",
-            value=np.mean(reweight_factors_pred)
-            / np.percentile(reweight_factors_pred, opt_dict_r_method_p1max),
-            unit="",
-            format="{:.5f}",
-            tex_label=rf"\epsilon_{{\text{{1st}}}}^{{{opt_dict_r_method_p1max}}}",
-        ),
-        "eff_1st_surr_opt_R": Metric(
-            name="eff_1st_surr_opt_R",
-            value=np.mean(R) / np.percentile(R, opt_dict_R_method_p1max),
-            unit="",
-            format="{:.5f}",
-            tex_label=rf"\epsilon_{{\text{{1st}}}}^{{{opt_dict_R_method_p1max}}}",
-        ),
-        "eff_2nd_std": Metric(
-            name="eff_2nd_std",
-            value=np.mean(reweight_factors_truth) / np.max(reweight_factors_truth),
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\epsilon_{\text{2nd, std}}",
-        ),
-        "ratio_mean": Metric(
-            name="ratio_mean",
-            value=np.mean(ratio),
-            unit="",
-            tex_label=r"\mu",
-        ),
-        "ratio_std": Metric(
-            name="ratio_std",
-            value=np.std(ratio),
-            unit="",
-            tex_label=r"\sigma",
-        ),
-        "ratio_max": Metric(
-            name="ratio_max",
-            value=np.max(ratio),
-            unit="",
-            tex_label=r"x_{\max}",
-        ),
-        "eff_2nd_surr": Metric(
-            name="eff_2nd_surr",
-            value=np.mean(ratio) / np.max(ratio),
-            unit="",
-            format="{:.2f}",
-            tex_label=r"\epsilon_{100}",
-        ),
-        "eff_2nd_surr_pm999": Metric(
-            name="eff_2nd_surr_pm999",
-            value=np.mean(ratio) / np.percentile(ratio, 99.9),
-            unit="",
-            format="{:.2f}",
-            tex_label=r"\epsilon_{99.9}",
-        ),
-        "eff_2nd_surr_pm99": Metric(
-            name="eff_2nd_surr_pm99",
-            value=np.mean(ratio) / np.percentile(ratio, 99.0),
-            unit="",
-            format="{:.2f}",
-            tex_label=r"\epsilon_{99.0}",
-        ),
-        "eff_2nd_surr_opt": Metric(
-            name="eff_2nd_surr_opt",
-            value=np.mean(ratio) / np.percentile(ratio, opt_dict_r_method_p2max),
-            unit="",
-            format="{:.5f}",
-            tex_label=rf"\epsilon_{{\text{{2nd}}}}^{{{opt_dict_r_method_p2max}}}",
-        ),
-        "eff_2nd_surr_opt_R": Metric(
-            name="eff_2nd_surr_opt_R",
-            value=np.mean(ratio_R) / np.percentile(ratio_R, opt_dict_R_method_p2max),
-            unit="",
-            format="{:.5f}",
-            tex_label=rf"\epsilon_{{\text{{2nd}}}}^{{{opt_dict_R_method_p2max}}}",
-        ),
-        "n_ow": Metric(
-            name="n_ow",
-            value=opt_dict_r_method["n_ow"],
-            unit="",
-            format="{:.0f}",
-            tex_label=r"N_{\text{ow}}",
-        ),
-        "n_ow2": Metric(
-            name="n_ow2",
-            value=opt_dict_R_method["n_ow"],
-            unit="",
-            format="{:.0f}",
-            tex_label=r"N_{\text{ow}}",
-        ),
-        "frac_ow": Metric(
-            name="frac_ow",
-            value=opt_dict_r_method["frac_ow"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"f_{\text{ow}}",
-        ),
-        "frac_ow2": Metric(
-            name="frac_ow2",
-            value=opt_dict_R_method["frac_ow"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"f_{\text{ow}}",
-        ),
-        "mean_ow": Metric(
-            name="mean_ow",
-            value=opt_dict_r_method["mean_ow"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\mu_{\text{ow}}",
-        ),
-        "mean_ow2": Metric(
-            name="mean_ow2",
-            value=opt_dict_R_method["mean_ow"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\mu_{\text{ow}}",
-        ),
-        "mean_w": Metric(
-            name="mean_w",
-            value=opt_dict_r_method["mean_w"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\mu_{w}",
-        ),
-        "mean_w2": Metric(
-            name="mean_w2",
-            value=opt_dict_R_method["mean_w"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\mu_{w}",
-        ),
-        "gain": Metric(
-            name="gain",
-            value=opt_dict_r_method["gain"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"f^{\text{eff}}",
-        ),
-        "gain2": Metric(
-            name="gain2",
-            value=opt_dict_R_method["gain"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"f^{\text{eff}}",
-        ),
-        "alpha": Metric(
-            name="alpha",
-            value=opt_dict_r_method["alpha"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\alpha",
-        ),
-        "alpha2": Metric(
-            name="alpha2",
-            value=opt_dict_R_method["alpha"],
-            unit="",
-            format="{:.3f}",
-            tex_label=r"\alpha",
-        ),
-        "n_hel": Metric(
-            name="n_hel",
-            value=n_helicities,
-            unit="",
-            format="{:.0f}",
-            tex_label=r"N_{h}",
-        ),
-        "delta_mean": Metric(
-            name="delta_mean",
-            value=np.mean(delta),
-            unit="",
-            tex_label=r"\mu",
-        ),
-        "delta_std": Metric(
-            name="delta_std",
-            value=np.std(delta),
-            unit="",
-            tex_label=r"\sigma",
-        ),
-        "abs_delta_mean": Metric(
-            name="abs_delta_mean",
-            value=np.mean(abs_delta),
-            unit="",
-            tex_label=r"\mu",
-        ),
-        "abs_delta_std": Metric(
-            name="abs_delta_std",
-            value=np.std(abs_delta),
-            unit="",
-            tex_label=r"\sigma",
-        ),
-        "abs_delta_qmin": Metric(
-            name="abs_delta_qmin",
-            value=np.percentile(abs_delta, 0.05),
-            unit="",
-            tex_label=r"q_{0.05}",
-        ),
-        "abs_delta_qmax": Metric(
-            name="abs_delta_qmax",
-            value=np.percentile(abs_delta, 99.95),
-            unit="",
-            tex_label=r"q_{99.95}",
-        ),
-        "abs_delta_min": Metric(
-            name="abs_delta_min",
-            value=np.min(abs_delta),
-            unit="",
-            tex_label=r"\min",
-        ),
-        "abs_delta_max": Metric(
-            name="abs_delta_max",
-            value=np.max(abs_delta),
-            unit="",
-            tex_label=r"\max",
-        ),
-        # "eff_1st_surr_pm9995": Metric(
-        #     name="eff_1st_surr_pm9995",
-        #     value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.95),
-        #     unit="",
-        #     format="{:.3f}",
-        #     tex_label=r"\epsilon_{\text{1st, surr, 99.95}}",
-        # ),
-        # "eff_1st_surr_pm999": Metric(
-        #     name="eff_1st_surr_pm999",
-        #     value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.9),
-        #     unit="",
-        #     format="{:.3f}",
-        #     tex_label=r"\epsilon_{\text{1st, surr, 99.9}}",
-        # ),
-        # "eff_1st_surr_pm995": Metric(
-        #     name="eff_1st_surr_pm995",
-        #     value=np.mean(reweight_factors_pred) / np.percentile(reweight_factors_pred, 99.5),
-        #     unit="",
-        #     format="{:.3f}",
-        #     tex_label=r"\epsilon_{\text{1st, surr, 99.5}}",
-        # ),
-        # "eff_2nd_surr_pm9999": Metric(
-        #     name="eff_2nd_surr_pm9999",
-        #     value=np.mean(ratio) / np.percentile(ratio, 99.99),
-        #     unit="",
-        #     format="{:.2f}",
-        #     tex_label=r"\epsilon_{99.99}",
-        # ),
-        # "eff_2nd_surr_pm9995": Metric(
-        #     name="eff_2nd_surr_pm9995",
-        #     value=np.mean(ratio) / np.percentile(ratio, 99.95),
-        #     unit="",
-        #     format="{:.2f}",
-        #     tex_label=r"\epsilon_{99.95}",
-        # ),
-        # "eff_2nd_surr_pm995": Metric(
-        #     name="eff_2nd_surr_pm995",
-        #     value=np.mean(ratio) / np.percentile(ratio, 99.5),
-        #     unit="",
-        #     format="{:.2f}",
-        #     tex_label=r"\epsilon_{99.5}",
-        # ),
-    }
-    metrics.update(metrics_update)
-
-    # Append to log file
-    if log_file is None:
-        if file is None:
-            raise ValueError("Need either log_file or pdf_file for metrics storage.")
-        log_file = os.path.join(os.path.dirname(file) or ".", "metrics.log")
-    with open(log_file, "a") as f:
-        f.write(f"split_{split}-ppd_{ppd}: ")
-        for i, (k, m) in enumerate(metrics.items()):
-            value = f"{m.value:.10f}" if np.abs(m.value) > 1e-7 else f"{m.value:.3e}"
-            f.write(f"{k}: {value}")
-            if i < len(metrics) - 1:
-                f.write(", ")
-        f.write("\n")
-        f.close()
+    
 
 
 def hist_weights_plot(
@@ -930,40 +1027,165 @@ bins_dict = {
             "gg_5g": np.linspace(0.75, 1.15, 64),
             "gg_6g": np.linspace(0.65, 1.5, 64),
             "gg_7g": np.linspace(0.59, 2.0, 64),
+
+
             "gg_ddbar2g": np.linspace(0.35, 1.15, 64),
             "gg_ddbar3g": np.linspace(0.35, 1.15, 64),
             "gg_ddbar4g": np.linspace(0.35, 1.2, 64),
             "gg_ddbar5g": np.linspace(0.35, 1.5, 64),
+
+
+            "dbard_4g": np.linspace(0.45, 0.9, 64),
+            "dbard_5g": np.linspace(0.4, 1., 64),
+            "dbard_6g": np.linspace(0.35, 1.15, 64),
+            "dbard_7g": np.linspace(0.3, 1.2, 64),
+
+
+            "gg_ddbaruubar0g_co1": np.linspace(0.2, 1.3, 64),
+            "gg_ddbaruubar1g_co1": np.linspace(0.1, 1.3, 64),
+            "gg_ddbaruubar2g_co1": np.linspace(0.05, 1.15, 64),
+            "gg_ddbaruubar3g_co1": np.linspace(0.05, 1.15, 64),
+
+            "gg_ddbaruubar0g_co2": np.linspace(0.2, 1.3, 64),
+            "gg_ddbaruubar1g_co2": np.linspace(0.1, 1.3, 64),
+            "gg_ddbaruubar2g_co2": np.linspace(0.05, 1.15, 64),
+            "gg_ddbaruubar3g_co2": np.linspace(0.05, 1.15, 64),
+
+
+            "ddbar_uubar2g_co1": np.linspace(0.3, 1.15, 64),
+            "ddbar_uubar3g_co1": np.linspace(0.25, 1.15, 64),
+            "ddbar_uubar4g_co1": np.linspace(0.05, 1.15, 64),
+            "ddbar_uubar5g_co1": np.linspace(0.05, 1.15, 64),
+
+            "ddbar_uubar2g_co2": np.linspace(0.3, 1.15, 64),
+            "ddbar_uubar3g_co2": np.linspace(0.25, 1.15, 64),
+            "ddbar_uubar4g_co2": np.linspace(0.05, 1.15, 64),
+            "ddbar_uubar5g_co2": np.linspace(0.05, 1.15, 64),
+
         },
         "ratios": {
             "gg_4g": np.linspace(0.90, 1.1, 64),
             "gg_5g": np.linspace(0.90, 1.1, 64),
             "gg_6g": np.linspace(0.90, 1.1, 64),
             "gg_7g": np.linspace(0.90, 1.1, 64),
+
+
             "gg_ddbar2g": np.linspace(0.90, 1.1, 64),
             "gg_ddbar3g": np.linspace(0.90, 1.1, 64),
             "gg_ddbar4g": np.linspace(0.90, 1.1, 64),
             "gg_ddbar5g": np.linspace(0.90, 1.1, 64),
+
+
+            "dbard_4g": np.linspace(0.90, 1.1, 64),
+            "dbard_5g": np.linspace(0.90, 1.1, 64),
+            "dbard_6g": np.linspace(0.90, 1.1, 64),
+            "dbard_7g": np.linspace(0.90, 1.1, 64),
+
+
+            "gg_ddbaruubar0g_co1": np.linspace(0.90, 1.1, 64),
+            "gg_ddbaruubar1g_co1": np.linspace(0.90, 1.1, 64),
+            "gg_ddbaruubar2g_co1": np.linspace(0.90, 1.1, 64),
+            "gg_ddbaruubar3g_co1": np.linspace(0.90, 1.1, 64),
+
+            "gg_ddbaruubar0g_co2": np.linspace(0.90, 1.1, 64),
+            "gg_ddbaruubar1g_co2": np.linspace(0.90, 1.1, 64),
+            "gg_ddbaruubar2g_co2": np.linspace(0.90, 1.1, 64),
+            "gg_ddbaruubar3g_co2": np.linspace(0.90, 1.1, 64),
+
+
+            "ddbar_uubar2g_co1": np.linspace(0.90, 1.1, 64),
+            "ddbar_uubar3g_co1": np.linspace(0.90, 1.1, 64),
+            "ddbar_uubar4g_co1": np.linspace(0.90, 1.1, 64),
+            "ddbar_uubar5g_co1": np.linspace(0.90, 1.1, 64),    
+
+            "ddbar_uubar2g_co2": np.linspace(0.90, 1.1, 64),
+            "ddbar_uubar3g_co2": np.linspace(0.90, 1.1, 64),
+            "ddbar_uubar4g_co2": np.linspace(0.90, 1.1, 64),
+            "ddbar_uubar5g_co2": np.linspace(0.90, 1.1, 64),
+
+
+
         },
         "deltas": {
             "gg_4g": np.linspace(-0.1, 0.1, 64),
             "gg_5g": np.linspace(-0.1, 0.1, 64),
             "gg_6g": np.linspace(-0.1, 0.1, 64),
             "gg_7g": np.linspace(-0.1, 0.1, 64),
+
+
             "gg_ddbar2g": np.linspace(-0.1, 0.1, 64),
             "gg_ddbar3g": np.linspace(-0.1, 0.1, 64),
             "gg_ddbar4g": np.linspace(-0.1, 0.1, 64),
             "gg_ddbar5g": np.linspace(-0.1, 0.1, 64),
+
+
+            "dbard_4g": np.linspace(-0.1, 0.1, 64),
+            "dbard_5g": np.linspace(-0.1, 0.1, 64),
+            "dbard_6g": np.linspace(-0.1, 0.1, 64),
+            "dbard_7g": np.linspace(-0.1, 0.1, 64),
+
+
+            "gg_ddbaruubar0g_co1": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbaruubar1g_co1": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbaruubar2g_co1": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbaruubar3g_co1": np.linspace(-0.1, 0.1, 64),
+
+
+            "gg_ddbaruubar0g_co2": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbaruubar1g_co2": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbaruubar2g_co2": np.linspace(-0.1, 0.1, 64),
+            "gg_ddbaruubar3g_co2": np.linspace(-0.1, 0.1, 64),
+
+            "ddbar_uubar2g_co1": np.linspace(-0.1, 0.1, 64),
+            "ddbar_uubar3g_co1": np.linspace(-0.1, 0.1, 64),
+            "ddbar_uubar4g_co1": np.linspace(-0.1, 0.1, 64),
+            "ddbar_uubar5g_co1": np.linspace(-0.1, 0.1, 64),
+
+            "ddbar_uubar2g_co2": np.linspace(-0.1, 0.1, 64),
+            "ddbar_uubar3g_co2": np.linspace(-0.1, 0.1, 64),
+            "ddbar_uubar4g_co2": np.linspace(-0.1, 0.1, 64),
+            "ddbar_uubar5g_co2": np.linspace(-0.1, 0.1, 64),
+
         },
         "abs_deltas": {
             "gg_4g": np.logspace(-14, 2, 64),
             "gg_5g": np.logspace(-14, 2, 64),
             "gg_6g": np.logspace(-14, 2, 64),
             "gg_7g": np.logspace(-14, 2, 64),
+            
+
             "gg_ddbar2g": np.logspace(-14, 2, 64),
             "gg_ddbar3g": np.logspace(-14, 2, 64),
             "gg_ddbar4g": np.logspace(-14, 2, 64),
             "gg_ddbar5g": np.logspace(-14, 2, 64),
+
+
+            "dbard_4g": np.logspace(-14, 2, 64),
+            "dbard_5g": np.logspace(-14, 2, 64),
+            "dbard_6g": np.logspace(-14, 2, 64),
+            "dbard_7g": np.logspace(-14, 2, 64),
+
+
+            "gg_ddbaruubar0g_co1": np.logspace(-14, 2, 64),
+            "gg_ddbaruubar1g_co1": np.logspace(-14, 2, 64),
+            "gg_ddbaruubar2g_co1": np.logspace(-14, 2, 64),
+            "gg_ddbaruubar3g_co1": np.logspace(-14, 2, 64),
+
+            "gg_ddbaruubar0g_co2": np.logspace(-14, 2, 64),
+            "gg_ddbaruubar1g_co2": np.logspace(-14, 2, 64),
+            "gg_ddbaruubar2g_co2": np.logspace(-14, 2, 64),
+            "gg_ddbaruubar3g_co2": np.logspace(-14, 2, 64),
+
+
+            "ddbar_uubar2g_co1": np.logspace(-14, 2, 64),
+            "ddbar_uubar3g_co1": np.logspace(-14, 2, 64),
+            "ddbar_uubar4g_co1": np.logspace(-14, 2, 64),
+            "ddbar_uubar5g_co1": np.logspace(-14, 2, 64),
+
+            "ddbar_uubar2g_co2": np.logspace(-14, 2, 64),
+            "ddbar_uubar3g_co2": np.logspace(-14, 2, 64),
+            "ddbar_uubar4g_co2": np.logspace(-14, 2, 64),
+            "ddbar_uubar5g_co2": np.logspace(-14, 2, 64),
         },
     },
     "FC": {

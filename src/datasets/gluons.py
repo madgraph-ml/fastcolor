@@ -14,8 +14,7 @@ class gg_ng:
         self.parameterization = self.cfg.get("parameterization", None)
         self.logger.info(f"    Regressing {self.cfg.get('regress', 'r')}")
         self.regress_target = self.cfg.get("regress", "r")
-        self.remove_color = self.cfg.get("remove_color", False)
-        self.features_per_particle = 7 if not self.remove_color else 6
+        self.features_per_particle = 5
         if self.parameterization.naive.use:
             self.channels = self.parameterization.naive.channels
         elif self.parameterization.lorentz_products.use:
@@ -67,15 +66,7 @@ class gg_ng:
             )
             raise
 
-        self.n_particles = (momenta.shape[1] - 1) // 7
-        if self.remove_color:
-            target = momenta[:, -1:]
-            momenta = momenta[:, :-1]
-            momenta = momenta.reshape(-1, self.n_particles, 7)
-            momenta = np.delete(momenta, [1], axis=-1)
-            momenta = momenta.reshape(-1, 6 * self.n_particles)
-            momenta = np.concatenate([momenta, target], axis=1)
-            self.logger.info(f"    Removed color channel.")
+        self.n_particles = (momenta.shape[1] - 1) // 5
         self.logger.info(
             f"    Number of particles: {self.n_particles}, per-particle features: {(momenta.shape[1] - 1) / self.n_particles}"
         )
@@ -94,11 +85,8 @@ class gg_ng:
             reshaped_momenta = momenta.reshape(
                 -1, self.n_particles, self.features_per_particle
             )
-
-            pdg_ids = reshaped_momenta[:, :, 0]
-            colors = reshaped_momenta[:, :, 1] if not self.remove_color else None
-            helicities = reshaped_momenta[:, :, 2 - int(self.remove_color)]
-            momenta = reshaped_momenta[:, :, 3 - int(self.remove_color) :].reshape(
+            helicities = reshaped_momenta[:, :, 0]
+            momenta = reshaped_momenta[:, :, 1:].reshape(
                 -1, 4 * self.n_particles
             )
             momenta = np.concatenate([momenta, target], axis=1)
@@ -169,7 +157,7 @@ class gg_ng:
                     i
                     for i in self.input_channels
                     if i % self.features_per_particle
-                    in [x - int(self.remove_color) for x in [3, 4, 5, 6]]
+                    in [1, 2, 3, 4]
                 ]
 
         self.events = events
@@ -332,7 +320,7 @@ class gg_ng:
             for i in range(self.n_particles):
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 1]),
                         tex_label=f"E_{{g_{i+1}}}",
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
@@ -343,7 +331,7 @@ class gg_ng:
                 )
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i + 1]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 2]),
                         tex_label=f"p_{{x, g_{i+1}}}",
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
@@ -354,7 +342,7 @@ class gg_ng:
                 )
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i + 2]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 3]),
                         tex_label=f"p_{{y, g_{i+1}}}",
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
@@ -365,7 +353,7 @@ class gg_ng:
                 )
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i + 3]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 4]),
                         tex_label=f"p_{{z, g_{i+1}}}",
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
@@ -396,7 +384,7 @@ class gg_ng:
         else:
             raise ValueError("No parameterization specified")
 
-
+# One quark line processes
 class gg_ddbarng(gg_ng):
     def __init__(self, logger, cfg):
         super().__init__(logger, cfg)
@@ -414,7 +402,7 @@ class gg_ddbarng(gg_ng):
 
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 1]),
                         tex_label=f"E_{{{type}}}"
                         if 2 <= i <= 3
                         else f"E_{{{type}_{i+1 - 2}}}"
@@ -429,7 +417,7 @@ class gg_ddbarng(gg_ng):
                 )
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i + 1]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 2]),
                         tex_label=f"p_{{x, {type}}}"
                         if 2 <= i <= 3
                         else f"p_{{x, {type}_{i+1 - 2}}}"
@@ -444,7 +432,7 @@ class gg_ddbarng(gg_ng):
                 )
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i + 2]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 3]),
                         tex_label=f"p_{{y, {type}}}"
                         if 2 <= i <= 3
                         else f"p_{{y, {type}_{i+1 - 2}}}"
@@ -459,7 +447,7 @@ class gg_ddbarng(gg_ng):
                 )
                 self.observables.append(
                     Observable(
-                        compute=lambda p, i=i: return_obs(p[..., :], p[..., 4 * i + 3]),
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 4]),
                         tex_label=f"p_{{z, {type}}}"
                         if 2 <= i <= 3
                         else f"p_{{z, {type}_{i+1 - 2}}}"
@@ -476,13 +464,17 @@ class gg_ddbarng(gg_ng):
             for i in range(self.n_particles):
                 if 0 <= i < 2 or i >= 4:
                     type1 = "g"
+                elif i == 2:
+                    type1 = "d"
                 else:
-                    type1 = "q"
+                    type1 = "\\bar{d}"
                 for j in range(i + 1, self.n_particles):
-                    if 0 <= j < 2 or j >= 4:
+                    if j==1 or j >= 4:
                         type2 = "g"
-                    else:
+                    elif j == 2:
                         type2 = "d"
+                    else:
+                        type2 = "\\bar{d}"
                     idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
                     self.observables.append(
                         Observable(
@@ -495,12 +487,356 @@ class gg_ddbarng(gg_ng):
                                 percentage_of_data_to_show=99.0,
                                 xscale="log",
                             ),
+                            xscale="log",
                             yscale="linear",
                         )
                     )
         else:
             raise ValueError("No parameterization specified")
 
+class dbard_ng(gg_ng):
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
+
+    def init_observables(self, n_bins: int = 50) -> list[Observable]:
+        self.observables = []
+        if self.parameterization.naive.use:
+            for i in range(self.n_particles):
+                if i==0:
+                    type = "\\bar{d}"
+                elif i==1:
+                    type = "d"
+                else:
+                    type = "g"
+
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 1]),
+                        tex_label=f"E_{{{type}}}"
+                        if i < 2
+                        else f"E_{{{type}_{i+1 - 2}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=0, upper=1000
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 2]),
+                        tex_label=f"p_{{x, {type}}}"
+                        if i < 2
+                        else f"p_{{x, {type}_{i+1 - 2}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 3]),
+                        tex_label=f"p_{{y, {type}}}"
+                        if i < 2
+                        else f"p_{{y, {type}_{i+1 - 2}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 4]),
+                        tex_label=f"p_{{z, {type}}}"
+                        if i < 2
+                        else f"p_{{z, {type}_{i+1 - 2}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+        elif self.parameterization.lorentz_products.use:
+            for i in range(self.n_particles):
+                if i==0:
+                    type1 = "\\bar{d}"
+                elif i==1:
+                    type1 = "d"
+                else:
+                    type1 = "g"
+                for j in range(i + 1, self.n_particles):
+                    if j==1:
+                        type2 = "d"
+                    else:
+                        type2 = "g"
+                    idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
+                    self.observables.append(
+                        Observable(
+                            compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
+                            tex_label=f"p_{{{type1}_{i+1}}}\\cdot p_{{{type2}_{j+1}}}",
+                            unit=r"\text{GeV}^{2}",
+                            bins=lambda p, idx=idx: get_quantile_bins(
+                                obs=p,
+                                n_bins=n_bins,
+                                percentage_of_data_to_show=99.0,
+                                xscale="log",
+                            ),
+                            xscale="log",
+                            yscale="linear",
+                        )
+                    )
+        else:
+            raise ValueError("No parameterization specified")
+
+class gg_ddbaruubarng(gg_ddbarng):
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
+
+    def init_observables(self, n_bins: int = 50) -> list[Observable]:
+        self.observables = []
+        if self.parameterization.naive.use:
+            for i in range(self.n_particles):
+                if i==0 or i==1 or i >= 6:
+                    type = "g"
+                elif i==2:
+                    type = "d"
+                elif i==3:
+                    type = "\\bar{d}"
+                elif i==4:
+                    type = "u"
+                else:
+                    type = "\\bar{u}"
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 1]),
+                        tex_label=f"E_{{{type}}}"
+                        if 2 <= i <= 3
+                        else f"E_{{{type}_{i+1 - 2}}}"
+                        if i > 3
+                        else f"E_{{{type}_{i+1}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=0, upper=1000
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 2]),
+                        tex_label=f"p_{{x, {type}}}"
+                        if 2 <= i <= 3
+                        else f"p_{{x, {type}_{i+1 - 2}}}"
+                        if i > 3
+                        else f"p_{{x, {type}_{i+1}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 3]),
+                        tex_label=f"p_{{y, {type}}}"
+                        if 2 <= i <= 3
+                        else f"p_{{y, {type}_{i+1 - 2}}}"
+                        if i > 3
+                        else f"p_{{y, {type}_{i+1}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 4]),
+                        tex_label=f"p_{{z, {type}}}"
+                        if 2 <= i <= 3
+                        else f"p_{{z, {type}_{i+1 - 2}}}"
+                        if i > 3
+                        else f"p_{{z, {type}_{i+1}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+        elif self.parameterization.lorentz_products.use:
+            for i in range(self.n_particles):
+                if i==0 or i==1 or i >= 6:
+                    type1 = "g"
+                elif i==2:
+                    type1 = "d"
+                elif i==3:
+                    type1 = "\\bar{d}"
+                elif i==4:
+                    type1 = "u"
+                else:
+                    type1 = "\\bar{u}"
+                for j in range(i + 1, self.n_particles):
+                    if j==1 or j >= 6:
+                        type2 = "g"
+                    elif j==2:
+                        type2 = "d"
+                    elif j==3:
+                        type2 = "\\bar{d}"
+                    elif j==4:
+                        type2 = "u"
+                    else:
+                        type2 = "\\bar{u}"
+                        
+                    idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
+                    self.observables.append(
+                        Observable(
+                            compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
+                            tex_label=f"p_{{{type1}_{i+1}}}\\cdot p_{{{type2}_{j+1}}}",
+                            unit=r"\text{GeV}^{2}",
+                            bins=lambda p, idx=idx: get_quantile_bins(
+                                obs=p,
+                                n_bins=n_bins,
+                                percentage_of_data_to_show=99.0,
+                                xscale="log",
+                            ),
+                            xscale="log",
+                            yscale="linear",
+                        )
+                    )
+
+class gg_ddbaruubarng_co1(gg_ddbaruubarng):
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
+
+class gg_ddbaruubarng_co2(gg_ddbaruubarng):
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
+
+class ddbar_uubarng(gg_ddbaruubarng):
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
+    
+    def init_observables(self, n_bins: int = 50) -> list[Observable]:
+        self.observables = []
+        if self.parameterization.naive.use:
+            for i in range(self.n_particles):
+                if i==0:
+                    type = "d"
+                elif i==1:
+                    type = "\\bar{d}"
+                elif i==2:
+                    type = "u"
+                elif i==3:
+                    type = "\\bar{u}"
+                else:
+                    type = "g"
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 1]),
+                        tex_label=f"E_{{{type}}}"
+                        if i < 4
+                        else f"E_{{{type}_{i+1 - 4}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=0, upper=1000
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 2]),
+                        tex_label=f"p_{{x, {type}}}"
+                        if i < 4
+                        else f"p_{{x, {type}_{i+1 - 4}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 3]),
+                        tex_label=f"p_{{y, {type}}}"
+                        if i < 4
+                        else f"p_{{y, {type}_{i+1 - 4}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+                self.observables.append(
+                    Observable(
+                        compute=lambda p, i=i: return_obs(p[..., :], p[..., self.features_per_particle * i + 4]),
+                        tex_label=f"p_{{z, {type}}}"
+                        if i < 4
+                        else f"p_{{z, {type}_{i+1 - 4}}}",
+                        unit="GeV",
+                        bins=lambda obs: get_hardcoded_bins(
+                            n_bins=n_bins + 1, lower=-500, upper=500
+                        ),
+                        yscale="linear",
+                    )
+                )
+        elif self.parameterization.lorentz_products.use:
+            for i in range(self.n_particles):
+                if i==0:
+                    type1 = "d"
+                elif i==1:
+                    type1 = "\\bar{d}"
+                elif i==2:
+                    type1 = "u"
+                elif i==3:
+                    type1 = "\\bar{u}"
+                else:
+                    type1 = "g"
+                for j in range(i + 1, self.n_particles):
+                    if j==0:
+                        type2 = "d"
+                    elif j==1:
+                        type2 = "\\bar{d}"
+                    elif j==2:
+                        type2 = "u"
+                    elif j==3:
+                        type2 = "\\bar{u}"
+                    else:
+                        type2 = "g"
+                    idx = i * self.n_particles - (i * (i + 1)) // 2 + (j - i - 1)
+                    self.observables.append(
+                        Observable(
+                            compute=lambda p, idx=idx: return_obs(p[..., :], p[..., idx]),
+                            tex_label=f"p_{{{type1}_{i+1}}}\\cdot p_{{{type2}_{j+1}}}",
+                            unit=r"\text{GeV}^{2}",
+                            bins=lambda p, idx=idx: get_quantile_bins(
+                                obs=p,
+                                n_bins=n_bins,
+                                percentage_of_data_to_show=99.0,
+                                xscale="log",
+                            ),
+                            xscale="log",
+                            yscale="linear",
+                        )
+                    )
+
+class ddbar_uubarng_co1(ddbar_uubarng):
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
+
+class ddbar_uubarng_co2(ddbar_uubarng):
+    def __init__(self, logger, cfg):
+        super().__init__(logger, cfg)
 
 def Gaussianize(
     x: torch.Tensor,

@@ -17,8 +17,8 @@ def lhe_to_array(dir: str):
         for particle in event.particles:
             mom = np.array(
                 [
-                    particle.pdgid,
-                    particle.color_idx,
+                    # particle.pdgid,
+                    # particle.color_idx,
                     particle.helicity,
                     particle.energy,
                     particle.px,
@@ -50,8 +50,8 @@ def concat_lhe_across_seeds(
     base_filename: str,
     seed_start: int = 101,
     seed_end: int = 110,
-    input_root: str = "/remote/gpu02/marino/data/gg_ddbarng/seeds/",
-    output_dir: str = "/remote/gpu02/marino/data/gg_ddbarng/",
+    input_root: str = "/remote/gpu02/marino/data/ddbar_uubarng_co2/seeds/",
+    output_dir: str = "/remote/gpu02/marino/data/ddbar_uubarng_co2/",
 ) -> str:
     """
     Iterate over seed directories, read each LHE file with the given base filename,
@@ -92,6 +92,7 @@ def concat_lhe_across_seeds(
         else:
             pass
         if ".gz" in file_path:
+            print(file_path)
             file_pathgz = file_path
             file_path = file_pathgz.rstrip(".gz")
             with gzip.open(file_pathgz, "rb") as f_in, open(file_path, "wb") as f_out:
@@ -138,9 +139,35 @@ for base_filename in [
     # "events_7_2_21_21_21_21_21_21_21_1_2_3_4_5_6_7",
     # "events_8_2_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8",
     # "events_9_2_21_21_21_21_21_21_21_21_21_1_2_3_4_5_6_7_8_9",
-    "events_6_2_21_21_1_-1_21_21_3_1_2_5_6_4",
-    "events_7_2_21_21_1_-1_21_21_21_3_1_2_5_6_7_4",
-    "events_8_2_21_21_1_-1_21_21_21_21_3_1_2_5_6_7_8_4",
-    "events_9_2_21_21_1_-1_21_21_21_21_21_3_1_2_5_6_7_8_9_4",
+    # "events_6_2_-1_1_21_21_21_21_1_3_4_5_6_2",
+    # "events_7_2_-1_1_21_21_21_21_21_1_3_4_5_6_7_2",
+    # "events_8_2_-1_1_21_21_21_21_21_21_1_3_4_5_6_7_8_2",
+    # "events_9_2_-1_1_21_21_21_21_21_21_21_1_3_4_5_6_7_8_9_2",
+
+
+    # gg_ddbaruubarng-co1
+    # "events_6_2_21_21_1_-1_2_-2_3_1_2_4_5_6",
+    # "events_7_2_21_21_1_-1_2_-2_21_3_1_2_4_5_7_6",
+    # "events_8_2_21_21_1_-1_2_-2_21_21_3_1_2_4_5_8_7_6",
+    # "events_9_2_21_21_1_-1_2_-2_21_21_21_3_1_2_4_5_9_8_7_6",
+
+    # # gg_ddbaruubarng-co2
+    # "events_6_2_21_21_1_-1_2_-2_3_1_2_6_5_4",
+    # "events_7_2_21_21_1_-1_2_-2_21_3_1_2_6_5_7_4",
+    # "events_8_2_21_21_1_-1_2_-2_21_21_3_1_2_6_5_8_7_4",
+    # "events_9_2_21_21_1_-1_2_-2_21_21_21_3_1_2_6_5_9_8_7_4",
+
+    # # ddbar_uubarng-co1
+    # "events_6_2_1_-1_2_-2_21_21_2_1_3_5_6_4",
+    # "events_7_2_1_-1_2_-2_21_21_21_2_1_3_5_6_7_4",
+    # "events_8_2_1_-1_2_-2_21_21_21_21_2_1_3_5_6_7_8_4",
+    # "events_9_2_1_-1_2_-2_21_21_21_21_21_2_1_3_5_6_7_8_9_4",
+
+    # # ddbar_uubarng-co2
+    "events_6_2_1_-1_2_-2_21_21_2_4_3_5_6_1",
+    "events_7_2_1_-1_2_-2_21_21_21_2_4_3_5_6_7_1",
+    "events_8_2_1_-1_2_-2_21_21_21_21_2_4_3_5_6_7_8_1",
+    "events_9_2_1_-1_2_-2_21_21_21_21_21_2_4_3_5_6_7_8_9_1",
 ]:
+
     concat_lhe_across_seeds(base_filename=base_filename)
