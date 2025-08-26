@@ -24,7 +24,7 @@ train:
   lr_patience: 50
   nits: 1_000_000
   batch_size: 4096
-  batch_size_eval: 16384
+  batch_size_eval: 4096
   loss: MSE
   early_stopping:
     use: true
