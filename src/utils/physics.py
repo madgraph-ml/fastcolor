@@ -16,50 +16,7 @@ def covariant2(p1: torch.Tensor, p2: torch.Tensor, keepdim: bool = False) -> tor
     out = torch.sum(p1 * g * p2, dim=-1, keepdim=keepdim)
     return out
 
-
-def random_lorentz_boost(device="cpu", dtype=torch.float64, return_inverse=False):
-    """
-    Creates a Lorentz boost in a random direction with a given beta.
-    Returns the boost matrix and its inverse.
-    beta: float, the velocity as a fraction of the speed of light (0 < beta < 1)
-    """
-    # Random direction and beta
-    beta = (
-        torch.rand(1, device=device) * 0.8 + 0.1
-    )  # beta between 0.1 and 0.9 to avoid numerical instabilities
-    theta = torch.acos(2 * torch.rand(1, device=device) - 1)
-    phi = 2 * torch.pi * torch.rand(1, device=device)
-    n = torch.tensor(
-        [
-            torch.sin(theta) * torch.cos(phi),
-            torch.sin(theta) * torch.sin(phi),
-            torch.cos(theta),
-        ],
-        device=device,
-        dtype=dtype,
-    )
-    # n = torch.tensor([-0.0926, -0.9361,  0.3394]) # always the same direction
-    n = n / n.norm()  # this is the unitary vector in the boost direction
-    n_inv = -n
-    gamma = (1.0 / torch.sqrt(1 - beta**2)).item()
-    beta_vec = beta * n
-    beta_vec_inv = beta * n_inv
-    boost = torch.eye(4, device=device, dtype=torch.float64)
-    boost_inv = torch.eye(4, device=device, dtype=torch.float64)
-    boost[0, 0] = gamma
-    boost[0, 1:4] = -gamma * beta_vec
-    boost[1:4, 0] = -gamma * beta_vec
-    boost_inv[0, 0] = gamma
-    boost_inv[0, 1:4] = -gamma * beta_vec_inv
-    boost_inv[1:4, 0] = -gamma * beta_vec_inv
-    for i in range(3):
-        for j in range(3):
-            boost[i + 1, j + 1] += (gamma - 1) * (n[i] * n[j])
-            boost_inv[i + 1, j + 1] += (gamma - 1) * (n_inv[i] * n_inv[j])
-    return (boost, boost_inv) if return_inverse else boost
-
-
-def batch_random_lorentz_boost(batch_size, device="cpu", dtype=torch.float64):
+def batch_random_lorentz_boost(batch_size, device="cpu", dtype=torch.float64, z_boost=False):
     # 1. Vectorized random beta
     beta = torch.rand(batch_size, device=device, dtype=dtype) * 0.8 + 0.1  # [batch]
     # 2. Vectorized random direction
@@ -70,8 +27,20 @@ def batch_random_lorentz_boost(batch_size, device="cpu", dtype=torch.float64):
     phi = 2 * torch.pi * torch.rand(batch_size, device=device, dtype=dtype)
 
     n = torch.stack(
-        [sintheta * torch.cos(phi), sintheta * torch.sin(phi), costheta], dim=1
-    )  # [batch, 3]
+        [
+            sintheta * torch.cos(phi),
+            sintheta * torch.sin(phi),
+            costheta
+        ],
+        dim=1
+    ) if not z_boost else torch.stack(
+        [
+            torch.zeros(batch_size, device=device, dtype=dtype),
+            torch.zeros(batch_size, device=device, dtype=dtype),
+            costheta
+        ],
+        dim=1,
+    )
     n = n / n.norm(dim=1, keepdim=True)  # [batch, 3], just in case
 
     gamma = 1.0 / torch.sqrt(1 - beta**2)  # [batch]
@@ -95,45 +64,6 @@ def batch_random_lorentz_boost(batch_size, device="cpu", dtype=torch.float64):
     boost[:, 1:4, 1:4] += gamma_m1[:, None] * nnT  # broadcast and add
 
     return boost  # [batch, 4, 4]
-
-
-def random_SO3_matrix(device="cpu", dtype=torch.float64):
-    """
-    Creates a random Lorentz rotation matrix in SO(3,1) with det=+1.
-    """
-    # Random unit quaternion for uniform SO(3) rotation
-    u1, u2, u3 = torch.rand(3, device=device)
-    # fix u1, u2, u3
-    # u1, u2, u3 = torch.tensor(0.0926, device=device), torch.tensor(0.9361, device=device), torch.tensor(0.3394, device=device)
-    q1 = torch.sqrt(1 - u1) * torch.sin(2 * torch.pi * u2)
-    q2 = torch.sqrt(1 - u1) * torch.cos(2 * torch.pi * u2)
-    q3 = torch.sqrt(u1) * torch.sin(2 * torch.pi * u3)
-    q4 = torch.sqrt(u1) * torch.cos(2 * torch.pi * u3)
-    # Quaternion to rotation matrix (3x3)
-    R3d = torch.tensor(
-        [
-            [
-                1 - 2 * (q3**2 + q4**2),
-                2 * (q2 * q3 - q1 * q4),
-                2 * (q2 * q4 + q1 * q3),
-            ],
-            [
-                2 * (q2 * q3 + q1 * q4),
-                1 - 2 * (q2**2 + q4**2),
-                2 * (q3 * q4 - q1 * q2),
-            ],
-            [
-                2 * (q2 * q4 - q1 * q3),
-                2 * (q3 * q4 + q1 * q2),
-                1 - 2 * (q2**2 + q3**2),
-            ],
-        ],
-        device=device,
-        dtype=dtype,
-    )
-    R = torch.eye(4, device=device, dtype=torch.float64)
-    R[1:4, 1:4] = R3d
-    return R
 
 
 def batch_random_SO3_matrix(batch_size, device="cpu", dtype=torch.float64):
@@ -167,25 +97,6 @@ def batch_random_SO3_matrix(batch_size, device="cpu", dtype=torch.float64):
     return R
 
 
-def random_SL4_matrix(device="cpu", dtype=torch.float64):
-    """
-    Creates a random SL(4) rotation matrix with det=+1.
-    """
-    R = torch.randn(4, 4, device=device, dtype=torch.float64)
-    # R = torch.tensor([
-    #     [ 0.9774,  0.7654,  1.2633, -0.2808],
-    #     [ 0.6677, -0.3990,  0.4814, -0.6513],
-    #     [-0.2007, -0.9910,  1.2286,  0.3808],
-    #     [ 1.9933,  0.1832,  0.0070, -1.9268]],
-    #     device=device,
-    #     dtype=dtype,
-    # )
-    R = R / torch.abs(torch.det(R)) ** 0.25  # scales det to +-1
-    if torch.det(R) < 0:
-        R[:, 0] *= -1.0  # glip sign to get det=+1
-    return R
-
-
 def batch_random_SL4_matrix(batch_size, device="cpu", dtype=torch.float64):
     """
     Returns [batch_size, 4, 4] random SL(4) matrices (det=+1).
@@ -211,22 +122,6 @@ def batch_random_SL4_matrix(batch_size, device="cpu", dtype=torch.float64):
     return R  # [batch, 4, 4]
 
 
-def random_SO2_matrix(device="cpu", dtype=torch.float64):
-    """
-    Creates a random SO(2) rotation matrix with det=+1 in 4x4
-    """
-    phi = torch.rand(1, device=device, dtype=dtype) * 2 * torch.pi
-    # phi = torch.tensor(torch.pi/4.) # let's do a fixed, 90 degree flip of px and py
-    R2d = torch.tensor(
-        [[torch.cos(phi), -torch.sin(phi)], [torch.sin(phi), torch.cos(phi)]],
-        device=device,
-        dtype=dtype,
-    )
-    R = torch.eye(4, device=device, dtype=dtype)
-    R[1:3, 1:3] = R2d
-    return R
-
-
 def batch_random_SO2_matrix(batch_size, device="cpu", dtype=torch.float64):
     """
     Returns [batch_size, 4, 4] random SO(2) rotations (in Px,Py) as 4x4 matrices.
@@ -246,25 +141,6 @@ def batch_random_SO2_matrix(batch_size, device="cpu", dtype=torch.float64):
     return R  # [batch, 4, 4]
 
 
-def random_shear_matrix(device="cpu", dtype=torch.float64):
-    """
-    Creates a Shear matrix with a non-zero shear in the px, py components
-    that preserves det=+1.
-    """
-    S = torch.eye(4, device=device, dtype=dtype)
-    S[1, 2] = torch.randn(1, device=device, dtype=dtype).squeeze()  # px mixes with py
-    S[1, 3] = torch.randn(1, device=device, dtype=dtype).squeeze()  # px mixes with pz
-    S[2, 3] = torch.randn(1, device=device, dtype=dtype).squeeze()  # py mixes with pz
-    # fix shear values
-    # S[1, 2] = torch.tensor(-0.0926, device=device, dtype=dtype)
-    # S[1, 3] = torch.tensor(-0.9361, device=device, dtype=dtype)
-    # S[2, 3] = torch.tensor(0.3394, device=device, dtype=dtype)
-    assert (
-        abs(torch.det(S).item() - 1.0) < 1e-8
-    ), f"Shear matrix does not have det=+1: {torch.det(S).item()}"
-    return S
-
-
 def batch_random_shear_matrix(batch_size, device="cpu", dtype=torch.float64):
     """
     Returns [batch_size, 4, 4] random shear matrices with det=+1.
@@ -282,56 +158,22 @@ def batch_random_shear_matrix(batch_size, device="cpu", dtype=torch.float64):
     S[:, 2, 3] = s23
 
     assert torch.all(
-        torch.det(S) - 1.0 < 1e-8
-    ), f"Shear matrix does not have det=+1: {S[torch.det(S) - 1.0 >= 1e-8]}"
+        torch.abs(torch.det(S) - 1.0) < 1e-8
+    ), f"Shear matrix does not have det=+1: {S[torch.abs(torch.det(S) - 1.0) >= 1e-8]}"
     return S
-
-
-def apply_lorentz_boost_to_tensor(x, boost_matrix, boost_inv_matrix=None):
-    # x: [..., n_particles * 7], where columns particle_index * 3:7 = E, Px, Py, Pz
-    x_new = x.clone()
-    n_particles = x.shape[1] // 7
-    for i in range(n_particles):
-        idx = 7 * i
-        mom = x[
-            :, idx + 3 : idx + 7
-        ]  # momenta starts in index 3 bc [pdgid, coloridx, helidx, E, Px, Py, Pz]
-        mom_boost = (boost_matrix @ mom.T).T  # [batch, 4]
-        # divide by std to match the order of magnitude of the current dataset (has std = 1)
-        # mom_boost = mom_boost / mom_boost.std()
-        if boost_inv_matrix is not None:
-            mom_inv = (boost_inv_matrix @ mom_boost.T).T
-            assert torch.allclose(
-                mom, mom_inv, atol=1e-6
-            ), "Boost and inverse boost do not match"
-        x_new[:, idx + 3 : idx + 7] = mom_boost
-
-    return x_new
-
-
-def apply_rotation_to_tensor(x, rotation_matrix):
-    # x: [batch, n_particles * 7]
-    x_new = x.clone()
-    n_particles = x.shape[1] // 7
-    for i in range(n_particles):
-        idx = 7 * i
-        mom = x[:, idx + 3 : idx + 7]  # [batch, 4]
-        mom_rot = (rotation_matrix @ mom.T).T  # [batch, 4]
-        x_new[:, idx + 3 : idx + 7] = mom_rot
-    return x_new
 
 
 def apply_rotation_to_tensor_vectorized(x, rotation_matrices):
     """
-    x: [batch_size, n_particles*7]
+    x: [batch_size, n_particles*5]
     rotation_matrices: [batch_size, 4, 4]
     Returns: x_new of same shape, with all [E,Px,Py,Pz] blocks rotated per event.
     """
     x_new = x.clone()
-    n_particles = x.shape[1] // 7
+    n_particles = x.shape[1] // 5
 
     moms = torch.stack(
-        [x[:, 7 * i + 3 : 7 * i + 7] for i in range(n_particles)], dim=1
+        [x[:, 5 * i + 1 : 5 * i + 5] for i in range(n_particles)], dim=1
     )  # [batch, n_particles, 4]
 
     # Apply each batch's rotation to all its particles (vectorized!)
@@ -343,9 +185,48 @@ def apply_rotation_to_tensor_vectorized(x, rotation_matrices):
 
     # Write back the rotated momenta
     for i in range(n_particles):
-        x_new[:, 7 * i + 3 : 7 * i + 7] = moms_rot[:, i, :]
+        x_new[:, 5 * i + 1 : 5 * i + 5] = moms_rot[:, i, :]
     return x_new
 
+def apply_Z2_permutation_vectorized(x, block_size=5):
+    """
+    x: [B, n_particles*block_size] (no target col)
+    Swaps either (0<->1) or a random pair in {2..n-1}, with equal probability.
+    """
+    B, device = x.shape[0], x.device
+    n_particles = x.shape[1] // block_size
+    assert n_particles >= 2, "x must have at least 2 particles"
+    finals = n_particles - 2
+    x_blocks = x.view(B, n_particles, block_size)
+
+    # index map per sample
+    idx = torch.arange(n_particles, device=device).expand(B, n_particles).clone()
+    ar  = torch.arange(B, device=device)
+
+    # choose group: True => initial swap (0<->1), False => finals swap
+    choose_init = (torch.rand(B, device=device) < 0.5)
+
+    # default to initial pair
+    i_sel = torch.zeros(B, dtype=torch.long, device=device)
+    j_sel = torch.ones (B, dtype=torch.long, device=device)
+
+    if finals >= 2:
+        # finals pair i!=j in [2..n-1]
+        I = torch.randint(2, n_particles, (B,), device=device)
+        J = torch.randint(2, n_particles-1, (B,), device=device)
+        J = J + (J >= I)
+
+        # pick per sample according to choose_init
+        i_sel = torch.where(choose_init, i_sel, I)
+        j_sel = torch.where(choose_init, j_sel, J)
+
+    # swap per sample
+    tmp = idx[ar, i_sel].clone()
+    idx[ar, i_sel] = idx[ar, j_sel]
+    idx[ar, j_sel] = tmp
+
+    x_perm = x_blocks.gather(1, idx.unsqueeze(-1).expand(-1, -1, block_size))
+    return x_perm.reshape(B, n_particles * block_size)
 
 def delta_eta(
     p: torch.Tensor, eta1: torch.Tensor, eta2: torch.Tensor, abs: bool = True
