@@ -306,7 +306,7 @@ def run(logger, run_dir, cfg: DictConfig):
             if model.name == "LGATr":
                 n = 1
             else:
-                n = 10
+                n = 5
             logger.info(f"Evaluating {k} set {n} times")
             for _ in range(n):
                 dataset.predicted_factors_ppd[k], t0 = model.evaluate_on_cpu(split=k)
@@ -404,10 +404,10 @@ def run(logger, run_dir, cfg: DictConfig):
     if hasattr(model, "losses"):
         logger.info(f"    Plotting train metrics")
         plots.plot_train_metrics(os.path.join(run_dir, f"train_metrics.pdf"), logy=True)
-    logger.info(f"    Plotting observables")
-    plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
-    logger.info(f"    Plotting ppd observables")
-    plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
+    # logger.info(f"    Plotting observables")
+    # plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
+    # logger.info(f"    Plotting ppd observables")
+    # plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
     logger.info(f"    Plotting regressed factors and ratio correlations")
     for k in splits_to_evaluate_on:
         for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
