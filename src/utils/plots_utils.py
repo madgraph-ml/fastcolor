@@ -241,7 +241,7 @@ def compute_and_log_metrics(
     delta = (reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth
     abs_delta = np.abs(delta)
     
-    if process in eval_time and process in unw_eff1:
+    if process in eval_time and process in unw_eff1 and model_name in eval_time[process]:
         opt_dict_algo1 = optimize_gain_factor_1(
             process=process,
             model_name=model_name,
@@ -282,13 +282,6 @@ def compute_and_log_metrics(
             print("Result from optimizing algo2:", opt_dict_algo2)
 
         metrics_update_algo1 = {
-            "eff_1st_surr": Metric(
-                name="eff_1st_surr",
-                value=np.mean(reweight_factors_pred) / np.max(reweight_factors_pred),
-                unit="",
-                format="{:.3f}",
-                tex_label=r"\epsilon_{\text{1st, surr}}",
-            ),
             "eff_1st_surr_opt_algo1": Metric(
                 name="eff_1st_surr_opt_algo1",
                 value=np.mean(reweight_factors_pred)
@@ -303,13 +296,6 @@ def compute_and_log_metrics(
                 unit="",
                 format="{:.3f}",
                 tex_label=r"\epsilon_{\text{2nd, std}}",
-            ),
-            "eff_2nd_surr": Metric(
-                name="eff_2nd_surr",
-                value=np.mean(ratio) / np.max(ratio),
-                unit="",
-                format="{:.2f}",
-                tex_label=r"\epsilon_{100}",
             ),
             "eff_2nd_surr_opt_algo1": Metric(
                 name="eff_2nd_surr_opt_algo1",
@@ -361,99 +347,12 @@ def compute_and_log_metrics(
                 format="{:.3f}",
                 tex_label=r"\langle w \rangle_{\text{algo1}}",
             ),
-            "t_LC": Metric(
-                name="t_LC",
-                value=eval_time[process]["LC"],
-                unit="s",
-                format="{:.2f}",
-                tex_label=r"t_{\text{LC}}",
-            ),
-            "eff_LC": Metric(
-                name="eff_LC",
-                value=unw_eff1[process]["LC"],
-                unit="",
-                format="{:.3f}",
-                tex_label=r"\epsilon_{\text{LC}}",
-            ),
-            "t_FC": Metric(
-                name="t_FC",
-                value=eval_time[process]["FC"],
-                unit="s",
-                format="{:.2f}",
-                tex_label=r"t_{\text{FC}}",
-            ),
             "t_surr": Metric(
                 name="t_surr",
                 value=eval_time[process][model_name]["t_eval"],
                 unit="s",
                 format="{:.2f}",
                 tex_label=r"t_{\text{surr}}",
-            ),
-            "ratio_mean": Metric(
-                name="ratio_mean",
-                value=np.mean(ratio),
-                unit="",
-                tex_label=r"\mu",
-            ),
-            "ratio_std": Metric(
-                name="ratio_std",
-                value=np.std(ratio),
-                unit="",
-                tex_label=r"\sigma",
-            ),
-            "ratio_max": Metric(
-                name="ratio_max",
-                value=np.max(ratio),
-                unit="",
-                tex_label=r"x_{\max}",
-            ),
-            "delta_mean": Metric(
-                name="delta_mean",
-                value=np.mean(delta),
-                unit="",
-                tex_label=r"\mu",
-            ),
-            "delta_std": Metric(
-                name="delta_std",
-                value=np.std(delta),
-                unit="",
-                tex_label=r"\sigma",
-            ),
-            "abs_delta_mean": Metric(
-                name="abs_delta_mean",
-                value=np.mean(abs_delta),
-                unit="",
-                tex_label=r"\mu",
-            ),
-            "abs_delta_std": Metric(
-                name="abs_delta_std",
-                value=np.std(abs_delta),
-                unit="",
-                tex_label=r"\sigma",
-            ),
-            "abs_delta_qmin": Metric(
-                name="abs_delta_qmin",
-                value=np.percentile(abs_delta, 0.05),
-                unit="",
-                tex_label=r"q_{0.05}",
-            ),
-            "abs_delta_qmax": Metric(
-                name="abs_delta_qmax",
-                value=np.percentile(abs_delta, 99.95),
-                unit="",
-                tex_label=r"q_{99.95}",
-            ),
-            "abs_delta_min": Metric(
-                name="abs_delta_min",
-                value=np.min(abs_delta),
-                unit="",
-                tex_label=r"\min",
-            ),
-            "abs_delta_max": Metric(
-                name="abs_delta_max",
-                value=np.max(abs_delta),
-                unit="",
-                tex_label=r"\max",
             ),
             # "eff_1st_surr_pm9995": Metric(
             #     name="eff_1st_surr_pm9995",
@@ -581,8 +480,145 @@ def compute_and_log_metrics(
             f.write("\n")
             f.close()
     else:
-        pass
-
+        base_metrics = {
+            "eff_1st_surr_algo1": Metric(
+                name="eff_1st_surr_algo1",
+                value=np.mean(reweight_factors_pred) / np.max(reweight_factors_pred),
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\epsilon_{\text{1st, surr}}",
+            ),
+            "eff_2nd_std": Metric(
+                name="eff_2nd_std",
+                value=np.mean(reweight_factors_truth) / np.max(reweight_factors_truth),
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\epsilon_{\text{2nd, std}}",
+            ),
+            "eff_2nd_surr_algo1": Metric(
+                name="eff_2nd_surr_algo1",
+                value=np.mean(ratio) / np.max(ratio),
+                unit="",
+                format="{:.2f}",
+                tex_label=r"\epsilon_{100}",
+            ),
+            "t_LC": Metric(
+                name="t_LC",
+                value=eval_time[process]["LC"],
+                unit="s",
+                format="{:.2f}",
+                tex_label=r"t_{\text{LC}}",
+            ),
+            "eff_LC": Metric(
+                name="eff_LC",
+                value=unw_eff1[process]["LC"],
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\epsilon_{\text{LC}}",
+            ),
+            "t_FC": Metric(
+                name="t_FC",
+                value=eval_time[process]["FC"],
+                unit="s",
+                format="{:.2f}",
+                tex_label=r"t_{\text{FC}}",
+            ),
+            "ratio_mean": Metric(
+                name="ratio_mean",
+                value=np.mean(ratio),
+                unit="",
+                tex_label=r"\mu",
+            ),
+            "ratio_std": Metric(
+                name="ratio_std",
+                value=np.std(ratio),
+                unit="",
+                tex_label=r"\sigma",
+            ),
+            "ratio_max": Metric(
+                name="ratio_max",
+                value=np.max(ratio),
+                unit="",
+                tex_label=r"x_{\max}",
+            ),
+            "delta_mean": Metric(
+                name="delta_mean",
+                value=np.mean(delta),
+                unit="",
+                tex_label=r"\mu",
+            ),
+            "delta_std": Metric(
+                name="delta_std",
+                value=np.std(delta),
+                unit="",
+                tex_label=r"\sigma",
+            ),
+            "abs_delta_mean": Metric(
+                name="abs_delta_mean",
+                value=np.mean(abs_delta),
+                unit="",
+                tex_label=r"\mu",
+            ),
+            "abs_delta_std": Metric(
+                name="abs_delta_std",
+                value=np.std(abs_delta),
+                unit="",
+                tex_label=r"\sigma",
+            ),
+            "abs_delta_qmin": Metric(
+                name="abs_delta_qmin",
+                value=np.percentile(abs_delta, 0.05),
+                unit="",
+                tex_label=r"q_{0.05}",
+            ),
+            "abs_delta_qmax": Metric(
+                name="abs_delta_qmax",
+                value=np.percentile(abs_delta, 99.95),
+                unit="",
+                tex_label=r"q_{99.95}",
+            ),
+            "abs_delta_min": Metric(
+                name="abs_delta_min",
+                value=np.min(abs_delta),
+                unit="",
+                tex_label=r"\min",
+            ),
+            "abs_delta_max": Metric(
+                name="abs_delta_max",
+                value=np.max(abs_delta),
+                unit="",
+                tex_label=r"\max",
+            ),
+        }
+        if R is not None:
+            base_metrics["eff_1st_surr_algo2"] = Metric(
+                name="eff_1st_surr_algo2",
+                value=np.mean(R) / np.max(R),
+                unit="",
+                format="{:.3f}",
+                tex_label=r"\epsilon_{\text{1st, R}}",
+            )
+            base_metrics["eff_2nd_surr_algo2"] = Metric(
+                name="eff_2nd_surr_algo2",
+                value=np.mean(ratio_R) / np.max(ratio_R),
+                unit="",
+                format="{:.2f}",
+                tex_label=r"\epsilon_{\text{2nd, R}}",
+            )
+        metrics.update(base_metrics)
+        if log_file is None:
+            if file is None:
+                raise ValueError("Need either log_file or pdf_file for metrics storage.")
+            log_file = os.path.join(os.path.dirname(file) or ".", "metrics.log")
+        with open(log_file, "a") as f:
+            f.write(f"split_{split}-ppd_{ppd}: ")
+            for i, (k, m) in enumerate(metrics.items()):
+                value = f"{m.value:.10f}" if np.abs(m.value) > 1e-7 else f"{m.value:.2e}"
+                f.write(f"{k}: {value}")
+                if i < len(metrics) - 1:
+                    f.write(", ")
+            f.write("\n")
+            f.close()
     
 
 
@@ -598,6 +634,7 @@ def hist_weights_plot(
     xscale: Optional[str] = None,
     yscale: Optional[str] = None,
     metrics: Optional[float] = None,
+    xlim: tuple[float, float] = None,
     ylim: tuple[float, float] = None,
     model_name: Optional[str] = "NN",
     rect=(0.13, 0.18, 0.96, 0.96),
@@ -670,7 +707,7 @@ def hist_weights_plot(
                 linestyle=line.linestyle,
                 alpha=line.alpha,
             )
-
+            axs[0].set_xlim(bins[0], bins[-1]) if xlim is None else axs[0].set_xlim(*xlim)
             if line.y_ref is not None and show_ratios:
                 ratio = (line.y * scale) / (line.y_ref * ref_scale)
                 ratio_isnan = np.isnan(ratio)
@@ -698,6 +735,7 @@ def hist_weights_plot(
             axs[1].set_ylabel(f"$\\frac{{\\text{{{model_name}}}}}{{\\text{{Truth}}}}$")
             axs[1].set_yticks([0.9, 1, 1.1])
             axs[1].set_ylim([0.85, 1.15])
+            axs[1].set_xlim(bins[0], bins[-1]) if xlim is None else axs[1].set_xlim(*xlim)
             axs[1].axhline(y=1, c="black", ls="--", lw=0.7)
             axs[1].axhline(y=1.1, c="black", ls="dotted", lw=0.5)
             axs[1].axhline(y=0.9, c="black", ls="dotted", lw=0.5)
@@ -748,7 +786,8 @@ def hist_weights_plot(
 
         axs[-1].set_xlabel(xlabel)
         axs[-1].set_xscale("linear" if xscale is None else xscale)
-        axs[-1].set_xlim(bins[0], bins[-1])
+        
+
         fig.subplots_adjust(left=rect[0], bottom=rect[1], right=rect[2], top=rect[3])
         plt.savefig(pdf, format="pdf")
         plt.close()
