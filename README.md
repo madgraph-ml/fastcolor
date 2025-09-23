@@ -1,6 +1,8 @@
-<h1 align="center">MadRecolor</h1>
+<h1 align="center">
+  FAST<span style="color:#C20000">C</span><span style="color:#D69526">o</span><span style="color:#06793F">l</span><span style="color:#790679">o</span><span style="color:#07078A">r</span>
+</h1>
 
-<h2 align="center">Machine-Learned Leading-Color Amplitude Reweighting for MadGraph</h2>
+<h2 align="center">Full-color Amplitude Surrogate Toolkit for QCD</h2>
 
 <p align="center">
 <a href="https://pytorch.org"><img alt="pytorch" src="https://img.shields.io/badge/PyTorch-2.0-DC583A.svg?style=flat&logo=pytorch"></a>
@@ -9,10 +11,10 @@
 <a href="https://mlflow.org"><img alt="MLOps: MLflow" src="https://img.shields.io/badge/MLflow-2.22.0-1388DB.svg"></a>
 </p>
 
-**MadRecolor** is a Python-based tool designed to perform **leading-color amplitude reweighting** using machine learning techniques within the **MadGraph** framework. It enables efficient reweighting of matrix elements by leveraging neural networks to approximate color weight factors, improving computational efficiency in high-energy physics simulations.
+**FASTColor** is a Python-based tool designed to perform **leading-color amplitude reweighting** using machine learning techniques. It enables unweighted event generation at full-color accuracy by leveraging neural networks trained to reweight them from leading-color accuracy. This improves computational efficiency and speeds-up the generation of QCD processes.
 
 ## Installation
-To install **MadRecolor**, clone the repository and install dependencies:
+To install **FASTColor**, clone the repository and install dependencies:
 
 ```bash
 git clone git@github.com:madgraph-ml/madrecolor.git
@@ -52,3 +54,18 @@ Models that one can use are organized in experiments trees, and each contain mul
 mlflow ui --port 4242 --backend-store-uri sqlite:///mlruns/mlflow.db
 ```
 Bear in mind that the memory one can use for UI/API calls is limited, and will not support the logging of large batches of metrics per call, so it is recommended to do the logging at the frequency of epochs and not higher.
+
+## Citation
+
+If you use this code or parts of it, please cite:
+
+    @article{Villadamigo:2025our,
+    author = "Villadamigo, Javier Mari{\~n}o and Frederix, Rikkert and Plehn, Tilman and Vitos, Timea and Winterhalder, Ramon",
+    title = "{FASTColor -- Full-color Amplitude Surrogate Toolkit for QCD}",
+    eprint = "2509.07068",
+    archivePrefix = "arXiv",
+    primaryClass = "hep-ph",
+    reportNumber = "TIF-UNIMI-2025-18",
+    month = "9",
+    year = "2025"
+}
