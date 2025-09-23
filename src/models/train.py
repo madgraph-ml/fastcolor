@@ -162,7 +162,9 @@ class Model(nn.Module):
         self.init_scheduler()
         # sanity log: confirm effective LR(s)
         for i, g in enumerate(self.optimizer.param_groups):
-            self.logger.info(f"    Param_group[{i}]: lr={g['lr']}, wd={g.get('weight_decay', 0.0)}")
+            self.logger.info(
+                f"    Param_group[{i}]: lr={g['lr']}, wd={g.get('weight_decay', 0.0)}"
+            )
         self.best_val_loss = 1e20
         if self.cfg.train.early_stopping.get("use", False):
             patience = self.cfg.train.early_stopping.get("patience", 10)
@@ -413,7 +415,11 @@ class Model(nn.Module):
 
     @torch.no_grad()
     def _predict_hels(
-        self, truth: torch.Tensor, split: str = "tst", HELICITY_COL: int = 0, helicity_batch_size: int = 8,
+        self,
+        truth: torch.Tensor,
+        split: str = "tst",
+        HELICITY_COL: int = 0,
+        helicity_batch_size: int = 8,
     ):
         """
         Evaluate all events in truth for all helicity configurations.
@@ -454,18 +460,20 @@ class Model(nn.Module):
                     N = self.n_particles
                     F = self.features_per_particle
                     X = x_in.view(B, N, F)
-                    hel_chunk = helicity_configs[h0:h0 + hb].to(self.device)     # (hb, N)
-                    X_rep = X.repeat_interleave(hb, dim=0)                     # (B*hb, N, F)
-                    hel_rep = hel_chunk.repeat(B, 1)                            # (B*hb, N)
+                    hel_chunk = helicity_configs[h0 : h0 + hb].to(self.device)  # (hb, N)
+                    X_rep = X.repeat_interleave(hb, dim=0)  # (B*hb, N, F)
+                    hel_rep = hel_chunk.repeat(B, 1)  # (B*hb, N)
                     X_rep[..., HELICITY_COL] = hel_rep
                     x_batch = X_rep.view(B * hb, N * F)
                 else:
                     # MLP: global helicity index is the last feature (before target)
-                    hel_chunk = helicity_configs[h0:h0 + hb].to(x.device)      # (hb,)
-                    x_rep = x_in.repeat_interleave(hb, dim=0)                  # (B*hb, D)
-                    x_rep[:, -1] = hel_chunk.repeat(B)                         # (B*hb,)
+                    hel_chunk = helicity_configs[h0 : h0 + hb].to(x.device)  # (hb,)
+                    x_rep = x_in.repeat_interleave(hb, dim=0)  # (B*hb, D)
+                    x_rep[:, -1] = hel_chunk.repeat(B)  # (B*hb,)
                     x_batch = x_rep
-                preds_all[row0:row0 + B, h0:h0 + hb] = self.predict(x_batch).view(B, hb)
+                preds_all[row0 : row0 + B, h0 : h0 + hb] = self.predict(x_batch).view(
+                    B, hb
+                )
             if i == 0:
                 self.logger.info(
                     f"    Total batches: {len(loader)}. Sampling time estimate: {time.strftime('%H:%M:%S', time.gmtime(round((time.time()-t0) * len(loader), 1)))}"
@@ -498,9 +506,9 @@ class Model(nn.Module):
             # Evaluate all helicities for each event
             self.logger.info(f"    Evaluating all helicities per event for {k} set")
             t1 = time.time()
-            dataset.predicted_factors_ppd_hels[k] = self._predict_hels(
-                dataset.events[k]
-            )["preds_all"]
+            dataset.predicted_factors_ppd_hels[k] = self._predict_hels(dataset.events[k])[
+                "preds_all"
+            ]
             dataset.predicted_factors_raw_hels[k] = dataset.apply_preprocessing(
                 reverse=True, ppd=dataset.predicted_factors_ppd_hels[k]
             )
@@ -628,7 +636,10 @@ class Model(nn.Module):
                     assert during_training
                     batch_size = x.shape[0]
                     boost_matrices = phys.batch_random_lorentz_boost(
-                        batch_size, device=x.device, dtype=torch.float64, z_boost=True,
+                        batch_size,
+                        device=x.device,
+                        dtype=torch.float64,
+                        z_boost=True,
                     )
                     x[:, :-1] = phys.apply_rotation_to_tensor_vectorized(
                         x[:, :-1], rotation_matrices=boost_matrices
@@ -1018,7 +1029,6 @@ class Model(nn.Module):
         y_delta_preds_Z2_abs, y_delta_preds_Z2_abs_err = compute_hist_data(
             abs_delta_bins, np.abs(delta_preds_Z2), bayesian=False
         )
-
 
         delta_true_lines = [
             Line(

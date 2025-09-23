@@ -23,34 +23,27 @@ TYPE_TOKEN_DICT = {
     "gg_5g": [0, 1, 2, 3, 4, 5, 6],
     "gg_6g": [0, 1, 2, 3, 4, 5, 6, 7],
     "gg_7g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-
     "gg_ddbar2g": [0, 1, 2, 3, 4, 5],
     "gg_ddbar3g": [0, 1, 2, 3, 4, 5, 6],
     "gg_ddbar4g": [0, 1, 2, 3, 4, 5, 6, 7],
     "gg_ddbar5g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-
     "dbard_4g": [0, 1, 2, 3, 4, 5],
     "dbard_5g": [0, 1, 2, 3, 4, 5, 6],
     "dbard_6g": [0, 1, 2, 3, 4, 5, 6, 7],
     "dbard_7g": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-
     "gg_ddbaruubar0g_co1": [0, 1, 2, 3, 4, 5],
     "gg_ddbaruubar1g_co1": [0, 1, 2, 3, 4, 5, 6],
     "gg_ddbaruubar2g_co1": [0, 1, 2, 3, 4, 5, 6, 7],
     "gg_ddbaruubar3g_co1": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-    
     "gg_ddbaruubar0g_co2": [0, 1, 2, 3, 4, 5],
     "gg_ddbaruubar1g_co2": [0, 1, 2, 3, 4, 5, 6],
     "gg_ddbaruubar2g_co2": [0, 1, 2, 3, 4, 5, 6, 7],
     "gg_ddbaruubar3g_co2": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-
-
     "ddbar_uubar2g_co1": [0, 1, 2, 3, 4, 5],
     "ddbar_uubar3g_co1": [0, 1, 2, 3, 4, 5, 6],
     "ddbar_uubar4g_co1": [0, 1, 2, 3, 4, 5, 6, 7],
     "ddbar_uubar5g_co1": [0, 1, 2, 3, 4, 5, 6, 7, 8],
-    
-    "ddbar_uubar2g_co2": [0, 1, 2, 3, 4, 5],    
+    "ddbar_uubar2g_co2": [0, 1, 2, 3, 4, 5],
     "ddbar_uubar3g_co2": [0, 1, 2, 3, 4, 5, 6],
     "ddbar_uubar4g_co2": [0, 1, 2, 3, 4, 5, 6, 7],
     "ddbar_uubar5g_co2": [0, 1, 2, 3, 4, 5, 6, 7, 8],
@@ -369,10 +362,8 @@ class AmplitudeWrapper(nn.Module):
         inputs = inputs.unsqueeze(0)
         inputs = inputs.view(1, batchsize, num_objects, self.features_per_particle)
         nprocesses, batchsize, num_objects, _ = inputs.shape
-        inputs_s = inputs[..., 0 : 1]
-        inputs_mv = inputs[
-            ..., 1 :
-        ]  # extract multivector inputs
+        inputs_s = inputs[..., 0:1]
+        inputs_mv = inputs[..., 1:]  # extract multivector inputs
 
         # encode momenta in multivectors
         multivector = embed_vector(inputs_mv)

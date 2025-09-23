@@ -16,7 +16,10 @@ def covariant2(p1: torch.Tensor, p2: torch.Tensor, keepdim: bool = False) -> tor
     out = torch.sum(p1 * g * p2, dim=-1, keepdim=keepdim)
     return out
 
-def batch_random_lorentz_boost(batch_size, device="cpu", dtype=torch.float64, z_boost=False):
+
+def batch_random_lorentz_boost(
+    batch_size, device="cpu", dtype=torch.float64, z_boost=False
+):
     # 1. Vectorized random beta
     beta = torch.rand(batch_size, device=device, dtype=dtype) * 0.8 + 0.1  # [batch]
     # 2. Vectorized random direction
@@ -26,20 +29,19 @@ def batch_random_lorentz_boost(batch_size, device="cpu", dtype=torch.float64, z_
     sintheta = torch.sqrt(1 - costheta**2)
     phi = 2 * torch.pi * torch.rand(batch_size, device=device, dtype=dtype)
 
-    n = torch.stack(
-        [
-            sintheta * torch.cos(phi),
-            sintheta * torch.sin(phi),
-            costheta
-        ],
-        dim=1
-    ) if not z_boost else torch.stack(
-        [
-            torch.zeros(batch_size, device=device, dtype=dtype),
-            torch.zeros(batch_size, device=device, dtype=dtype),
-            costheta
-        ],
-        dim=1,
+    n = (
+        torch.stack(
+            [sintheta * torch.cos(phi), sintheta * torch.sin(phi), costheta], dim=1
+        )
+        if not z_boost
+        else torch.stack(
+            [
+                torch.zeros(batch_size, device=device, dtype=dtype),
+                torch.zeros(batch_size, device=device, dtype=dtype),
+                costheta,
+            ],
+            dim=1,
+        )
     )
     n = n / n.norm(dim=1, keepdim=True)  # [batch, 3], just in case
 
@@ -188,6 +190,7 @@ def apply_rotation_to_tensor_vectorized(x, rotation_matrices):
         x_new[:, 5 * i + 1 : 5 * i + 5] = moms_rot[:, i, :]
     return x_new
 
+
 def apply_Z2_permutation_vectorized(x, block_size=5):
     """
     x: [B, n_particles*block_size] (no target col)
@@ -201,19 +204,19 @@ def apply_Z2_permutation_vectorized(x, block_size=5):
 
     # index map per sample
     idx = torch.arange(n_particles, device=device).expand(B, n_particles).clone()
-    ar  = torch.arange(B, device=device)
+    ar = torch.arange(B, device=device)
 
     # choose group: True => initial swap (0<->1), False => finals swap
-    choose_init = (torch.rand(B, device=device) < 0.5)
+    choose_init = torch.rand(B, device=device) < 0.5
 
     # default to initial pair
     i_sel = torch.zeros(B, dtype=torch.long, device=device)
-    j_sel = torch.ones (B, dtype=torch.long, device=device)
+    j_sel = torch.ones(B, dtype=torch.long, device=device)
 
     if finals >= 2:
         # finals pair i!=j in [2..n-1]
         I = torch.randint(2, n_particles, (B,), device=device)
-        J = torch.randint(2, n_particles-1, (B,), device=device)
+        J = torch.randint(2, n_particles - 1, (B,), device=device)
         J = J + (J >= I)
 
         # pick per sample according to choose_init
@@ -227,6 +230,7 @@ def apply_Z2_permutation_vectorized(x, block_size=5):
 
     x_perm = x_blocks.gather(1, idx.unsqueeze(-1).expand(-1, -1, block_size))
     return x_perm.reshape(B, n_particles * block_size)
+
 
 def delta_eta(
     p: torch.Tensor, eta1: torch.Tensor, eta2: torch.Tensor, abs: bool = True

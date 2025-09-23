@@ -129,6 +129,7 @@ def optimize_gain_factor_2(
                 )
     return best
 
+
 def optimize_gain_factor_1(
     process,
     model_name,
@@ -188,7 +189,6 @@ def optimize_gain_factor_1(
             ow2 = ratio / perc_ratio[p2]
 
             w = np.maximum(1.0, ow2 * np.maximum(1.0, ow1))
-            
 
             frac_ow = float((w > 1).sum()) / N
             if frac_ow_max is not None and frac_ow > frac_ow_max:
@@ -226,7 +226,6 @@ def optimize_gain_factor_1(
     return best
 
 
-
 def compute_and_log_metrics(
     process: str,
     model_name: str,
@@ -246,7 +245,7 @@ def compute_and_log_metrics(
     ratio_R = reweight_factors_truth / R if R is not None else None
     delta = (reweight_factors_pred - reweight_factors_truth) / reweight_factors_truth
     abs_delta = np.abs(delta)
-    
+
     if process in eval_time and process in unw_eff1 and model_name in eval_time[process]:
         opt_dict_algo1 = optimize_gain_factor_1(
             process=process,
@@ -263,7 +262,7 @@ def compute_and_log_metrics(
         )
         opt_dict_algo1_p1max = opt_dict_algo1["p1"]
         opt_dict_algo1_p2max = opt_dict_algo1["p2"]
-        
+
         print("\n")
         print("Result from optimizing algo1:", opt_dict_algo1)
         if R is not None:
@@ -305,8 +304,7 @@ def compute_and_log_metrics(
             ),
             "eff_2nd_surr_opt_algo1": Metric(
                 name="eff_2nd_surr_opt_algo1",
-                value=np.mean(ratio)
-                / np.percentile(ratio, opt_dict_algo1_p2max),
+                value=np.mean(ratio) / np.percentile(ratio, opt_dict_algo1_p2max),
                 unit="",
                 format="{:.5f}",
                 tex_label=rf"\epsilon_{{\text{{2nd, algo1}}}}^{{{opt_dict_algo1_p2max}}}",
@@ -625,7 +623,6 @@ def compute_and_log_metrics(
                     f.write(", ")
             f.write("\n")
             f.close()
-    
 
 
 def hist_weights_plot(
@@ -795,7 +792,6 @@ def hist_weights_plot(
 
         axs[-1].set_xlabel(xlabel)
         axs[-1].set_xscale("linear" if xscale is None else xscale)
-        
 
         fig.subplots_adjust(left=rect[0], bottom=rect[1], right=rect[2], top=rect[3])
         plt.savefig(pdf, format="pdf")
@@ -1050,10 +1046,18 @@ def hist_line(
         )
 
 
-def corner_text(ax: mpl.axes.Axes, text: str, horizontal_pos: str, vertical_pos: str, is_subtitle: bool = False):
+def corner_text(
+    ax: mpl.axes.Axes,
+    text: str,
+    horizontal_pos: str,
+    vertical_pos: str,
+    is_subtitle: bool = False,
+):
     ax.text(
         x=0.95 if horizontal_pos == "right" else 0.05,
-        y=0.95 - 0.1 * (is_subtitle) if vertical_pos == "top" else 0.05 + 0.1 * (is_subtitle),
+        y=0.95 - 0.1 * (is_subtitle)
+        if vertical_pos == "top"
+        else 0.05 + 0.1 * (is_subtitle),
         s=text,
         horizontalalignment=horizontal_pos,
         verticalalignment=vertical_pos,
@@ -1062,7 +1066,7 @@ def corner_text(ax: mpl.axes.Axes, text: str, horizontal_pos: str, vertical_pos:
     # Dummy line for automatic legend placement
     plt.plot(
         0.8 if horizontal_pos == "right" else 0.2,
-        0.8 - 0.1*(is_subtitle) if vertical_pos == "top" else 0.2 + 0.1*(is_subtitle),
+        0.8 - 0.1 * (is_subtitle) if vertical_pos == "top" else 0.2 + 0.1 * (is_subtitle),
         transform=ax.transAxes,
         color="none",
     )
@@ -1075,161 +1079,116 @@ bins_dict = {
             "gg_5g": np.linspace(0.75, 1.15, 64),
             "gg_6g": np.linspace(0.65, 1.5, 64),
             "gg_7g": np.linspace(0.59, 2.0, 64),
-
-
             "gg_ddbar2g": np.linspace(0.35, 1.15, 64),
             "gg_ddbar3g": np.linspace(0.35, 1.15, 64),
             "gg_ddbar4g": np.linspace(0.35, 1.2, 64),
             "gg_ddbar5g": np.linspace(0.35, 1.5, 64),
-
-
             "dbard_4g": np.linspace(0.45, 0.9, 64),
-            "dbard_5g": np.linspace(0.4, 1., 64),
+            "dbard_5g": np.linspace(0.4, 1.0, 64),
             "dbard_6g": np.linspace(0.35, 1.15, 64),
             "dbard_7g": np.linspace(0.3, 1.2, 64),
-
-
             "gg_ddbaruubar0g_co1": np.linspace(0.2, 1.3, 64),
             "gg_ddbaruubar1g_co1": np.linspace(0.1, 1.3, 64),
             "gg_ddbaruubar2g_co1": np.linspace(0.05, 1.15, 64),
             "gg_ddbaruubar3g_co1": np.linspace(0.05, 1.15, 64),
-
             "gg_ddbaruubar0g_co2": np.linspace(0.2, 1.3, 64),
             "gg_ddbaruubar1g_co2": np.linspace(0.1, 1.3, 64),
             "gg_ddbaruubar2g_co2": np.linspace(0.05, 1.15, 64),
             "gg_ddbaruubar3g_co2": np.linspace(0.05, 1.15, 64),
-
-
             "ddbar_uubar2g_co1": np.linspace(0.3, 1.15, 64),
             "ddbar_uubar3g_co1": np.linspace(0.25, 1.15, 64),
             "ddbar_uubar4g_co1": np.linspace(0.05, 1.15, 64),
             "ddbar_uubar5g_co1": np.linspace(0.05, 1.15, 64),
-
             "ddbar_uubar2g_co2": np.linspace(0.3, 1.15, 64),
             "ddbar_uubar3g_co2": np.linspace(0.25, 1.15, 64),
             "ddbar_uubar4g_co2": np.linspace(0.05, 1.15, 64),
             "ddbar_uubar5g_co2": np.linspace(0.05, 1.15, 64),
-
         },
         "ratios": {
             "gg_4g": np.linspace(0.90, 1.1, 64),
             "gg_5g": np.linspace(0.90, 1.1, 64),
             "gg_6g": np.linspace(0.90, 1.1, 64),
             "gg_7g": np.linspace(0.90, 1.1, 64),
-
-
             "gg_ddbar2g": np.linspace(0.90, 1.1, 64),
             "gg_ddbar3g": np.linspace(0.90, 1.1, 64),
             "gg_ddbar4g": np.linspace(0.90, 1.1, 64),
             "gg_ddbar5g": np.linspace(0.90, 1.1, 64),
-
-
             "dbard_4g": np.linspace(0.90, 1.1, 64),
             "dbard_5g": np.linspace(0.90, 1.1, 64),
             "dbard_6g": np.linspace(0.90, 1.1, 64),
             "dbard_7g": np.linspace(0.90, 1.1, 64),
-
-
             "gg_ddbaruubar0g_co1": np.linspace(0.90, 1.1, 64),
             "gg_ddbaruubar1g_co1": np.linspace(0.90, 1.1, 64),
             "gg_ddbaruubar2g_co1": np.linspace(0.90, 1.1, 64),
             "gg_ddbaruubar3g_co1": np.linspace(0.90, 1.1, 64),
-
             "gg_ddbaruubar0g_co2": np.linspace(0.90, 1.1, 64),
             "gg_ddbaruubar1g_co2": np.linspace(0.90, 1.1, 64),
             "gg_ddbaruubar2g_co2": np.linspace(0.90, 1.1, 64),
             "gg_ddbaruubar3g_co2": np.linspace(0.90, 1.1, 64),
-
-
             "ddbar_uubar2g_co1": np.linspace(0.90, 1.1, 64),
             "ddbar_uubar3g_co1": np.linspace(0.90, 1.1, 64),
             "ddbar_uubar4g_co1": np.linspace(0.90, 1.1, 64),
-            "ddbar_uubar5g_co1": np.linspace(0.90, 1.1, 64),    
-
+            "ddbar_uubar5g_co1": np.linspace(0.90, 1.1, 64),
             "ddbar_uubar2g_co2": np.linspace(0.90, 1.1, 64),
             "ddbar_uubar3g_co2": np.linspace(0.90, 1.1, 64),
             "ddbar_uubar4g_co2": np.linspace(0.90, 1.1, 64),
             "ddbar_uubar5g_co2": np.linspace(0.90, 1.1, 64),
-
-
-
         },
         "deltas": {
             "gg_4g": np.linspace(-0.1, 0.1, 64),
             "gg_5g": np.linspace(-0.1, 0.1, 64),
             "gg_6g": np.linspace(-0.1, 0.1, 64),
             "gg_7g": np.linspace(-0.1, 0.1, 64),
-
-
             "gg_ddbar2g": np.linspace(-0.1, 0.1, 64),
             "gg_ddbar3g": np.linspace(-0.1, 0.1, 64),
             "gg_ddbar4g": np.linspace(-0.1, 0.1, 64),
             "gg_ddbar5g": np.linspace(-0.1, 0.1, 64),
-
-
             "dbard_4g": np.linspace(-0.1, 0.1, 64),
             "dbard_5g": np.linspace(-0.1, 0.1, 64),
             "dbard_6g": np.linspace(-0.1, 0.1, 64),
             "dbard_7g": np.linspace(-0.1, 0.1, 64),
-
-
             "gg_ddbaruubar0g_co1": np.linspace(-0.1, 0.1, 64),
             "gg_ddbaruubar1g_co1": np.linspace(-0.1, 0.1, 64),
             "gg_ddbaruubar2g_co1": np.linspace(-0.1, 0.1, 64),
             "gg_ddbaruubar3g_co1": np.linspace(-0.1, 0.1, 64),
-
-
             "gg_ddbaruubar0g_co2": np.linspace(-0.1, 0.1, 64),
             "gg_ddbaruubar1g_co2": np.linspace(-0.1, 0.1, 64),
             "gg_ddbaruubar2g_co2": np.linspace(-0.1, 0.1, 64),
             "gg_ddbaruubar3g_co2": np.linspace(-0.1, 0.1, 64),
-
             "ddbar_uubar2g_co1": np.linspace(-0.1, 0.1, 64),
             "ddbar_uubar3g_co1": np.linspace(-0.1, 0.1, 64),
             "ddbar_uubar4g_co1": np.linspace(-0.1, 0.1, 64),
             "ddbar_uubar5g_co1": np.linspace(-0.1, 0.1, 64),
-
             "ddbar_uubar2g_co2": np.linspace(-0.1, 0.1, 64),
             "ddbar_uubar3g_co2": np.linspace(-0.1, 0.1, 64),
             "ddbar_uubar4g_co2": np.linspace(-0.1, 0.1, 64),
             "ddbar_uubar5g_co2": np.linspace(-0.1, 0.1, 64),
-
         },
         "abs_deltas": {
             "gg_4g": np.logspace(-14, 2, 64),
             "gg_5g": np.logspace(-14, 2, 64),
             "gg_6g": np.logspace(-14, 2, 64),
             "gg_7g": np.logspace(-14, 2, 64),
-            
-
             "gg_ddbar2g": np.logspace(-14, 2, 64),
             "gg_ddbar3g": np.logspace(-14, 2, 64),
             "gg_ddbar4g": np.logspace(-14, 2, 64),
             "gg_ddbar5g": np.logspace(-14, 2, 64),
-
-
             "dbard_4g": np.logspace(-14, 2, 64),
             "dbard_5g": np.logspace(-14, 2, 64),
             "dbard_6g": np.logspace(-14, 2, 64),
             "dbard_7g": np.logspace(-14, 2, 64),
-
-
             "gg_ddbaruubar0g_co1": np.logspace(-14, 2, 64),
             "gg_ddbaruubar1g_co1": np.logspace(-14, 2, 64),
             "gg_ddbaruubar2g_co1": np.logspace(-14, 2, 64),
             "gg_ddbaruubar3g_co1": np.logspace(-14, 2, 64),
-
             "gg_ddbaruubar0g_co2": np.logspace(-14, 2, 64),
             "gg_ddbaruubar1g_co2": np.logspace(-14, 2, 64),
             "gg_ddbaruubar2g_co2": np.logspace(-14, 2, 64),
             "gg_ddbaruubar3g_co2": np.logspace(-14, 2, 64),
-
-
             "ddbar_uubar2g_co1": np.logspace(-14, 2, 64),
             "ddbar_uubar3g_co1": np.logspace(-14, 2, 64),
             "ddbar_uubar4g_co1": np.logspace(-14, 2, 64),
             "ddbar_uubar5g_co1": np.logspace(-14, 2, 64),
-
             "ddbar_uubar2g_co2": np.logspace(-14, 2, 64),
             "ddbar_uubar3g_co2": np.logspace(-14, 2, 64),
             "ddbar_uubar4g_co2": np.logspace(-14, 2, 64),

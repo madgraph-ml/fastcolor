@@ -73,20 +73,15 @@ class Plots:
                 "gg_ddbaruubar1g_co1",
                 "gg_ddbaruubar2g_co1",
                 "gg_ddbaruubar3g_co1",
-          
             ]:
-                process_name = (
-                    f"${process[:2]}\\to d\\bar{{d}} + u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO1}})$"
-                )
+                process_name = f"${process[:2]}\\to d\\bar{{d}} + u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO1}})$"
             elif process in [
                 "gg_ddbaruubar0g_co2",
                 "gg_ddbaruubar1g_co2",
                 "gg_ddbaruubar2g_co2",
                 "gg_ddbaruubar3g_co2",
             ]:
-                process_name = (
-                    f"${process[:2]}\\to d\\bar{{d}} + u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO2}})$"
-                )
+                process_name = f"${process[:2]}\\to d\\bar{{d}} + u\\bar{{u}} + {process[-6:-4]}\ (\\text{{CO2}})$"
             elif process in [
                 "ddbar_uubar2g_co1",
                 "ddbar_uubar3g_co1",
@@ -273,7 +268,8 @@ class Plots:
 
         n_hel = (
             reweight_factors_pred_hel.shape[1]
-            if reweight_factors_pred_hel is not None and reweight_factors_pred_hel.ndim > 1
+            if reweight_factors_pred_hel is not None
+            and reweight_factors_pred_hel.ndim > 1
             else None
         )
         R = reweight_factors_pred_hel.mean(axis=1) if n_hel is not None else None
@@ -313,8 +309,16 @@ class Plots:
                     ppd=ppd,
                     pickle_file=pickle_file,
                     metrics={
-                        **{k: split_mode_metrics[k] for k in ["eff_1st_surr_opt_algo2", "n_helicities", "eff_LC"] if k in split_mode_metrics},
-                        **{k: split_mode_metrics[k] for k in ["eff_1st_surr_algo2"] if k in split_mode_metrics},
+                        **{
+                            k: split_mode_metrics[k]
+                            for k in ["eff_1st_surr_opt_algo2", "n_helicities", "eff_LC"]
+                            if k in split_mode_metrics
+                        },
+                        **{
+                            k: split_mode_metrics[k]
+                            for k in ["eff_1st_surr_algo2"]
+                            if k in split_mode_metrics
+                        },
                     },
                     bins=bins_targets,
                 )
@@ -327,8 +331,21 @@ class Plots:
                     percentage_of_ratio_data=percentage_of_ratio_data,
                     pickle_file=pickle_file,
                     metrics={
-                        **{k: split_mode_metrics[k] for k in ["eff_2nd_surr_opt_algo2", "alpha_algo2", "gain_algo2", "frac_ow_algo2"] if k in split_mode_metrics},
-                        **{k: split_mode_metrics[k] for k in ["eff_2nd_surr_algo2"] if k in split_mode_metrics},
+                        **{
+                            k: split_mode_metrics[k]
+                            for k in [
+                                "eff_2nd_surr_opt_algo2",
+                                "alpha_algo2",
+                                "gain_algo2",
+                                "frac_ow_algo2",
+                            ]
+                            if k in split_mode_metrics
+                        },
+                        **{
+                            k: split_mode_metrics[k]
+                            for k in ["eff_2nd_surr_algo2"]
+                            if k in split_mode_metrics
+                        },
                     },
                     bins=bins_ratios,
                 )
@@ -339,8 +356,22 @@ class Plots:
                 ppd=ppd,
                 pickle_file=pickle_file,
                 metrics={
-                    **{k: split_mode_metrics[k] for k in ["loss", "eval_time", "eff_1st_surr_opt_algo1", "eff_2nd_std", "eff_LC"] if k in split_mode_metrics},
-                    **{k: split_mode_metrics[k] for k in ["eff_1st_surr_algo1", "eff_2nd_std"] if k in split_mode_metrics},
+                    **{
+                        k: split_mode_metrics[k]
+                        for k in [
+                            "loss",
+                            "eval_time",
+                            "eff_1st_surr_opt_algo1",
+                            "eff_2nd_std",
+                            "eff_LC",
+                        ]
+                        if k in split_mode_metrics
+                    },
+                    **{
+                        k: split_mode_metrics[k]
+                        for k in ["eff_1st_surr_algo1", "eff_2nd_std"]
+                        if k in split_mode_metrics
+                    },
                 },
                 bins=bins_targets,
             )
@@ -351,9 +382,22 @@ class Plots:
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
                 pickle_file=pickle_file,
-                metrics = {
-                    **{k: split_mode_metrics[k] for k in ["eff_2nd_surr_opt_algo1", "alpha_algo1", "gain_algo1", "frac_ow_algo1"] if k in split_mode_metrics},
-                    **{k: split_mode_metrics[k] for k in ["eff_2nd_surr_algo1"] if k in split_mode_metrics},
+                metrics={
+                    **{
+                        k: split_mode_metrics[k]
+                        for k in [
+                            "eff_2nd_surr_opt_algo1",
+                            "alpha_algo1",
+                            "gain_algo1",
+                            "frac_ow_algo1",
+                        ]
+                        if k in split_mode_metrics
+                    },
+                    **{
+                        k: split_mode_metrics[k]
+                        for k in ["eff_2nd_surr_algo1"]
+                        if k in split_mode_metrics
+                    },
                 },
                 bins=bins_ratios,
             )

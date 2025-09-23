@@ -10,9 +10,14 @@ from .utils.plots_utils import Metric
 from .utils.logger import setup_logging
 from .utils.mlflow import mlflow, log_mlflow, LOGGING_ENABLED
 
-from .datasets.gluons import gg_ng # all gluons
-from .datasets.gluons import gg_ddbarng, dbard_ng # one quark line
-from .datasets.gluons import gg_ddbaruubarng_co1, gg_ddbaruubarng_co2, ddbar_uubarng_co1, ddbar_uubarng_co2 # two quark lines with different COs
+from .datasets.gluons import gg_ng  # all gluons
+from .datasets.gluons import gg_ddbarng, dbard_ng  # one quark line
+from .datasets.gluons import (
+    gg_ddbaruubarng_co1,
+    gg_ddbaruubarng_co2,
+    ddbar_uubarng_co1,
+    ddbar_uubarng_co2,
+)  # two quark lines with different COs
 
 from .datasets.dataset import compute_observables
 from collections import defaultdict
@@ -73,9 +78,17 @@ def main(cfg: DictConfig):
                     return True
                 if item == "model":  # keep current checkpoint directory for warm start
                     return True
-                if os.path.isfile(item_path) and item.startswith("out_") and item.endswith(".log"):
+                if (
+                    os.path.isfile(item_path)
+                    and item.startswith("out_")
+                    and item.endswith(".log")
+                ):
                     return True
-                if os.path.isfile(item_path) and item.startswith("config") and item.endswith(".yaml"):
+                if (
+                    os.path.isfile(item_path)
+                    and item.startswith("config")
+                    and item.endswith(".yaml")
+                ):
                     return True
                 return False
 
@@ -336,7 +349,6 @@ def run(logger, run_dir, cfg: DictConfig):
                 f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
             )
             # model.evaluate_for_all_helicities(dataset, splits_to_evaluate_on)
-
 
     if cfg.evaluate.save_samples:
         os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
