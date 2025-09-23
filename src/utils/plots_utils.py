@@ -47,7 +47,7 @@ def optimize_gain_factor_2(
     t_surr,
     n_hel=None,
     alpha_min=0.8,
-    frac_ow_max=0.01,
+    frac_ow_max=0.001,
     grid_elements=201,
 ):
     """
@@ -70,7 +70,7 @@ def optimize_gain_factor_2(
 
     t_surr = t_surr * n_hel if n_hel is not None else t_surr
     pcts = np.linspace(0.0, 100.0, grid_elements)
-    # print(pcts)
+
     pred = np.asarray(pred, float)
     ratio = np.asarray(truth, float) / pred
     eff_r = np.mean(truth) / np.max(truth)
@@ -139,8 +139,8 @@ def optimize_gain_factor_1(
     t_FC,
     t_surr,
     alpha_min=0.8,
-    frac_ow_max=0.01,
-    grid_elements=201,
+    frac_ow_max=0.001,
+    grid_elements=241,
 ):
     """
     Optimize gain factor for a given process and model.
@@ -159,9 +159,12 @@ def optimize_gain_factor_1(
     Returns:
         dict: Dictionary containing the optimized gain factor and other metrics.
     """
+    pcts = np.linspace(40.00, 100.0, grid_elements)
+    if frac_ow_max is not None:
+        print("Allowed fraction of overweight events:", frac_ow_max)
 
-    pcts = np.linspace(0.0, 100.0, grid_elements)
-    # print(pcts)
+    print("Sweep over percentages: ...", pcts[-10:])
+
     pred = np.asarray(pred, float)
     ratio = np.asarray(truth, float) / pred
     eff_r = np.mean(truth) / np.max(truth)
@@ -184,7 +187,9 @@ def optimize_gain_factor_1(
                 continue
             ow2 = ratio / perc_ratio[p2]
 
-            w = np.maximum(1.0, ow1 * ow2)
+            w = np.maximum(1.0, ow2 * np.maximum(1.0, ow1))
+            
+
             frac_ow = float((w > 1).sum()) / N
             if frac_ow_max is not None and frac_ow > frac_ow_max:
                 continue
@@ -217,6 +222,7 @@ def optimize_gain_factor_1(
                     t_surr=t_surr,
                     eff_r=eff_r,
                 )
+
     return best
 
 
@@ -251,9 +257,9 @@ def compute_and_log_metrics(
             eff_LC=unw_eff1[process]["LC"],
             t_FC=eval_time[process]["FC"],
             t_surr=eval_time[process][model_name]["t_eval"],
-            alpha_min=0.8,
-            frac_ow_max=0.05,
-            grid_elements=201 if split == "tst" and not ppd else 21,
+            alpha_min=0.995,
+            frac_ow_max=None,
+            grid_elements=241 if split == "tst" and not ppd else 21,
         )
         opt_dict_algo1_p1max = opt_dict_algo1["p1"]
         opt_dict_algo1_p2max = opt_dict_algo1["p2"]
@@ -272,7 +278,7 @@ def compute_and_log_metrics(
                 t_FC=eval_time[process]["FC"],
                 t_surr=eval_time[process][model_name]["t_eval"],
                 alpha_min=0.8,
-                frac_ow_max=0.05,
+                frac_ow_max=0.001,
                 grid_elements=201 if split == "tst" and not ppd else 21,
             )
             opt_dict_algo2_p1max = opt_dict_algo2["p1"]
@@ -628,6 +634,7 @@ def hist_weights_plot(
     bins: np.ndarray,
     show_ratios: bool = False,
     title: Optional[str] = None,
+    subtitle: Optional[str] = None,
     xlabel: str = f"$r(x)$",
     ylabel: Optional[str] = None,
     no_scale: bool = False,
@@ -770,6 +777,8 @@ def hist_weights_plot(
 
         if title is not None:
             corner_text(axs[0], title, "left", "top")
+            if subtitle is not None:
+                corner_text(axs[0], subtitle, "left", "top", is_subtitle=True)
         if legend_kwargs is None:
             axs[0].legend(loc="best", frameon=False, handlelength=1.0)
         else:
@@ -1041,10 +1050,10 @@ def hist_line(
         )
 
 
-def corner_text(ax: mpl.axes.Axes, text: str, horizontal_pos: str, vertical_pos: str):
+def corner_text(ax: mpl.axes.Axes, text: str, horizontal_pos: str, vertical_pos: str, is_subtitle: bool = False):
     ax.text(
         x=0.95 if horizontal_pos == "right" else 0.05,
-        y=0.95 if vertical_pos == "top" else 0.05,
+        y=0.95 - 0.1 * (is_subtitle) if vertical_pos == "top" else 0.05 + 0.1 * (is_subtitle),
         s=text,
         horizontalalignment=horizontal_pos,
         verticalalignment=vertical_pos,
@@ -1053,7 +1062,7 @@ def corner_text(ax: mpl.axes.Axes, text: str, horizontal_pos: str, vertical_pos:
     # Dummy line for automatic legend placement
     plt.plot(
         0.8 if horizontal_pos == "right" else 0.2,
-        0.8 if vertical_pos == "top" else 0.2,
+        0.8 - 0.1*(is_subtitle) if vertical_pos == "top" else 0.2 + 0.1*(is_subtitle),
         transform=ax.transAxes,
         color="none",
     )

@@ -323,8 +323,8 @@ def run(logger, run_dir, cfg: DictConfig):
                     f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time_mean: {np.mean(times):.6f}, eval_time_std: {np.std(times)}\n"
                 )
     else:
-        dataset.predicted_factors_ppd_hels = {}
-        dataset.predicted_factors_raw_hels = {}
+        # dataset.predicted_factors_ppd_hels = {}
+        # dataset.predicted_factors_raw_hels = {}
         for k in splits_to_evaluate_on:
             t0 = time.time()
             dataset.predicted_factors_ppd[k] = model.evaluate(split=k)
@@ -335,7 +335,7 @@ def run(logger, run_dir, cfg: DictConfig):
             logger.info(
                 f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
             )
-            model.evaluate_for_all_helicities(dataset, splits_to_evaluate_on)
+            # model.evaluate_for_all_helicities(dataset, splits_to_evaluate_on)
 
 
     if cfg.evaluate.save_samples:

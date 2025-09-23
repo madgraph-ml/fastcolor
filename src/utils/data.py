@@ -9,44 +9,45 @@ unw_eff1 = tree()
 eval_time = tree()
 
 # LC timings
-eval_time["gg_4g"]["LC"] = 2.9 / 100e3
-eval_time["gg_5g"]["LC"] = 20.3 / 100e3
-eval_time["gg_6g"]["LC"] = 1901 / 100e3
-eval_time["gg_7g"]["LC"] = 26184 / 100e3
+
+eval_time["gg_4g"]["LC"] = 323 / 6.4e6
+eval_time["gg_5g"]["LC"] = 670 / 6.4e6
+eval_time["gg_6g"]["LC"] = 2498 / 6.4e6
+eval_time["gg_7g"]["LC"] = 4041 / 6.4e6
 
 
-eval_time["gg_ddbar2g"]["LC"] = 1.0 / 100e3
-eval_time["gg_ddbar3g"]["LC"] = 5.9 / 100e3
-eval_time["gg_ddbar4g"]["LC"] = 45 / 100e3
-eval_time["gg_ddbar5g"]["LC"] = 4815 / 100e3
+eval_time["gg_ddbar2g"]["LC"] = 148 / 6.4e6
+eval_time["gg_ddbar3g"]["LC"] = 299 / 6.4e6
+eval_time["gg_ddbar4g"]["LC"] = 1161 / 6.4e6
+eval_time["gg_ddbar5g"]["LC"] = 2897 / 6.4e6
 
 
-eval_time["dbard_4g"]["LC"] = 1.2 / 100e3
-eval_time["dbard_5g"]["LC"] = 5.8 / 100e3
-eval_time["dbard_6g"]["LC"] = 45 / 100e3
-eval_time["dbard_7g"]["LC"] = 4944 / 100e3
+eval_time["dbard_4g"]["LC"] = 242 / 6.4e6
+eval_time["dbard_5g"]["LC"] = 463 / 6.4e6
+eval_time["dbard_6g"]["LC"] = 1322 / 6.4e6
+eval_time["dbard_7g"]["LC"] = 2960 / 6.4e6
 
 
-eval_time["gg_ddbaruubar0g_co1"]["LC"] = 0.1 / 100e3
-eval_time["gg_ddbaruubar1g_co1"]["LC"] = 1.9 / 100e3
-eval_time["gg_ddbaruubar2g_co1"]["LC"] = 13 / 100e3
-eval_time["gg_ddbaruubar3g_co1"]["LC"] = 116 / 100e3
+eval_time["gg_ddbaruubar0g_co1"]["LC"] = 122 / 6.4e6
+eval_time["gg_ddbaruubar1g_co1"]["LC"] = 207 / 6.4e6
+eval_time["gg_ddbaruubar2g_co1"]["LC"] = 399 / 6.4e6
+eval_time["gg_ddbaruubar3g_co1"]["LC"] = 830 / 6.4e6
 
-eval_time["gg_ddbaruubar0g_co2"]["LC"] = 0.1 / 100e3
-eval_time["gg_ddbaruubar1g_co2"]["LC"] = 1.9 / 100e3
-eval_time["gg_ddbaruubar2g_co2"]["LC"] = 13 / 100e3
-eval_time["gg_ddbaruubar3g_co2"]["LC"] = 225 / 100e3
+eval_time["gg_ddbaruubar0g_co2"]["LC"] = 192 / 6.4e6
+eval_time["gg_ddbaruubar1g_co2"]["LC"] = 306 / 6.4e6
+eval_time["gg_ddbaruubar2g_co2"]["LC"] = 660 / 6.4e6
+eval_time["gg_ddbaruubar3g_co2"]["LC"] = 1407 / 6.4e6
 
 
-eval_time["ddbar_uubar2g_co1"]["LC"] = 0.1 / 100e3
-eval_time["ddbar_uubar3g_co1"]["LC"] = 2.3 / 100e3
-eval_time["ddbar_uubar4g_co1"]["LC"] = 13 / 100e3
-eval_time["ddbar_uubar5g_co1"]["LC"] = 179 / 100e3
+eval_time["ddbar_uubar2g_co1"]["LC"] = 143 / 6.4e6
+eval_time["ddbar_uubar3g_co1"]["LC"] = 238 / 6.4e6
+eval_time["ddbar_uubar4g_co1"]["LC"] = 423 / 6.4e6
+eval_time["ddbar_uubar5g_co1"]["LC"] = 955 / 6.4e6
 
-eval_time["ddbar_uubar2g_co2"]["LC"] = 0.1 / 100e3
-eval_time["ddbar_uubar3g_co2"]["LC"] = 2.2 / 100e3
-eval_time["ddbar_uubar4g_co2"]["LC"] = 13 / 100e3
-eval_time["ddbar_uubar5g_co2"]["LC"] = 178 / 100e3
+eval_time["ddbar_uubar2g_co2"]["LC"] = 138 / 6.4e6
+eval_time["ddbar_uubar3g_co2"]["LC"] = 272 / 6.4e6
+eval_time["ddbar_uubar4g_co2"]["LC"] = 628 / 6.4e6
+eval_time["ddbar_uubar5g_co2"]["LC"] = 1458 / 6.4e6
 
 
 # FC timings
