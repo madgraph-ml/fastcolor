@@ -1,0 +1,89 @@
+model:
+  type: LGATr
+  in_mv_channels: 1
+  out_mv_channels: 1
+  hidden_mv_channels: 20
+  in_s_channels: 3
+  out_s_channels: null
+  hidden_s_channels: 20
+  num_blocks: 3
+  reinsert_mv_channels: null
+  reinsert_s_channels: null
+  dropout: null
+  double_layernorm: false
+  attention:
+    num_heads: 2
+    multi_query: false
+    increase_hidden_channels: 1
+    head_scale: true
+  mlp:
+    mv_channels: null
+    s_channels: null
+    activation: gelu
+  permutation_invariance: true
+mlflow:
+  tracking_uri: sqlite:///mlruns/mlflow.db
+  experiment_name: null
+  db: null
+  artifacts: null
+run:
+  type: plot
+  name: r-ddbar_uubar2g_co2
+  path: /remote/gpu02/marino/MadRecolor/madrecolor/results/LGATr/0823_195346-r-ddbar_uubar2g_co2
+seed: null
+debug: false
+backend:
+  torch_dtype: float64
+  num_workers: 8
+dataset:
+  data_path: /remote/gpu02/marino/data
+  process: ddbar_uubar2g_co2
+  n_data: null
+  embed_helicities:
+    use: false
+    embed_dimension: 64
+  parameterization:
+    naive:
+      use: true
+      channels: []
+    lorentz_products:
+      use: false
+      channels: []
+  preprocessing:
+    gaussianize: false
+    standardize: false
+    equivariant: true
+    amplitude:
+      log: false
+      minmax_scaling: false
+      arctanh: true
+      standardize: true
+  type: ddbar_uubarng_co2
+  trn_tst_val:
+  - 0.6
+  - 0.3
+  - 0.1
+  channels: []
+  regress: r
+train:
+  plot_preds_vs_targets: true
+  warm_start: false
+  checkpoint: final
+  lr: 0.001
+  clip_grad_norm: 10
+  optimizer: adam
+  scheduler: ReduceLROnPlateau
+  lr_factor: 0.5
+  lr_patience: 50
+  nits: 1000000
+  batch_size: 2048
+  batch_size_eval: 1024
+  loss: MSE
+  early_stopping:
+    use: true
+    patience: 60
+evaluate:
+  save_samples: false
+  save_data: false
+  evaluate_best: true
+  save_lines: true

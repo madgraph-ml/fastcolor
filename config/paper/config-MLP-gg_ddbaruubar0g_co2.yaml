@@ -1,0 +1,72 @@
+model:
+  type: MLP
+  hidden_layers: 8
+  internal_size: 137
+  dropout: 0.0
+  activation: gelu
+mlflow:
+  tracking_uri: sqlite:///mlruns/mlflow.db
+  experiment_name: null
+  db: null
+  artifacts: null
+run:
+  type: plot
+  name: r-gg_ddbaruubar0g_co2
+  path: /remote/gpu02/marino/MadRecolor/madrecolor/results/MLP/0823_032114-r-gg_ddbaruubar0g_co2
+seed: null
+debug: false
+backend:
+  torch_dtype: float64
+  num_workers: 8
+dataset:
+  data_path: /remote/gpu02/marino/data
+  process: gg_ddbaruubar0g_co2
+  n_data: null
+  embed_helicities:
+    use: true
+    embed_dimension: 64
+  parameterization:
+    naive:
+      use: false
+      channels: []
+    lorentz_products:
+      use: true
+      channels: []
+  preprocessing:
+    gaussianize: true
+    standardize: false
+    equivariant: false
+    amplitude:
+      log: false
+      minmax_scaling: false
+      arctanh: true
+      standardize: true
+  type: gg_ddbaruubarng_co2
+  trn_tst_val:
+  - 0.6
+  - 0.3
+  - 0.1
+  channels: []
+  regress: r
+train:
+  plot_preds_vs_targets: true
+  warm_start: false
+  checkpoint: final
+  lr: 0.001
+  clip_grad_norm: 10
+  optimizer: adam
+  scheduler: CosineAnnealingLR
+  lr_factor: 0.5
+  lr_patience: 50
+  nits: 1000000
+  batch_size: 4096
+  batch_size_eval: 4096
+  loss: MSE
+  early_stopping:
+    use: true
+    patience: 60
+evaluate:
+  save_samples: false
+  save_data: false
+  evaluate_best: true
+  save_lines: true
