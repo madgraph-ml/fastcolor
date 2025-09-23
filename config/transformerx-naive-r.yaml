@@ -1,0 +1,26 @@
+dataset:
+  type: gg_ng
+  process: gg_4g
+  trn_tst_val: [.6, .3, .1]
+  channels: []
+    
+  regress: r
+
+  preprocessing:
+    amplitude:
+      log: false
+      minmax_scaling: false
+      arctanh: true
+      standardize: true
+
+evaluate:
+  save_samples: false
+  save_data: false
+  evaluate_best: true
+  save_lines: true
+  model_name: null
+
+defaults:
+  - model: transformerx-200k
+  - transformer-defaults
+  - _self_
