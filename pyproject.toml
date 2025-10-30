@@ -3,9 +3,9 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "madrecolor"
+name = "fastcolor"
 version = "0.1.0"
-description = "Machine-Learned Leading-Color Amplitude Reweighting for MadGraph"
+description = "Full-color Amplitude Surrogate Toolkit for QCD"
 authors = [
     { name="Ramon Winterhalder", email="ramon.winterhalder@unimi.it" },
     { name="Javier Marino Villadamigo", email="marino@thphys.uni-heidelberg.de" }
@@ -17,7 +17,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-urls = {"Repository" = "https://github.com/madgraph-ml/madrecolor"}
+urls = {"Repository" = "https://github.com/madgraph-ml/fastcolor"}
 dependencies = [
     "numpy<2.0",
     "black==22.3.0",
@@ -30,4 +30,4 @@ dependencies = [
 ]
 
 [tool.black]
-line-length = 90
+line-length = 88
