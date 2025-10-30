@@ -17,7 +17,7 @@
 To install **FASTColor**, clone the repository and install dependencies:
 
 ```bash
-git clone git@github.com:madgraph-ml/madrecolor.git
+git clone git@github.com:madgraph-ml/fastcolor.git
 # then install in dev mode
 cd madrecolor
 python -m venv venv
