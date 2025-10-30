@@ -22,9 +22,11 @@ class QKVModule(nn.Module):
             in_mv_channels=config.in_mv_channels + config.additional_qk_mv_channels,
             out_mv_channels=3 * config.hidden_mv_channels * config.num_heads,
             in_s_channels=config.in_s_channels + config.additional_qk_s_channels,
-            out_s_channels=None
-            if config.in_s_channels is None
-            else 3 * config.hidden_s_channels * config.num_heads,
+            out_s_channels=(
+                None
+                if config.in_s_channels is None
+                else 3 * config.hidden_s_channels * config.num_heads
+            ),
         )
         self.norm_qkv = EquiLayerNorm()
         self.config = config

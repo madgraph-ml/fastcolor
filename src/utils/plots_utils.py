@@ -1,35 +1,37 @@
-import warnings
-import pickle
 import os
+import pickle
+import warnings
+from dataclasses import dataclass
 from typing import Optional
-import numpy as np
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LogNorm
-from src.datasets.dataset import Observable
-from dataclasses import dataclass
 from matplotlib.ticker import ScalarFormatter
-from src.utils.data import unw_eff1, eval_time
+
+from src.datasets.dataset import Observable
+from src.utils.data import eval_time, unw_eff1
 
 
 @dataclass
 class Metric:
     name: str
     value: float
-    format: Optional[str] = None
-    unit: Optional[str] = None
-    tex_label: Optional[str] = None
+    format: str | None = None
+    unit: str | None = None
+    tex_label: str | None = None
 
 
 @dataclass
 class Line:
     y: np.ndarray
-    y_err: Optional[np.ndarray] = None
-    y_ref: Optional[np.ndarray] = None
-    label: Optional[str] = None
-    color: Optional[str] = None
-    linestyle: Optional[str] = "solid"
+    y_err: np.ndarray | None = None
+    y_ref: np.ndarray | None = None
+    label: str | None = None
+    color: str | None = None
+    linestyle: str | None = "solid"
     fill: bool = False
     vline: bool = False
     alpha: float = 1.0
@@ -231,7 +233,7 @@ def compute_and_log_metrics(
     model_name: str,
     reweight_factors_pred: np.ndarray,
     reweight_factors_truth: np.ndarray,
-    R: Optional[np.ndarray],
+    R: np.ndarray | None,
     n_helicities: int,
     split: str,
     ppd: bool,
@@ -630,20 +632,20 @@ def hist_weights_plot(
     lines: list[Line],
     bins: np.ndarray,
     show_ratios: bool = False,
-    title: Optional[str] = None,
-    subtitle: Optional[str] = None,
+    title: str | None = None,
+    subtitle: str | None = None,
     xlabel: str = f"$r(x)$",
-    ylabel: Optional[str] = None,
+    ylabel: str | None = None,
     no_scale: bool = False,
-    xscale: Optional[str] = None,
-    yscale: Optional[str] = None,
-    metrics: Optional[float] = None,
+    xscale: str | None = None,
+    yscale: str | None = None,
+    metrics: float | None = None,
     xlim: tuple[float, float] = None,
     ylim: tuple[float, float] = None,
-    model_name: Optional[str] = "NN",
+    model_name: str | None = "NN",
     rect=(0.13, 0.18, 0.96, 0.96),
     size_multipler: float = 1.0,
-    legend_kwargs: Optional[dict] = None,
+    legend_kwargs: dict | None = None,
 ):
     """
     Makes a single histogram plot for the weights
@@ -750,9 +752,11 @@ def hist_weights_plot(
                 formatted_value = (
                     metric.format.format(metric.value)
                     if metric.format is not None
-                    else f"{metric.value:.3f}"
-                    if np.abs(metric.value) > 1e-2
-                    else f"{metric.value:.3e}"
+                    else (
+                        f"{metric.value:.3f}"
+                        if np.abs(metric.value) > 1e-2
+                        else f"{metric.value:.3e}"
+                    )
                 )
                 label = (
                     f"${metric.tex_label}$"
@@ -781,9 +785,15 @@ def hist_weights_plot(
         else:
             legend_kwargs.pop("handlelength", 1.0)
             axs[0].legend(frameon=False, handlelength=1.0, **legend_kwargs)
-        axs[0].set_ylabel("Normalized") if not no_scale and ylabel is None else axs[
-            0
-        ].set_ylabel("Events") if ylabel is None else axs[0].set_ylabel(ylabel)
+        (
+            axs[0].set_ylabel("Normalized")
+            if not no_scale and ylabel is None
+            else (
+                axs[0].set_ylabel("Events")
+                if ylabel is None
+                else axs[0].set_ylabel(ylabel)
+            )
+        )
         axs[0].set_xscale("linear" if xscale is None else xscale)
         yscale = "log" if yscale is None else yscale
         axs[0].set_yscale(yscale)
@@ -830,10 +840,10 @@ def hist_plot(
     bins: np.ndarray,
     observable: Observable,
     show_ratios: bool = True,
-    title: Optional[str] = None,
-    legend_kwargs: Optional[dict] = None,
+    title: str | None = None,
+    legend_kwargs: dict | None = None,
     no_scale: bool = False,
-    yscale: Optional[str] = None,
+    yscale: str | None = None,
     debug=False,
     model_name: str = "NN",
 ):
@@ -1055,9 +1065,11 @@ def corner_text(
 ):
     ax.text(
         x=0.95 if horizontal_pos == "right" else 0.05,
-        y=0.95 - 0.1 * (is_subtitle)
-        if vertical_pos == "top"
-        else 0.05 + 0.1 * (is_subtitle),
+        y=(
+            0.95 - 0.1 * (is_subtitle)
+            if vertical_pos == "top"
+            else 0.05 + 0.1 * (is_subtitle)
+        ),
         s=text,
         horizontalalignment=horizontal_pos,
         verticalalignment=vertical_pos,

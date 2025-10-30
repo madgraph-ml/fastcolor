@@ -6,7 +6,7 @@ model:
   dim_feedforward: 192
   dropout: 0.1
   activation: gelu
-  
+
   weight_multiplier: 1.0
 
 mlflow:

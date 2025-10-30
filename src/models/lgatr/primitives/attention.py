@@ -1,4 +1,5 @@
-from typing import Callable, Optional, Tuple
+from collections.abc import Callable
+from typing import Optional, Tuple
 
 import torch
 from einops import rearrange
@@ -18,8 +19,8 @@ def sdp_attention(
     q_s: Tensor,
     k_s: Tensor,
     v_s: Tensor,
-    attn_mask: Optional[Tensor] = None,
-) -> Tuple[Tensor, Tensor]:
+    attn_mask: Tensor | None = None,
+) -> tuple[Tensor, Tensor]:
     """Equivariant geometric attention based on scaled dot products.
 
     Expects both multivector and scalar queries, keys, and values as inputs.

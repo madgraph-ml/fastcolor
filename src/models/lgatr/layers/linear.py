@@ -64,8 +64,8 @@ class EquiLinear(nn.Module):
         self,
         in_mv_channels: int,
         out_mv_channels: int,
-        in_s_channels: Optional[int] = None,
-        out_s_channels: Optional[int] = None,
+        in_s_channels: int | None = None,
+        out_s_channels: int | None = None,
         bias: bool = True,
         initialization: str = "default",
     ) -> None:
@@ -101,7 +101,7 @@ class EquiLinear(nn.Module):
         )
 
         # Scalars -> MV scalars
-        self.s2mvs: Optional[nn.Linear]
+        self.s2mvs: nn.Linear | None
         mix_factor = 2 if gatr_config.mix_pseudoscalar_into_scalar else 1
         if in_s_channels:
             self.s2mvs = nn.Linear(in_s_channels, mix_factor * out_mv_channels, bias=bias)
@@ -126,8 +126,8 @@ class EquiLinear(nn.Module):
         self.reset_parameters(initialization)
 
     def forward(
-        self, multivectors: torch.Tensor, scalars: Optional[torch.Tensor] = None
-    ) -> Tuple[torch.Tensor, Union[torch.Tensor, None]]:
+        self, multivectors: torch.Tensor, scalars: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Maps input multivectors and scalars using the most general equivariant linear map.
 
         The result is again multivectors and scalars.

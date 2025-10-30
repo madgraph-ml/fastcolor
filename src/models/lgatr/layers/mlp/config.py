@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, List, Mapping, Optional
+from typing import Any, List, Optional
 
 
 @dataclass
@@ -21,10 +22,10 @@ class MLPConfig:
         Dropout probability
     """
 
-    mv_channels: Optional[List[int]] = None
-    s_channels: Optional[List[int]] = None
+    mv_channels: list[int] | None = None
+    s_channels: list[int] | None = None
     activation: str = "gelu"
-    dropout_prob: Optional[float] = None
+    dropout_prob: float | None = None
 
     def __post_init__(self):
         """Type checking / conversion."""

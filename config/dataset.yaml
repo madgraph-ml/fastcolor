@@ -1,6 +1,6 @@
 dataset:
   data_path: /remote/gpu02/marino/data
-  
+
   process: gg_4g # default process
   use_large_file: false
   gg_4g: events_6_2_21_21_21_21_21_21_1_2_3_4_5_6.lhe.rwgt.npy

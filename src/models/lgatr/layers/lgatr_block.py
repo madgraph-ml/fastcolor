@@ -42,7 +42,7 @@ class LGATrBlock(nn.Module):
         s_channels: int,
         attention: SelfAttentionConfig,
         mlp: MLPConfig,
-        dropout_prob: Optional[float] = None,
+        dropout_prob: float | None = None,
         double_layernorm: bool = False,
     ) -> None:
         super().__init__()
@@ -80,7 +80,7 @@ class LGATrBlock(nn.Module):
         additional_qk_features_mv=None,
         additional_qk_features_s=None,
         **attn_kwargs,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass of the transformer encoder block.
 
         Parameters

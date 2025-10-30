@@ -5,7 +5,7 @@ dataset:
   channels: []
 
   regress: r
-  
+
   preprocessing:
     amplitude:
       log: false

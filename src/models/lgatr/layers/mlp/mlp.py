@@ -45,7 +45,7 @@ class GeoMLP(nn.Module):
             else config.s_channels
         )
 
-        layers: List[nn.Module] = []
+        layers: list[nn.Module] = []
 
         if len(config.mv_channels) >= 2:
             kwargs = dict(
@@ -79,7 +79,7 @@ class GeoMLP(nn.Module):
 
     def forward(
         self, multivectors: torch.Tensor, scalars: torch.Tensor
-    ) -> Tuple[torch.Tensor, Union[torch.Tensor, None]]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Forward pass.
 
         Parameters

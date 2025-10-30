@@ -1,6 +1,7 @@
 import gzip
-import shutil
 import os
+import shutil
+
 import numpy as np
 from lhereader import LHEReader
 

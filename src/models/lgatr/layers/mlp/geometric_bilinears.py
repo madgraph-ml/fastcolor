@@ -35,9 +35,9 @@ class GeometricBilinear(nn.Module):
         self,
         in_mv_channels: int,
         out_mv_channels: int,
-        hidden_mv_channels: Optional[int] = None,
-        in_s_channels: Optional[int] = None,
-        out_s_channels: Optional[int] = None,
+        hidden_mv_channels: int | None = None,
+        in_s_channels: int | None = None,
+        out_s_channels: int | None = None,
     ) -> None:
         super().__init__()
 
@@ -70,7 +70,7 @@ class GeometricBilinear(nn.Module):
         self,
         multivectors: torch.Tensor,
         scalars: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Parameters

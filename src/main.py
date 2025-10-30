@@ -1,33 +1,34 @@
-import os
-import time
-import shutil
-from distutils.dir_util import copy_tree
 import glob
+import os
+import shutil
+import time
+from collections import defaultdict
 from datetime import datetime
-import hydra
-from omegaconf import DictConfig, OmegaConf
-from .utils.plots_utils import Metric
-from .utils.logger import setup_logging
-from .utils.mlflow import mlflow, log_mlflow, LOGGING_ENABLED
+from distutils.dir_util import copy_tree
 
-from .datasets.gluons import gg_ng  # all gluons
-from .datasets.gluons import gg_ddbarng, dbard_ng  # one quark line
-from .datasets.gluons import (
-    gg_ddbaruubarng_co1,
-    gg_ddbaruubarng_co2,
-    ddbar_uubarng_co1,
-    ddbar_uubarng_co2,
-)  # two quark lines with different COs
+import hydra
+import torch
+from omegaconf import DictConfig, OmegaConf
 
 from .datasets.dataset import compute_observables
-from collections import defaultdict
-from .models.train import Model
-from .models.models import MLP, Transformer, TransformerExtrapolator, GNN
+from .datasets.gluons import gg_ng  # all gluons
+from .datasets.gluons import (  # one quark line; two quark lines with different COs
+    dbard_ng,
+    ddbar_uubarng_co1,
+    ddbar_uubarng_co2,
+    gg_ddbarng,
+    gg_ddbaruubarng_co1,
+    gg_ddbaruubarng_co2,
+)
 from .models.lgatr import LGATr
+from .models.models import GNN, MLP, Transformer, TransformerExtrapolator
+from .models.train import Model
 
 # from lgatr import LGATr as LGATr_legacy
 from .plots import Plots
-import torch
+from .utils.logger import setup_logging
+from .utils.mlflow import LOGGING_ENABLED, log_mlflow, mlflow
+from .utils.plots_utils import Metric
 
 
 def init_logger(run_dir):
@@ -187,9 +188,9 @@ def run(logger, run_dir, cfg: DictConfig):
         mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
         mlflow.set_experiment(f"{cfg.dataset.process}")
         mlflow.start_run(
-            run_name=cfg.model.type + cfg.run.name
-            if cfg.run.name is not None
-            else run_dir
+            run_name=(
+                cfg.model.type + cfg.run.name if cfg.run.name is not None else run_dir
+            )
         )
         # flatten and log top‐level params
         for key, val in {
@@ -231,9 +232,9 @@ def run(logger, run_dir, cfg: DictConfig):
         process=cfg.dataset.process,
         cfg=cfg,
         dims_in=dims_in,
-        helicity_dict_size=dataset.helicity_dict_size
-        if hasattr(dataset, "helicity_dict_size")
-        else None,
+        helicity_dict_size=(
+            dataset.helicity_dict_size if hasattr(dataset, "helicity_dict_size") else None
+        ),
         dims_out=dims_out,
         model_path=model_path,
         device=device,
@@ -431,9 +432,11 @@ def run(logger, run_dir, cfg: DictConfig):
                 split=k,
                 ppd=ppd_flag,
                 percentage_of_ratio_data=percentage_of_ratio_data,
-                pickle_file=os.path.join(run_dir, "pkl", f"factors{ppd_s}_{k}.pkl")
-                if cfg.evaluate.get("save_lines", False)
-                else None,
+                pickle_file=(
+                    os.path.join(run_dir, "pkl", f"factors{ppd_s}_{k}.pkl")
+                    if cfg.evaluate.get("save_lines", False)
+                    else None
+                ),
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
             plots.plot_2d_correlations(
@@ -441,9 +444,11 @@ def run(logger, run_dir, cfg: DictConfig):
                 split=k,
                 ppd=ppd_flag,
                 percentage_of_ratio_data=percentage_of_ratio_data,
-                pickle_file=os.path.join(run_dir, "pkl", f"ratio_corr{ppd_s}_{k}.pkl")
-                if cfg.evaluate.get("save_lines", False)
-                else None,
+                pickle_file=(
+                    os.path.join(run_dir, "pkl", f"ratio_corr{ppd_s}_{k}.pkl")
+                    if cfg.evaluate.get("save_lines", False)
+                    else None
+                ),
                 fix_bins=cfg.evaluate.get("save_lines", False),
             )
 

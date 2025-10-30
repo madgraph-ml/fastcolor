@@ -1,9 +1,8 @@
 import torch
+from interface import embed_vector, extract_scalar
 from torch import nn
 
 # from torch_geometric.utils import dense_to_sparse
-
-from interface import embed_vector, extract_scalar
 
 
 def encode_tokens(type_token, global_token, token_size, isgatr, batchsize, device):

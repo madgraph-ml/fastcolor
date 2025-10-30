@@ -1,9 +1,10 @@
 """Define optimized lhereader"""
 
-import re
 import io
+import re
 from dataclasses import dataclass, field
 from xml.etree import ElementTree
+
 from skhep.math import LorentzVector
 
 
@@ -48,7 +49,7 @@ class LHEReader:
                 Defaults to reading all.
         """
         self.file_path = file_path
-        with open(self.file_path, "r") as f:
+        with open(self.file_path) as f:
             content = f.read()
         wrapped_content = f"<LesHouchesEvents>\n{content}\n</LesHouchesEvents>"
 

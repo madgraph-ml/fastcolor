@@ -1,13 +1,15 @@
-import time
 import os
+import time
+
 import numpy as np
 import torch
 import torch.nn as nn
-from src.utils.mlflow import mlflow, LOGGING_ENABLED
-from mlflow.tracking import MlflowClient
 from mlflow.entities import Metric
+from mlflow.tracking import MlflowClient
+
 import src.utils.physics as phys
 from src.plots import *
+from src.utils.mlflow import LOGGING_ENABLED, mlflow
 from src.utils.plots_utils import Metric as DataMetric
 
 
@@ -137,10 +139,12 @@ class Model(nn.Module):
         else:
             raise NotImplementedError(f"Scheduler {sched} not implemented")
         self.scheduler = scheduler
-        self.logger.info(f"    Using scheduler {sched}") if not hasattr(
-            self.scheduler, "patience"
-        ) else self.logger.info(
-            f"    Using scheduler {sched} with factor {getattr(self.scheduler, 'factor')} and patience {getattr(self.scheduler, 'patience')}."
+        (
+            self.logger.info(f"    Using scheduler {sched}")
+            if not hasattr(self.scheduler, "patience")
+            else self.logger.info(
+                f"    Using scheduler {sched} with factor {getattr(self.scheduler, 'factor')} and patience {getattr(self.scheduler, 'patience')}."
+            )
         )
 
     def train(self):
@@ -307,7 +311,7 @@ class Model(nn.Module):
             iteration
             % max(
                 1,
-                iteration
+                iteration,
                 # int(0.0001 * self.cfg.train.nits // len(self.trnloader))
                 # * self.cfg.train.get("val_freq", len(self.trnloader)),
             )
@@ -578,10 +582,10 @@ class Model(nn.Module):
                     .detach()
                     .cpu()
                 )
-                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get(
-                    "loss", "MSE"
-                ) != "heteroschedastic" else predictions.append(
-                    pred[..., 0].squeeze().detach().cpu()
+                (
+                    predictions.append(pred.squeeze().detach().cpu())
+                    if self.cfg.train.get("loss", "MSE") != "heteroschedastic"
+                    else predictions.append(pred[..., 0].squeeze().detach().cpu())
                 )
                 t1 = time.time()
                 if i == 0:
@@ -694,10 +698,10 @@ class Model(nn.Module):
                     .detach()
                     .cpu()
                 )
-                predictions.append(pred.squeeze().detach().cpu()) if self.cfg.train.get(
-                    "loss", "MSE"
-                ) != "heteroschedastic" else predictions.append(
-                    pred[..., 0].squeeze().detach().cpu()
+                (
+                    predictions.append(pred.squeeze().detach().cpu())
+                    if self.cfg.train.get("loss", "MSE") != "heteroschedastic"
+                    else predictions.append(pred[..., 0].squeeze().detach().cpu())
                 )
                 t1 = time.time()
                 if i == 0 and not during_training:
@@ -887,7 +891,7 @@ class Model(nn.Module):
 
         regress_name = {
             "r": "r",
-            "difference": "\Delta_{\\text{FC} - \\text{LC}}",
+            "difference": "\\Delta_{\\text{FC} - \\text{LC}}",
             "LC": "A_{\\text{LC}}",
             "FC": "A_{\\text{FC}}",
         }[self.cfg.dataset.get("regress", "r")]

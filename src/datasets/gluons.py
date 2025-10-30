@@ -1,9 +1,12 @@
-import torch
-import numpy as np
-import src.utils.physics as phys
-from .dataset import Observable, return_obs, get_hardcoded_bins, get_quantile_bins
-from src.utils.paths_dict import paths as paths_dict
 import os
+
+import numpy as np
+import torch
+
+import src.utils.physics as phys
+from src.utils.paths_dict import paths as paths_dict
+
+from .dataset import Observable, get_hardcoded_bins, get_quantile_bins, return_obs
 
 
 class gg_ng:
@@ -411,11 +414,15 @@ class gg_ddbarng(gg_ng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 1]
                         ),
-                        tex_label=f"E_{{{type}}}"
-                        if 2 <= i <= 3
-                        else f"E_{{{type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"E_{{{type}_{i+1}}}",
+                        tex_label=(
+                            f"E_{{{type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"E_{{{type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"E_{{{type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=0, upper=1000
@@ -428,11 +435,15 @@ class gg_ddbarng(gg_ng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 2]
                         ),
-                        tex_label=f"p_{{x, {type}}}"
-                        if 2 <= i <= 3
-                        else f"p_{{x, {type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"p_{{x, {type}_{i+1}}}",
+                        tex_label=(
+                            f"p_{{x, {type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"p_{{x, {type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"p_{{x, {type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -445,11 +456,15 @@ class gg_ddbarng(gg_ng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 3]
                         ),
-                        tex_label=f"p_{{y, {type}}}"
-                        if 2 <= i <= 3
-                        else f"p_{{y, {type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"p_{{y, {type}_{i+1}}}",
+                        tex_label=(
+                            f"p_{{y, {type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"p_{{y, {type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"p_{{y, {type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -462,11 +477,15 @@ class gg_ddbarng(gg_ng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 4]
                         ),
-                        tex_label=f"p_{{z, {type}}}"
-                        if 2 <= i <= 3
-                        else f"p_{{z, {type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"p_{{z, {type}_{i+1}}}",
+                        tex_label=(
+                            f"p_{{z, {type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"p_{{z, {type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"p_{{z, {type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -542,9 +561,9 @@ class dbard_ng(gg_ng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 2]
                         ),
-                        tex_label=f"p_{{x, {type}}}"
-                        if i < 2
-                        else f"p_{{x, {type}_{i+1 - 2}}}",
+                        tex_label=(
+                            f"p_{{x, {type}}}" if i < 2 else f"p_{{x, {type}_{i+1 - 2}}}"
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -557,9 +576,9 @@ class dbard_ng(gg_ng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 3]
                         ),
-                        tex_label=f"p_{{y, {type}}}"
-                        if i < 2
-                        else f"p_{{y, {type}_{i+1 - 2}}}",
+                        tex_label=(
+                            f"p_{{y, {type}}}" if i < 2 else f"p_{{y, {type}_{i+1 - 2}}}"
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -572,9 +591,9 @@ class dbard_ng(gg_ng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 4]
                         ),
-                        tex_label=f"p_{{z, {type}}}"
-                        if i < 2
-                        else f"p_{{z, {type}_{i+1 - 2}}}",
+                        tex_label=(
+                            f"p_{{z, {type}}}" if i < 2 else f"p_{{z, {type}_{i+1 - 2}}}"
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -638,11 +657,15 @@ class gg_ddbaruubarng(gg_ddbarng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 1]
                         ),
-                        tex_label=f"E_{{{type}}}"
-                        if 2 <= i <= 3
-                        else f"E_{{{type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"E_{{{type}_{i+1}}}",
+                        tex_label=(
+                            f"E_{{{type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"E_{{{type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"E_{{{type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=0, upper=1000
@@ -655,11 +678,15 @@ class gg_ddbaruubarng(gg_ddbarng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 2]
                         ),
-                        tex_label=f"p_{{x, {type}}}"
-                        if 2 <= i <= 3
-                        else f"p_{{x, {type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"p_{{x, {type}_{i+1}}}",
+                        tex_label=(
+                            f"p_{{x, {type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"p_{{x, {type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"p_{{x, {type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -672,11 +699,15 @@ class gg_ddbaruubarng(gg_ddbarng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 3]
                         ),
-                        tex_label=f"p_{{y, {type}}}"
-                        if 2 <= i <= 3
-                        else f"p_{{y, {type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"p_{{y, {type}_{i+1}}}",
+                        tex_label=(
+                            f"p_{{y, {type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"p_{{y, {type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"p_{{y, {type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -689,11 +720,15 @@ class gg_ddbaruubarng(gg_ddbarng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 4]
                         ),
-                        tex_label=f"p_{{z, {type}}}"
-                        if 2 <= i <= 3
-                        else f"p_{{z, {type}_{i+1 - 2}}}"
-                        if i > 3
-                        else f"p_{{z, {type}_{i+1}}}",
+                        tex_label=(
+                            f"p_{{z, {type}}}"
+                            if 2 <= i <= 3
+                            else (
+                                f"p_{{z, {type}_{i+1 - 2}}}"
+                                if i > 3
+                                else f"p_{{z, {type}_{i+1}}}"
+                            )
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -789,9 +824,9 @@ class ddbar_uubarng(gg_ddbaruubarng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 2]
                         ),
-                        tex_label=f"p_{{x, {type}}}"
-                        if i < 4
-                        else f"p_{{x, {type}_{i+1 - 4}}}",
+                        tex_label=(
+                            f"p_{{x, {type}}}" if i < 4 else f"p_{{x, {type}_{i+1 - 4}}}"
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -804,9 +839,9 @@ class ddbar_uubarng(gg_ddbaruubarng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 3]
                         ),
-                        tex_label=f"p_{{y, {type}}}"
-                        if i < 4
-                        else f"p_{{y, {type}_{i+1 - 4}}}",
+                        tex_label=(
+                            f"p_{{y, {type}}}" if i < 4 else f"p_{{y, {type}_{i+1 - 4}}}"
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
@@ -819,9 +854,9 @@ class ddbar_uubarng(gg_ddbaruubarng):
                         compute=lambda p, i=i: return_obs(
                             p[..., :], p[..., self.features_per_particle * i + 4]
                         ),
-                        tex_label=f"p_{{z, {type}}}"
-                        if i < 4
-                        else f"p_{{z, {type}_{i+1 - 4}}}",
+                        tex_label=(
+                            f"p_{{z, {type}}}" if i < 4 else f"p_{{z, {type}_{i+1 - 4}}}"
+                        ),
                         unit="GeV",
                         bins=lambda obs: get_hardcoded_bins(
                             n_bins=n_bins + 1, lower=-500, upper=500
