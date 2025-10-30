@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [tool.black]
-line-length = 88
+line-length = 90
 
 [tool.isort]
 profile = "black"
 atomic = true
-line_length = 88
+line_length = 90
