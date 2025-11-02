@@ -68,4 +68,3 @@ If you use this code or parts of it, please cite:
     reportNumber = "TIF-UNIMI-2025-18",
     month = "9",
     year = "2025"
-}
