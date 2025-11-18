@@ -7,7 +7,7 @@ from ..utils.einsum import cached_einsum, custom_einsum
 from .config import gatr_config
 
 
-@lru_cache()
+@lru_cache
 def _compute_pin_equi_linear_basis(
     device=torch.device("cpu"), dtype=torch.float32, normalize=True
 ) -> torch.Tensor:
@@ -43,7 +43,7 @@ def _compute_pin_equi_linear_basis(
     return basis.to(device=device, dtype=dtype)
 
 
-@lru_cache()
+@lru_cache
 def _compute_reversal(device=torch.device("cpu"), dtype=torch.float32) -> torch.Tensor:
     """Constructs a matrix that computes multivector reversal.
 
@@ -64,7 +64,7 @@ def _compute_reversal(device=torch.device("cpu"), dtype=torch.float32) -> torch.
     return reversal_flat
 
 
-@lru_cache()
+@lru_cache
 def _compute_grade_involution(
     device=torch.device("cpu"), dtype=torch.float32
 ) -> torch.Tensor:

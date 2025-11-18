@@ -18,7 +18,7 @@ dataset:
     lorentz_products:
       use: true
       channels : []
-  
+
   preprocessing:
     gaussianize: true
     standardize: false

@@ -17,11 +17,9 @@
 To install **FASTColor**, clone the repository and install dependencies:
 
 ```bash
-git clone git@github.com:madgraph-ml/madrecolor.git
+git clone git@github.com:madgraph-ml/fastcolor.git
 # then install in dev mode
 cd madrecolor
-python -m venv venv
-source venv/bin/activate
 pip install --editable .
 ```
 
@@ -67,5 +65,4 @@ If you use this code or parts of it, please cite:
     primaryClass = "hep-ph",
     reportNumber = "TIF-UNIMI-2025-18",
     month = "9",
-    year = "2025"
-}
+    year = "2025"}

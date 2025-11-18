@@ -1,7 +1,8 @@
 import time
 from typing import Optional, Union
-import numpy as np
+
 import mlflow
+import numpy as np
 
 MAX_LOG_ATTEMPTS = 20
 BASE_WAIT_TIME = 0.2  # Base wait time between attempts in seconds
@@ -14,8 +15,8 @@ LOGGING_ENABLED = False
 def log_mlflow(
     logger,
     key: str,
-    value: Union[float, str],
-    step: Optional[int] = None,
+    value: float | str,
+    step: int | None = None,
     kind: str = "metric",
 ) -> None:
     """Logs metric or param to MLflow.

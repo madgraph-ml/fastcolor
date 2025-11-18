@@ -3,9 +3,9 @@ dataset:
   process: gg_4g
   trn_tst_val: [.6, .3, .1]
   channels: []
-    
+
   regress: r
-  
+
   preprocessing:
     amplitude:
       log: false

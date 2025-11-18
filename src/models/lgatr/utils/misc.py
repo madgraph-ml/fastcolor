@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from functools import wraps
 from itertools import chain
-from typing import Any, Callable, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import torch
 from torch import Tensor
@@ -8,9 +9,9 @@ from torch import Tensor
 
 def minimum_autocast_precision(
     min_dtype: torch.dtype = torch.float32,
-    output: Optional[Union[Literal["low", "high"], torch.dtype]] = None,
-    which_args: Optional[List[int]] = None,
-    which_kwargs: Optional[List[str]] = None,
+    output: Literal["low", "high"] | torch.dtype | None = None,
+    which_args: list[int] | None = None,
+    which_kwargs: list[str] | None = None,
 ):
     """Decorator that ensures input tensors are autocast to a minimum precision.
     Only has an effect in autocast-enabled regions. Otherwise, does not change the function.
@@ -86,8 +87,9 @@ def minimum_autocast_precision(
                 if which_kwargs is None or key in which_kwargs
             }
             # Call function w/o autocast enabled
-            with torch.autocast(device_type="cuda", enabled=False), torch.autocast(
-                device_type="cpu", enabled=False
+            with (
+                torch.autocast(device_type="cuda", enabled=False),
+                torch.autocast(device_type="cpu", enabled=False),
             ):
                 outputs = func(*mod_args, **mod_kwargs)
             # Cast outputs to correct dtype

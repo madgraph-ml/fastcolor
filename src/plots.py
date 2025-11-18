@@ -1,5 +1,5 @@
-from src.utils.plots_utils import *
 from src.utils.paths_dict import paths as paths_dict
+from src.utils.plots_utils import *
 
 TRUTH_COLOR = "#07078A"
 NEUTRAL_COLOR = "black"
@@ -113,7 +113,7 @@ class Plots:
         self.regress = regress
         self.regress_name = {
             "r": "r",
-            "difference": "\Delta_{\\text{FC} - \\text{LC}}",
+            "difference": "\\Delta_{\\text{FC} - \\text{LC}}",
             "LC": "A_{\\text{LC}}",
             "FC": "A_{\\text{FC}}",
         }[regress]
@@ -147,9 +147,11 @@ class Plots:
                     its = np.arange(1, len(loss) + 1) * frac
                 ax.plot(its, loss, label=label)
             if logy:
-                ax.set_yscale("log") if np.all(
-                    np.array(self.losses["trn"]) > 0
-                ) else ax.set_yscale("symlog")
+                (
+                    ax.set_yscale("log")
+                    if np.all(np.array(self.losses["trn"]) > 0)
+                    else ax.set_yscale("symlog")
+                )
             if lr is not None:
                 axright = ax.twinx()
                 axright.plot(iterations, lr, label="Learning Rate", color="crimson")
@@ -479,12 +481,14 @@ class Plots:
             bins = (
                 np.linspace(*xlim_bins, 64)
                 if self.regress == "r" or ppd or self.regress == "difference"
-                else np.logspace(*np.log10(xlim_bins), 64)
-                if np.all(xlim_bins > 0)
-                else np.logspace(
-                    np.log10(max(1e-10, xlim_bins[0])),
-                    np.log10(max(1e-11, xlim_bins[1])),
-                    64,
+                else (
+                    np.logspace(*np.log10(xlim_bins), 64)
+                    if np.all(xlim_bins > 0)
+                    else np.logspace(
+                        np.log10(max(1e-10, xlim_bins[0])),
+                        np.log10(max(1e-11, xlim_bins[1])),
+                        64,
+                    )
                 )
             )
             if self.regress == "r" and ppd:
@@ -536,11 +540,11 @@ class Plots:
             show_ratios=True if truth is not None else False,
             title=self.process_name if self.process_name is not None else None,
             xlabel=label,
-            xscale="linear"
-            if self.regress == "difference"
-            else "log"
-            if not self.regress == "r" and not ppd
-            else "linear",
+            xscale=(
+                "linear"
+                if self.regress == "difference"
+                else "log" if not self.regress == "r" and not ppd else "linear"
+            ),
             no_scale=True,
             metrics=metrics,
             model_name=self.model_name,
@@ -587,12 +591,14 @@ class Plots:
             bins = (
                 np.linspace(*xlim_bins, 64)
                 if self.regress == "r" or ppd or self.regress == "difference"
-                else np.logspace(*np.log10(xlim_bins), 64)
-                if np.all(xlim_bins > 0)
-                else np.logspace(
-                    np.log10(max(1e-11, xlim_bins[0])),
-                    np.log10(max(1e-11, xlim_bins[1])),
-                    64,
+                else (
+                    np.logspace(*np.log10(xlim_bins), 64)
+                    if np.all(xlim_bins > 0)
+                    else np.logspace(
+                        np.log10(max(1e-11, xlim_bins[0])),
+                        np.log10(max(1e-11, xlim_bins[1])),
+                        64,
+                    )
                 )
             )
 
@@ -622,9 +628,11 @@ class Plots:
             bins,
             show_ratios=False,
             xlabel=label,
-            xscale="linear"
-            if self.regress == "r" or ppd or self.regress == "difference"
-            else "log",
+            xscale=(
+                "linear"
+                if self.regress == "r" or ppd or self.regress == "difference"
+                else "log"
+            ),
             title=self.process_name if self.process_name is not None else None,
             no_scale=True,
             metrics=metrics,
@@ -698,11 +706,15 @@ class Plots:
             lines,
             bins,
             show_ratios=False,
-            xlabel=xlabel
-            if not abs
-            else f"$|{{\Delta}}_{{{self.regress_name}}}|{perc_str}$"
-            if not ppd
-            else f"$|\\tilde{{\Delta}}_{{{self.regress_name}}}|{perc_str}$",
+            xlabel=(
+                xlabel
+                if not abs
+                else (
+                    f"$|{{\Delta}}_{{{self.regress_name}}}|{perc_str}$"
+                    if not ppd
+                    else f"$|\\tilde{{\Delta}}_{{{self.regress_name}}}|{perc_str}$"
+                )
+            ),
             xscale="log" if abs else "linear",
             title=self.process_name if self.process_name is not None else None,
             no_scale=True,
@@ -935,16 +947,20 @@ class Plots:
                 include_diagonal=False,
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
-                pickle_file=pickle_file + "_vsratio.pkl"
-                if pickle_file is not None
-                else None,
+                pickle_file=(
+                    pickle_file + "_vsratio.pkl" if pickle_file is not None else None
+                ),
                 bins=[bins_ratios, bins_targets],
-                xlabel=f"${self.regress_name}^{{\\text{{truth}}}}/{self.regress_name}^{{\\text{{pred}}}}{perc_str}$"
-                if not ppd
-                else f"$\\tilde{{{self.regress_name}}}^{{\\text{{truth}}}}/\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}{perc_str}$",
-                ylabel=f"${self.regress_name}^{{\\text{{pred}}}}$"
-                if not ppd
-                else f"$\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}$",
+                xlabel=(
+                    f"${self.regress_name}^{{\\text{{truth}}}}/{self.regress_name}^{{\\text{{pred}}}}{perc_str}$"
+                    if not ppd
+                    else f"$\\tilde{{{self.regress_name}}}^{{\\text{{truth}}}}/\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}{perc_str}$"
+                ),
+                ylabel=(
+                    f"${self.regress_name}^{{\\text{{pred}}}}$"
+                    if not ppd
+                    else f"$\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}$"
+                ),
                 xscale="linear" if self.regress == "r" or ppd else "log",
                 yscale="linear" if self.regress == "r" or ppd else "log",
             )
@@ -955,16 +971,20 @@ class Plots:
                 include_diagonal=True,
                 ppd=ppd,
                 percentage_of_ratio_data=percentage_of_ratio_data,
-                pickle_file=pickle_file + "_vstruth.pkl"
-                if pickle_file is not None
-                else None,
+                pickle_file=(
+                    pickle_file + "_vstruth.pkl" if pickle_file is not None else None
+                ),
                 bins=[bins_targets, bins_targets],
-                xlabel=f"${self.regress_name}^{{\\text{{truth}}}}{perc_str}$"
-                if not ppd
-                else f"$\\tilde{{{self.regress_name}}}^{{\\text{{truth}}}}{perc_str}$",
-                ylabel=f"${self.regress_name}^{{\\text{{pred}}}}$"
-                if not ppd
-                else f"$\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}$",
+                xlabel=(
+                    f"${self.regress_name}^{{\\text{{truth}}}}{perc_str}$"
+                    if not ppd
+                    else f"$\\tilde{{{self.regress_name}}}^{{\\text{{truth}}}}{perc_str}$"
+                ),
+                ylabel=(
+                    f"${self.regress_name}^{{\\text{{pred}}}}$"
+                    if not ppd
+                    else f"$\\tilde{{{self.regress_name}}}^{{\\text{{pred}}}}$"
+                ),
                 xscale="linear" if self.regress == "r" or ppd else "log",
                 yscale="linear" if self.regress == "r" or ppd else "log",
             )
@@ -1003,23 +1023,31 @@ class Plots:
                 np.array([lo, hi]),
             ]
             bins = [
-                np.linspace(*xlim_bins[0], 64)
-                if self.regress == "r" or ppd
-                else np.logspace(*np.log10(xlim_bins[0]), 64)
-                if np.all(xlim_bins[0] > 0)
-                else np.logspace(
-                    np.log10(max(1e-11, xlim_bins[0][0])),
-                    np.log10(max(1e-11, xlim_bins[0][1])),
-                    64,
+                (
+                    np.linspace(*xlim_bins[0], 64)
+                    if self.regress == "r" or ppd
+                    else (
+                        np.logspace(*np.log10(xlim_bins[0]), 64)
+                        if np.all(xlim_bins[0] > 0)
+                        else np.logspace(
+                            np.log10(max(1e-11, xlim_bins[0][0])),
+                            np.log10(max(1e-11, xlim_bins[0][1])),
+                            64,
+                        )
+                    )
                 ),
-                np.linspace(*xlim_bins[1], 64)
-                if self.regress == "r" or ppd
-                else np.logspace(*np.log10(xlim_bins[1]), 64)
-                if np.all(xlim_bins[1] > 0)
-                else np.logspace(
-                    np.log10(max(1e-11, xlim_bins[1][0])),
-                    np.log10(max(1e-11, xlim_bins[1][1])),
-                    64,
+                (
+                    np.linspace(*xlim_bins[1], 64)
+                    if self.regress == "r" or ppd
+                    else (
+                        np.logspace(*np.log10(xlim_bins[1]), 64)
+                        if np.all(xlim_bins[1] > 0)
+                        else np.logspace(
+                            np.log10(max(1e-11, xlim_bins[1][0])),
+                            np.log10(max(1e-11, xlim_bins[1][1])),
+                            64,
+                        )
+                    )
                 ),
             ]
         cmap = plt.get_cmap("viridis")

@@ -3,7 +3,7 @@ from .interface.spurions import get_num_spurions, get_spurions
 from .interface.vector import embed_vector, extract_vector
 from .layers.attention.config import SelfAttentionConfig
 from .layers.mlp.config import MLPConfig
-from .nets.lgatr import LGATr, LGATr_net, AmplitudeWrapper
+from .nets.lgatr import AmplitudeWrapper, LGATr, LGATr_net
 from .primitives.config import gatr_config
 
 __all__ = [

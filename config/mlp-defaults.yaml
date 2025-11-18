@@ -6,7 +6,7 @@ dataset:
     lorentz_products:
       use: true
       channels : []
-  
+
   embed_helicities:
     use: true
     embed_dimension: 64

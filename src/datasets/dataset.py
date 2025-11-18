@@ -1,6 +1,8 @@
-import torch
-from typing import Optional, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Optional
+
+import torch
 
 
 @dataclass
@@ -17,13 +19,13 @@ class Observable:
         channel: Channel index for the observable, optional
     """
 
-    compute: Callable[[torch.Tensor, Optional[torch.Tensor]], torch.Tensor]
+    compute: Callable[[torch.Tensor, torch.Tensor | None], torch.Tensor]
     tex_label: str
     bins: Callable[[torch.Tensor], torch.Tensor]
     xscale: str = "linear"
     yscale: str = "linear"
-    unit: Optional[str] = None
-    channel: Optional[int] = None
+    unit: str | None = None
+    channel: int | None = None
 
     def __getstate__(self):
         d = dict(self.__dict__)

@@ -8,7 +8,7 @@ from ..utils.misc import minimum_autocast_precision
 from .linear import grade_project
 
 
-@lru_cache()
+@lru_cache
 def _load_inner_product_factors(
     device=torch.device("cpu"), dtype=torch.float32
 ) -> torch.Tensor:
@@ -35,7 +35,7 @@ def _load_inner_product_factors(
     return factors.to(device=device, dtype=dtype)
 
 
-@lru_cache()
+@lru_cache
 def _load_metric_grades(device=torch.device("cpu"), dtype=torch.float32) -> torch.Tensor:
     """Generate tensor of the diagonal of the GA metric, combined with a grade projection.
 

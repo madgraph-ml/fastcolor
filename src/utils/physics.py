@@ -1,6 +1,5 @@
 import torch
 
-
 minkowski = torch.diag(torch.tensor([1.0, -1.0, -1.0, -1.0], dtype=torch.float16))
 
 

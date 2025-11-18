@@ -1,9 +1,8 @@
 import torch
-from torch import nn
-from .train import Model
-
-import torch
 import torch.nn as nn
+from torch import nn
+
+from .train import Model
 
 
 class GNN(Model):

@@ -6,7 +6,7 @@ import torch
 from ..utils.einsum import cached_einsum
 
 
-@lru_cache()
+@lru_cache
 def _load_geometric_product_tensor(
     device=torch.device("cpu"), dtype=torch.float32
 ) -> torch.Tensor:

@@ -1,14 +1,15 @@
 """This module provides efficiency improvements over torch's einsum through caching."""
 
 import functools
-from typing import List, Sequence
+from collections.abc import Sequence
+from typing import List
 
 import opt_einsum
 import torch
 
 
 def custom_einsum(
-    equation: str, *operands: torch.Tensor, path: List[int]
+    equation: str, *operands: torch.Tensor, path: list[int]
 ) -> torch.Tensor:
     """Computes einsum with a custom contraction order."""
 
@@ -30,10 +31,10 @@ def cached_einsum(equation: str, *operands: torch.Tensor) -> torch.Tensor:
     return custom_einsum(equation, *operands, path=path)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _get_cached_path_for_equation_and_shapes(
     equation: str, op_shape: Sequence[torch.Tensor]
-) -> List[int]:
+) -> list[int]:
     """Provides caching of optimal path."""
     tupled_path = opt_einsum.contract_path(
         equation, *op_shape, optimize="optimal", shapes=True

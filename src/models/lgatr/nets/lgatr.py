@@ -9,14 +9,15 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 
 from models.train import Model
-from ..layers.attention.config import SelfAttentionConfig
-from ..layers.lgatr_block import LGATrBlock
-from ..layers.linear import EquiLinear
-from ..layers.mlp.config import MLPConfig
+
 from ..interface import (
     embed_vector,
     extract_scalar,
 )
+from ..layers.attention.config import SelfAttentionConfig
+from ..layers.lgatr_block import LGATrBlock
+from ..layers.linear import EquiLinear
+from ..layers.mlp.config import MLPConfig
 
 TYPE_TOKEN_DICT = {
     "gg_4g": [0, 1, 2, 3, 4, 5],
@@ -208,16 +209,16 @@ class LGATr_net(nn.Module):
         in_mv_channels: int,
         out_mv_channels: int,
         hidden_mv_channels: int,
-        in_s_channels: Optional[int],
-        out_s_channels: Optional[int],
-        hidden_s_channels: Optional[int],
+        in_s_channels: int | None,
+        out_s_channels: int | None,
+        hidden_s_channels: int | None,
         attention: SelfAttentionConfig,
         mlp: MLPConfig,
         num_blocks: int = 10,
-        reinsert_mv_channels: Optional[Tuple[int]] = None,
-        reinsert_s_channels: Optional[Tuple[int]] = None,
+        reinsert_mv_channels: tuple[int] | None = None,
+        reinsert_s_channels: tuple[int] | None = None,
         checkpoint_blocks: bool = False,
-        dropout_prob: Optional[float] = None,
+        dropout_prob: float | None = None,
         double_layernorm: bool = False,
         **kwargs,
     ) -> None:
@@ -230,12 +231,12 @@ class LGATr_net(nn.Module):
         )
         attention = replace(
             SelfAttentionConfig.cast(attention),
-            additional_qk_mv_channels=0
-            if reinsert_mv_channels is None
-            else len(reinsert_mv_channels),
-            additional_qk_s_channels=0
-            if reinsert_s_channels is None
-            else len(reinsert_s_channels),
+            additional_qk_mv_channels=(
+                0 if reinsert_mv_channels is None else len(reinsert_mv_channels)
+            ),
+            additional_qk_s_channels=(
+                0 if reinsert_s_channels is None else len(reinsert_s_channels)
+            ),
         )
         mlp = MLPConfig.cast(mlp)
         self.blocks = nn.ModuleList(
@@ -264,9 +265,9 @@ class LGATr_net(nn.Module):
     def forward(
         self,
         multivectors: torch.Tensor,
-        scalars: Optional[torch.Tensor] = None,
+        scalars: torch.Tensor | None = None,
         **attn_kwargs,
-    ) -> Tuple[torch.Tensor, Union[torch.Tensor, None]]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Forward pass of the network.
 
         Parameters
