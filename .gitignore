@@ -8,6 +8,8 @@ logs/
 mlruns/
 data/
 results/
+*figs/
+*plots/
 outputs/
 madrecolor.code-workspace
 #*.ipynb
