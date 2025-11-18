@@ -5,7 +5,23 @@ run:
 seed: null
 debug: false
 
+backend:
+  torch_dtype: float64
+  num_workers: 8
+
+dataset:
+  data_path: /remote/gpu02/marino/data
+  process: gg_4g # default process
+  n_data: null
+  
+  embed_helicities:
+    use: false
+    embed_dimension: 64
+
+train:
+  plot_preds_vs_targets: true
+
 defaults:
- - dataset
  - hydra
+ - mlflow
  - _self_

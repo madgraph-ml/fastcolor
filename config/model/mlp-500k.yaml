@@ -1,5 +1,5 @@
 type: MLP
 hidden_layers: 7
 internal_size: 264
-dropout_prob: null
+dropout: 0.0
 activation: gelu

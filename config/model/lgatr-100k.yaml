@@ -3,14 +3,14 @@ in_mv_channels: 1               # number of multivector input channels (per part
 out_mv_channels: 1              # number of multivector output channels (per particle)
 hidden_mv_channels: 16          # internal size of network, modifiable
 
-in_s_channels: 0                # number of scalar input channels (=token size and is dynamically set)
+in_s_channels: 3                # number of scalar input channels (=token size and is dynamically set)
 out_s_channels: null            # number of scalar output channels (not used)
 hidden_s_channels: 16           # internal size of network, modifiable
 
 num_blocks: 2                   # Number of GATr blocks
 reinsert_mv_channels: null      # Residual connection for multivector channels
 reinsert_s_channels: null       # Residual connection for scalar channels
-dropout_prob: null              # Dropout probability
+dropout: null                   # Dropout probability
 double_layernorm: false         # Double layer norm
 
 attention:
