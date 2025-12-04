@@ -13,7 +13,7 @@ dataset:
   data_path: /remote/gpu02/marino/data
   process: gg_4g # default process
   n_data: null
-  
+
   embed_helicities:
     use: false
     embed_dimension: 64
