@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fastcolor"
-version = "0.1.0"
+version = "1.0.0"
 description = "Full-color Amplitude Surrogate Toolkit for QCD"
 authors = [
     { name="Ramon Winterhalder", email="ramon.winterhalder@unimi.it" },
@@ -27,6 +27,7 @@ dependencies = [
     "torch>=2.2",
     "hydra-core>=1.2",
     "mlflow==2.22.0",
+    "madnis",
 ]
 
 [tool.black]

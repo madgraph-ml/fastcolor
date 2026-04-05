@@ -1,0 +1,462 @@
+import glob
+import os
+import shutil
+import time
+from collections import defaultdict
+from datetime import datetime
+from distutils.dir_util import copy_tree
+
+import hydra
+import torch
+from omegaconf import DictConfig, OmegaConf
+
+from ..datasets.dataset import compute_observables
+from ..datasets.gluons import gg_ng  # all gluons
+from ..datasets.gluons import (  # one quark line; two quark lines with different COs
+    dbard_ng,
+    ddbar_uubarng_co1,
+    ddbar_uubarng_co2,
+    gg_ddbarng,
+    gg_ddbaruubarng_co1,
+    gg_ddbaruubarng_co2,
+)
+from ..models.lgatr import LGATr
+from ..models.models import GNN, MLP, Transformer, TransformerExtrapolator
+from ..models.train import Model
+
+# from lgatr import LGATr as LGATr_legacy
+from ..plots import Plots
+from ..utils.logger import setup_logging
+from ..utils.mlflow import LOGGING_ENABLED, log_mlflow, mlflow
+from ..utils.plots_utils import Metric
+
+
+def init_logger(run_dir):
+    """
+    Initialize the logger. If we are working on a previous run, output to "out_{previos_run_number+1}.log"
+    """
+    log_files = glob.glob(os.path.join(run_dir, "out_*.log"))
+    log_files.sort()
+    if len(log_files) > 0:
+        run_number = int(log_files[-1].split("_")[-1].split(".")[0])
+        run_number += 1
+    else:
+        run_number = 0
+    log_file_path = os.path.join(run_dir, f"out_{run_number:02d}.log")
+    return setup_logging(log_file_path)
+
+
+def main(cfg: DictConfig):
+    base_dir = hydra.utils.get_original_cwd()
+
+    if cfg.run.type == "train":
+        if not cfg.train.warm_start:
+            # Initialize run directory
+            results_dir = os.path.join(base_dir, "results")
+            run_name = (
+                cfg.model.type
+                + "/"
+                + datetime.now().strftime("%m%d_%H%M%S")
+                + "-"
+                + cfg.run.name
+                if cfg.run.name is not None
+                else cfg.model.type + "/" + datetime.now().strftime("%m%d_%H%M%S")
+            )
+            run_dir = os.path.join(results_dir, run_name)
+            os.makedirs(run_dir, exist_ok=True)
+        else:
+            # Warm start: archive existing contents into old/<timestamp>/ safely
+            run_dir = cfg.run.path
+            old_dir = os.path.join(run_dir, "old")
+            os.makedirs(old_dir, exist_ok=True)
+
+            ts = datetime.now().strftime("%m%d_%H%M%S")
+            dst_root = os.path.join(old_dir, ts)
+            os.makedirs(dst_root, exist_ok=False)
+
+            def keep(item: str, item_path: str) -> bool:
+                if item == "old":
+                    return True
+                if item == "model":  # keep current checkpoint directory for warm start
+                    return True
+                if (
+                    os.path.isfile(item_path)
+                    and item.startswith("out_")
+                    and item.endswith(".log")
+                ):
+                    return True
+                if (
+                    os.path.isfile(item_path)
+                    and item.startswith("config")
+                    and item.endswith(".yaml")
+                ):
+                    return True
+                return False
+
+            for item in os.listdir(run_dir):
+                src = os.path.join(run_dir, item)
+                if keep(item, src):
+                    continue
+                # move into timestamped archive folder
+                shutil.move(src, os.path.join(dst_root, item))
+
+        # This is to keep plot as predefined run type
+        cfg_to_save = OmegaConf.to_container(cfg, resolve=True)
+        cfg_to_save["run"]["path"] = run_dir
+        cfg_to_save["run"]["type"] = "plot"
+        config_file = os.path.join(run_dir, "config.yaml")
+        with open(config_file, "w") as f:
+            f.write(OmegaConf.to_yaml(OmegaConf.create(cfg_to_save)))
+
+        shutil.copytree(
+            "src",
+            os.path.join(run_dir, "src"),
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns(
+                "*__pycache__",
+                "*egg-info",
+                "playground",
+                "template_files",
+                "*__init__.py",
+            ),
+        )
+    elif cfg.run.type == "plot":
+        # Load already existing run directory
+        run_dir = cfg.run.path
+        if not os.path.exists(run_dir):
+            run_dir = run_dir.replace(
+                "/remote/gpu02/marino/MadRecolor/madrecolor/",
+                "/Users/jamarino/Documents/Heidelberg/Work/MadRecolor/madrecolor/",
+            )
+        old_dir = os.path.join(run_dir, "old")
+        os.makedirs(old_dir, exist_ok=True)
+        for item in os.listdir(run_dir):
+            item_path = os.path.join(run_dir, item)
+            if (
+                (
+                    os.path.isfile(item_path)
+                    and item.startswith("out_")
+                    and item.endswith(".log")
+                )
+                or item == "model"
+                or (
+                    os.path.isfile(item_path)
+                    and item.startswith("config")
+                    and item.endswith(".yaml")
+                )
+            ):
+                continue
+            if "old" in item:
+                continue
+            if not os.path.exists(os.path.join(old_dir, item)):
+                os.rename(item_path, os.path.join(old_dir, item))
+            else:
+                if os.path.isdir(item_path):
+                    shutil.rmtree(os.path.join(old_dir, item))
+                else:
+                    os.remove(os.path.join(old_dir, item))
+                os.rename(item_path, os.path.join(old_dir, item))
+
+    else:
+        raise NotImplementedError(f"Run type {cfg.run.type} not recognised")
+
+    logger = init_logger(run_dir)
+    try:
+        run(logger, run_dir, cfg)
+    except Exception as e:
+        logger.error(e, exc_info=True)
+
+
+def run(logger, run_dir, cfg: DictConfig):
+    """
+    Run training and/or plotting of the model with the given parameters.
+    """
+
+    ### INITALIZE RUN ###
+
+    logger.info(f"Starting {cfg.run.type} run in {run_dir}")
+    cuda_available = torch.cuda.is_available()
+    device = "cuda" if cuda_available else "cpu"
+    if device == "cuda":
+        torch.cuda.reset_peak_memory_stats()
+    logger.info(f"Device {device}")
+    torch.set_default_dtype(getattr(torch, cfg.backend.get("torch_dtype", "float64")))
+
+    ### INITIALIZE MLFLOW ###
+    if LOGGING_ENABLED and device == "cuda" and cfg.run.type == "train":
+        logger.info(f"Setting up MLflow tracking")
+        mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
+        mlflow.set_experiment(f"{cfg.dataset.process}")
+        mlflow.start_run(
+            run_name=(
+                cfg.model.type + cfg.run.name if cfg.run.name is not None else run_dir
+            )
+        )
+        # flatten and log top‐level params
+        for key, val in {
+            **cfg.train,
+            **cfg.model,
+            **cfg.dataset,
+            **cfg.dataset.parameterization.naive,
+            **cfg.dataset.parameterization.lorentz_products,
+            **cfg.dataset.preprocessing,
+            **{
+                "run_type": cfg.run.type,
+                "run_name": cfg.run.name,
+                "dataset": cfg.dataset,
+            },
+        }.items():
+            log_mlflow(logger, key, str(val), kind="param")
+
+    # INITIALIZE DATASET AND PREPROCESSING ###
+    logger.info(f"Dataset: {cfg.dataset.process}")
+    param_names = [
+        p for p in cfg.dataset.parameterization if cfg.dataset.parameterization[p].use
+    ]
+    logger.info(f"    Using parameterization(s): {', '.join(param_names)}")
+
+    dataset = eval(cfg.dataset.type)(logger, cfg.dataset)
+    dataset.apply_preprocessing()
+    dataset.init_observables()
+
+    ### INITIALIZE MODEL AND DATALOADERS ###
+    dims_out = 2 if cfg.train.get("loss", "MSE") == "heteroschedastic" else 1
+    dims_in = len(dataset.input_channels) - 1
+    logger.info(
+        f"Building model {cfg.model.type} with dims_in = {dims_in}, and dims_out = {dims_out}. Loss = {cfg.train.get('loss', 'heteroschedastic')}"
+    )
+    model_path = os.path.join(run_dir, "model")
+
+    model = eval(cfg.model.type)(
+        logger=logger,
+        process=cfg.dataset.process,
+        cfg=cfg,
+        dims_in=dims_in,
+        helicity_dict_size=(
+            dataset.helicity_dict_size if hasattr(dataset, "helicity_dict_size") else None
+        ),
+        dims_out=dims_out,
+        model_path=model_path,
+        device=device,
+    ).to(device)
+    model.name = (
+        cfg.model.type if cfg.model.type != "TransformerExtrapolator" else "Transformer"
+    )
+    logger.info(
+        f"    Number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+    )
+    logger.info(f"    Dropout rate: {cfg.model.get('dropout', 0.1)}")
+    if LOGGING_ENABLED:
+        log_mlflow(
+            logger,
+            "num_parameters",
+            sum(p.numel() for p in model.parameters() if p.requires_grad),
+            kind="param",
+        )
+    model.init_dataloaders(dataset)
+
+    if cfg.run.type == "train":
+        # TRAIN MODEL
+        if not cfg.train.warm_start:
+            os.makedirs(model_path, exist_ok=True)
+        else:
+            pass
+        model.train()
+        if cfg.evaluate.get("evaluate_best", False):
+            logger.info(f"Loading best model from {model_path}/best.pth")
+            try:
+                model.load("best")
+            except FileNotFoundError:
+                logger.warning(
+                    f"Best model not found in {model_path}/best.pth. Loading final model instead."
+                )
+                model.load("final")
+    elif cfg.run.type == "plot":
+        if cfg.evaluate.get("model_name", None) is not None:
+            model_name = cfg.evaluate.model_name
+            try:
+                model.load(model_name)
+                logger.info(
+                    f"Loaded model {model_name} from {model_path}/{model_name}.pth"
+                )
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"Model {model_name} not found in {model_path}/{model_name}.pth. Please train the model first."
+                )
+        else:
+            model_name = (
+                "final" if not cfg.evaluate.get("evaluate_best", False) else "best"
+            )
+            if model_name == "best":
+                try:
+                    model.load("best")
+                except FileNotFoundError:
+                    logger.warning(
+                        f"Best model not found in {model_path}/best.pth. Loading final model instead."
+                    )
+                    model.load("final")
+            else:
+                model.load("final")
+
+    ### INITIALIZE DICTS ###
+    dataset.predicted_factors_ppd = {}
+    dataset.predicted_factors_raw = {}
+    model.dataset_loss = defaultdict(dict)
+    model.evaluation_time = defaultdict(dict)
+    splits_to_evaluate_on = ["tst"]  # , "trn", "val"]
+
+    ### EVALUATE MODEL ###
+    if device == "cpu":
+        splits_to_evaluate_on = ["tst"]  # only evaluate on test set on CPU
+        torch.set_num_threads(8)
+        torch.set_num_interop_threads(8)
+
+        # Get evaluation time for a single helicity on a single CPU core
+        # For this, we will evaluate the model on the test set multiple times (10 by default)
+        import numpy as np
+
+        for k in ["tst"]:
+            times = []
+            if model.name == "LGATr":
+                n = 1
+            else:
+                n = 5
+            logger.info(f"Evaluating {k} set {n} times")
+            for _ in range(n):
+                dataset.predicted_factors_ppd[k], t0 = model.evaluate_on_cpu(split=k)
+                dataset.apply_preprocessing(reverse=True, split=k)
+                model.evaluation_time[k] = time.time() - t0
+
+                with open(os.path.join(run_dir, "timings.log"), "a") as f:
+                    f.write(
+                        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time: {model.evaluation_time[k]:.6f}\n"
+                    )
+                times.append(model.evaluation_time[k])
+            with open(os.path.join(run_dir, "timings.log"), "a") as f:
+                f.write(
+                    f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {k} eval_time_mean: {np.mean(times):.6f}, eval_time_std: {np.std(times)}\n"
+                )
+    else:
+        # dataset.predicted_factors_ppd_hels = {}
+        # dataset.predicted_factors_raw_hels = {}
+        for k in splits_to_evaluate_on:
+            t0 = time.time()
+            dataset.predicted_factors_ppd[k] = model.evaluate(split=k)
+            dataset.predicted_factors_raw[k] = dataset.apply_preprocessing(
+                reverse=True, ppd=dataset.predicted_factors_ppd[k]
+            )
+            model.evaluation_time[k] = time.time() - t0
+            logger.info(
+                f"    Evaluation time for {k} set: {model.evaluation_time[k]:.5f} seconds"
+            )
+            # model.evaluate_for_all_helicities(dataset, splits_to_evaluate_on)
+
+    if cfg.evaluate.save_samples:
+        os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+        torch.save(
+            dataset.predicted_factors_ppd[k],
+            os.path.join(run_dir, f"samples/predicted_factors_{k}.pt"),
+        )
+    if cfg.evaluate.save_data:
+        os.makedirs(os.path.join(run_dir, "samples"), exist_ok=True)
+        torch.save(
+            dataset.events[k],
+            os.path.join(run_dir, f"samples/events_{k}.pt"),
+        )
+
+    # Compute dataset loss for splits
+    for k in splits_to_evaluate_on:
+        model.compute_dataset_loss(
+            dataset.predicted_factors_raw[k],
+            dataset.events[k][:, -1],
+            split=k,
+        )
+
+    ### COMPUTE OBSERVABLES ###
+    logger.info("Computing observables")
+    compute_observables(dataset, split="tst", include_ppd=True)
+
+    ### ADD LOSSES AND EVALUATION TIMES TO METRICS ###
+    metrics_dict = defaultdict(lambda: defaultdict(dict))
+    for k in splits_to_evaluate_on:
+        for m in model.dataset_loss.keys():
+            metrics_dict[k][m]["loss"] = Metric(
+                name=f"{k} ({m}) loss",
+                value=model.dataset_loss[m][k],
+                tex_label=rf"\text{{loss}}",
+                unit="",
+            )
+            metrics_dict[k][m]["eval_time"] = Metric(
+                name=f"{k} eval_time",
+                value=model.evaluation_time[k],
+                tex_label=rf"t_{{\text{{eval}}}}",
+                format="{:.3f}",
+                unit="s",
+            )
+
+    ### MAKE PLOTS ###
+    logger.info(f"Starting plots")
+    plots = Plots(
+        logger,
+        dataset,
+        model.losses if hasattr(model, "losses") else None,
+        metrics=metrics_dict,
+        process=cfg.dataset.process,
+        regress=cfg.dataset.get("regress", "r"),
+        debug=False,
+        model_name=model.name,
+        loss_name=cfg.train.get("loss", "MSE"),
+    )
+
+    percentage_of_ratio_data = (
+        99.0  # showing 99% to avoid the massive (very few) outliers
+    )
+
+    if cfg.evaluate.get("save_lines", False):
+        os.makedirs(os.path.join(run_dir, "pkl"), exist_ok=True)
+    if hasattr(model, "losses"):
+        logger.info(f"    Plotting train metrics")
+        plots.plot_train_metrics(os.path.join(run_dir, f"train_metrics.pdf"), logy=True)
+    # logger.info(f"    Plotting observables")
+    # plots.plot_observables(os.path.join(run_dir, f"observables.pdf"))
+    # logger.info(f"    Plotting ppd observables")
+    # plots.plot_observables_ppd(os.path.join(run_dir, f"observables_ppd.pdf"))
+    logger.info(f"    Plotting regressed factors and ratio correlations")
+    for k in splits_to_evaluate_on:
+        for ppd_flag, ppd_s in zip([False, True], ["", "_ppd"]):
+            logger.info(
+                f"        Plotting {k} set and { {True : 'ppd', False : 'raw'}[ppd_flag] }..."
+            )
+            plots.plot_weights(
+                os.path.join(run_dir, f"factors{ppd_s}_{k}.pdf"),
+                split=k,
+                ppd=ppd_flag,
+                percentage_of_ratio_data=percentage_of_ratio_data,
+                pickle_file=(
+                    os.path.join(run_dir, "pkl", f"factors{ppd_s}_{k}.pkl")
+                    if cfg.evaluate.get("save_lines", False)
+                    else None
+                ),
+                fix_bins=cfg.evaluate.get("save_lines", False),
+            )
+            plots.plot_2d_correlations(
+                os.path.join(run_dir, f"ratio_corr{ppd_s}_{k}.pdf"),
+                split=k,
+                ppd=ppd_flag,
+                percentage_of_ratio_data=percentage_of_ratio_data,
+                pickle_file=(
+                    os.path.join(run_dir, "pkl", f"ratio_corr{ppd_s}_{k}.pkl")
+                    if cfg.evaluate.get("save_lines", False)
+                    else None
+                ),
+                fix_bins=cfg.evaluate.get("save_lines", False),
+            )
+
+    if device == "cuda":
+        max_used = torch.cuda.max_memory_allocated()
+        free, total = torch.cuda.mem_get_info()
+        currently_used = total - free
+        logger.info(
+            f"GPU RAM info: currently_used = {currently_used/1e9:.2f} GB, peak_used = {max_used/1e9:.2f} GB, total available= {total/1e9:.2f} GB. Peak usage percentage = {max_used/total*100:.2f}%."
+        )
+    logger.info("Run finished")

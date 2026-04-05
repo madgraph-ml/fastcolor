@@ -10,9 +10,9 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from .datasets.dataset import compute_observables
-from .datasets.gluons import gg_ng  # all gluons
-from .datasets.gluons import (  # one quark line; two quark lines with different COs
+from ..datasets.dataset import compute_observables
+from ..datasets.gluons import gg_ng  # all gluons
+from ..datasets.gluons import (  # one quark line; two quark lines with different COs
     dbard_ng,
     ddbar_uubarng_co1,
     ddbar_uubarng_co2,
@@ -20,16 +20,23 @@ from .datasets.gluons import (  # one quark line; two quark lines with different
     gg_ddbaruubarng_co1,
     gg_ddbaruubarng_co2,
 )
-from .models.lgatr import LGATr
-from .models.models import GNN, MLP, Transformer, TransformerExtrapolator
-from .models.train import Model
+from ..models.lgatr import LGATr
+from ..models.models import GNN, MLP, Transformer, TransformerExtrapolator
+from ..models.train import Model
 
-# from lgatr import LGATr as LGATr_legacy
 from .plots import Plots
-from .utils.logger import setup_logging
-from .utils.mlflow import LOGGING_ENABLED, log_mlflow, mlflow
-from .utils.plots_utils import Metric
+from ..utils.logger import setup_logging
+from ..utils.mlflow import LOGGING_ENABLED, log_mlflow, mlflow
+from ..utils.plots_utils import Metric
 
+from madnis.integrator import (
+    Integrator,
+    kl_divergence,
+    rkl_divergence,
+    stratified_variance,
+    # VegasPreTraining,
+    # stratified_variance_softclip,
+)
 
 def init_logger(run_dir):
     """
