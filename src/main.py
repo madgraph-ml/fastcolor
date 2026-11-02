@@ -11,14 +11,14 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from .datasets.dataset import compute_observables
-from .datasets.gluons import gg_ng  # all gluons
-from .datasets.gluons import (  # one quark line; two quark lines with different COs
+from .datasets.gluons import (  # one quark line; two quark lines with different COs; all gluons
     dbard_ng,
     ddbar_uubarng_co1,
     ddbar_uubarng_co2,
     gg_ddbarng,
     gg_ddbaruubarng_co1,
     gg_ddbaruubarng_co2,
+    gg_ng,
 )
 from .models.lgatr import LGATr
 from .models.models import GNN, MLP, Transformer, TransformerExtrapolator

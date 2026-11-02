@@ -148,7 +148,7 @@ class gg_ng:
 
         if self.channels == []:
             # Use all of channels by default
-            self.input_channels = [i for i in range(events.shape[1])]
+            self.input_channels = [*range(events.shape[1])]
             if self.cfg.embed_helicities.use:
                 self.channels_to_preprocess = [
                     i for i in self.input_channels if i != helicity_channel
